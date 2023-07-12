@@ -54,7 +54,7 @@ kernel:
 $(IMAGE_NAME).iso: limine kernel
 	rm -rf iso_root
 	mkdir -p iso_root
-	cp -v ../src/kernel/kernel.elf \
+	cp -v ../src/kernel/enkel_boot.elf \
 		limine.cfg limine/limine-bios.sys limine/limine-bios-cd.bin limine/limine-uefi-cd.bin iso_root/
 	mkdir -p iso_root/EFI/BOOT
 	cp -v limine/BOOTX64.EFI iso_root/EFI/BOOT/
@@ -79,7 +79,7 @@ $(IMAGE_NAME).hdd: limine kernel
 	mkdir -p img_mount
 	sudo mount `cat loopback_dev`p1 img_mount
 	sudo mkdir -p img_mount/EFI/BOOT
-	sudo cp -v ../src/kernel/kernel.elf limine.cfg limine/limine-bios.sys img_mount/
+	sudo cp -v ../src/kernel/enkel_boot.elf limine.cfg limine/limine-bios.sys img_mount/
 	sudo cp -v limine/BOOTX64.EFI img_mount/EFI/BOOT/
 	sudo cp -v limine/BOOTIA32.EFI img_mount/EFI/BOOT/
 	sync
