@@ -30,3 +30,12 @@
 *.exe
 *.out
 *.app
+
+# Limine and products
+/limine/limine
+/ovmf
+*.iso
+*.hdd
+
+# Misc
+*.lnk
