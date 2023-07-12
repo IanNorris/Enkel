@@ -2,6 +2,9 @@
 #include <stddef.h>
 #include <limine.h>
 
+#include "Jura.h"
+#include "Jura_0.h"
+
 // The Limine requests can be placed anywhere, but it is important that
 // the compiler does not optimise them away, so, usually, they should
 // be made volatile or equivalent.
@@ -88,12 +91,25 @@ void _start(void) {
 
     // Fetch the first framebuffer.
     struct limine_framebuffer *framebuffer = framebuffer_request.response->framebuffers[0];
+	
+	char* imageDataWithoutHeader = Jura_0_tga_data +  18;
+	uint32_t* imageDataWithoutHeaderU32 = (uint32_t*)imageDataWithoutHeader;
 
-    // Note: we assume the framebuffer model is RGB with 32-bit pixels.
-    for (size_t i = 0; i < 200; i++) {
-        uint32_t *fb_ptr = framebuffer->address;
-        fb_ptr[i * (framebuffer->pitch / 4) + i] = 0xffffff;
-    }
+	for(int page = 0; page < 4; page++)
+	{
+		uint32_t mask = 0xFF << (page * 8);
+		// Note: we assume the framebuffer model is RGB with 32-bit pixels.
+		for (size_t i = 0; i < 256; i++) {
+			for (size_t j = 0; j < 256; j++) {
+				uint32_t *fb_ptr = framebuffer->address;
+				uint32_t glyph_col = (imageDataWithoutHeaderU32[(j * 256) + i] & mask) >> (page * 8);
+				glyph_col |= glyph_col << 8 | glyph_col;
+				glyph_col |= glyph_col << 16 | glyph_col;
+				glyph_col |= glyph_col << 24 | glyph_col;
+				fb_ptr[j * (framebuffer->pitch / 4) + i + (page * 256)] = glyph_col;
+			}
+		}
+	}
 
     // We're done, just hang...
     hcf();

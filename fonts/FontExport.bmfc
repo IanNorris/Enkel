@@ -1,0 +1,67 @@
+# AngelCode Bitmap Font Generator configuration file
+fileVersion=1
+
+# font settings
+fontName=Jura
+fontFile=
+charSet=0
+fontSize=32
+aa=1
+scaleH=100
+useSmoothing=1
+isBold=0
+isItalic=0
+useUnicode=1
+disableBoxChars=1
+outputInvalidCharGlyph=0
+dontIncludeKerningPairs=0
+useHinting=1
+renderFromOutline=0
+useClearType=1
+autoFitNumPages=0
+autoFitFontSizeMin=0
+autoFitFontSizeMax=0
+
+# character alignment
+paddingDown=0
+paddingUp=0
+paddingRight=0
+paddingLeft=0
+spacingHoriz=1
+spacingVert=1
+useFixedHeight=0
+forceZero=0
+widthPaddingFactor=0.00
+
+# output file
+outWidth=256
+outHeight=256
+outBitDepth=32
+fontDescFormat=2
+fourChnlPacked=1
+textureFormat=tga
+textureCompression=0
+alphaChnl=2
+redChnl=2
+greenChnl=2
+blueChnl=2
+invA=0
+invR=0
+invG=0
+invB=0
+
+# outline
+outlineThickness=0
+
+# selected chars
+chars=0-0,13,32-126,160-305,308-328,330-382,399,402,416-417,431-432,452-460,486-487,490-491,497-499,506
+chars=507-539,554-557,560-563,567,601,700,710-711,713,728-733,768-772,774-780,783,785-787,795,803-804
+chars=806-808,814,817,820-824,834-837,884-885,890,894,900-906,908,910-929,931-975,983,1024-1036,1038-1116
+chars=1118-1119,1122-1123,1138-1139,1168-1169,7682-7683,7690-7691,7710-7711,7744-7745,7766-7767,7776-7777
+chars=7786-7787,7808-7813,7838,7840-7929,7936-7957,7960-7965,7968-8005,8008-8013,8016-8023,8025,8027,8029
+chars=8031-8061,8064-8116,8118-8132,8134-8147,8150-8155,8157-8175,8178-8180,8182-8190,8211-8213,8216-8218
+chars=8220-8222,8224-8226,8230,8240,8249-8250,8260,8308,8353,8355-8356,8358-8359,8361,8363-8365,8369-8370
+chars=8373,8377-8378,8380-8381,8470-8471,8482,8486,8706,8710,8719,8721-8722,8725,8729-8730,8734,8747,8776
+chars=8800,8804-8805,9674,43264-43311,64257-64258,65533
+
+# imported icon images

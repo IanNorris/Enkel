@@ -5,6 +5,12 @@ override MAKEFLAGS += -rR
 # Change as needed.
 override KERNEL := enkel_boot.elf
 
+# The name of the font
+FONT_NAME := Jura
+FONT_ROOT := ../../fonts
+FONT_C_FILES := $(FONT_ROOT)/$(FONT_NAME).c $(FONT_ROOT)/$(FONT_NAME)_0.c
+FONT_H_FILES := $(FONT_ROOT)/$(FONT_NAME).h  $(FONT_ROOT)/$(FONT_NAME)_0.h 
+
 # Convenience macro to reliably declare user overridable variables.
 define DEFAULT_VAR =
     ifeq ($(origin $1),default)
@@ -58,7 +64,8 @@ override CFLAGS += \
     -mno-mmx \
     -mno-sse \
     -mno-sse2 \
-    -mno-red-zone
+    -mno-red-zone \
+    -I $(FONT_ROOT)
 
 # Internal C preprocessor flags that should not be changed by the user.
 override CPPFLAGS := \
@@ -85,7 +92,7 @@ override NASMFLAGS += \
 
 # Use "find" to glob all *.c, *.S, and *.asm files in the tree and obtain the
 # object and header dependency file names.
-override CFILES := $(shell find -L . -type f -name '*.c')
+override CFILES := $(shell find -L . -type f -name '*.c') $(FONT_C_FILES)
 override ASFILES := $(shell find -L . -type f -name '*.S')
 override NASMFILES := $(shell find -L . -type f -name '*.asm')
 override OBJ := $(CFILES:.c=.c.o) $(ASFILES:.S=.S.o) $(NASMFILES:.asm=.asm.o)
@@ -93,10 +100,15 @@ override HEADER_DEPS := $(CFILES:.c=.c.d) $(ASFILES:.S=.S.d)
 
 # Default target.
 .PHONY: all
-all: $(KERNEL)
+all: $(KERNEL) $(FONT_C_FILES) $(FONT_H_FILES)
+
+$(FONT_C_FILES) $(FONT_H_FILES): fonts
 
 limine.h:
 	curl -Lo $@ https://github.com/limine-bootloader/limine/raw/trunk/limine.h
+	
+fonts: 
+	$(MAKE) -C ../../fonts
 
 # Link rules for the final kernel executable.
 $(KERNEL): $(OBJ)
@@ -125,3 +137,4 @@ clean:
 .PHONY: distclean
 distclean: clean
 	rm -f limine.h
+
