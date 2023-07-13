@@ -65,7 +65,8 @@ override CFLAGS += \
     -mno-sse \
     -mno-sse2 \
     -mno-red-zone \
-    -I $(FONT_ROOT)
+    -I $(FONT_ROOT) \
+	-I ../../inc
 
 # Internal C preprocessor flags that should not be changed by the user.
 override CPPFLAGS := \

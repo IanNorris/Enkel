@@ -1,0 +1,41 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.6.33815.320
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{D954291E-2A0B-460D-934E-DC6B0785DB48}") = "Enkel", "Enkel.shproj", "{22F07763-F744-4FC1-B31A-C03039142B72}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{DDE565C2-0A83-4E35-BAF8-924289ECD9F6}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FontTest", "Tests\FontTest\FontTest.vcxproj", "{561BF69C-9975-4E84-8988-36B3D746A200}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{561BF69C-9975-4E84-8988-36B3D746A200}.Debug|x64.ActiveCfg = Debug|x64
+		{561BF69C-9975-4E84-8988-36B3D746A200}.Debug|x64.Build.0 = Debug|x64
+		{561BF69C-9975-4E84-8988-36B3D746A200}.Debug|x86.ActiveCfg = Debug|Win32
+		{561BF69C-9975-4E84-8988-36B3D746A200}.Debug|x86.Build.0 = Debug|Win32
+		{561BF69C-9975-4E84-8988-36B3D746A200}.Release|x64.ActiveCfg = Release|x64
+		{561BF69C-9975-4E84-8988-36B3D746A200}.Release|x64.Build.0 = Release|x64
+		{561BF69C-9975-4E84-8988-36B3D746A200}.Release|x86.ActiveCfg = Release|Win32
+		{561BF69C-9975-4E84-8988-36B3D746A200}.Release|x86.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{561BF69C-9975-4E84-8988-36B3D746A200} = {DDE565C2-0A83-4E35-BAF8-924289ECD9F6}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {9838FD31-8A09-4546-A54E-D8904252DE88}
+	EndGlobalSection
+	GlobalSection(SharedMSBuildProjectFiles) = preSolution
+		Enkel.projitems*{22f07763-f744-4fc1-b31a-c03039142b72}*SharedItemsImports = 13
+	EndGlobalSection
+EndGlobal

@@ -19,14 +19,14 @@ def main():
 
     # write .c file
     with open(target_filename + '.c', 'w') as f:
-        f.write('const char ' + data_variable_name + '[] = {')
+        f.write('const unsigned char ' + data_variable_name + '[] = {')
         f.write(','.join(f"{x:#0{4}x}" for x in data))
         f.write('};\n')
         f.write('const unsigned int ' + base_filename + file_ext + '_size = sizeof(' + data_variable_name + ');\n')
 
     # write .h file
     with open(target_filename + '.h', 'w') as f:
-        f.write('extern const char ' + data_variable_name + '[];\n')
+        f.write('extern const unsigned char ' + data_variable_name + '[];\n')
         f.write('extern const unsigned int ' + base_filename + file_ext + '_size;\n')
 
 if __name__ == '__main__':
