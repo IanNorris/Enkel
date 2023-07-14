@@ -6,11 +6,21 @@ BOOT_IMAGE=efi.img
 OUTPUT_ISO=enkel.iso
 BIOS_BIN=ovmf_bios.bin
 
+BOOTLOADER_ROOT=../src/bootloader
+BOOTLOADER=$(BOOTLOADER_ROOT)/bootloader
+BOOTLOADER_OUT=boot_part/efi/boot/bootx64.efi
+
 # Default target.
 .PHONY: all
 all: $(OUTPUT_ISO)
 
-$(BOOT_IMAGE): boot_part/efi/boot/bootx64.efi
+$(BOOTLOADER):
+	make -C $(BOOTLOADER_ROOT)
+	
+$(BOOTLOADER_OUT): $(BOOTLOADER)
+	cp $(BOOTLOADER) $(BOOTLOADER_OUT)
+
+$(BOOT_IMAGE): boot_part/efi/boot/bootx64.efi $(BOOTLOADER_OUT)
 	dd if=/dev/zero of=$(BOOT_IMAGE) bs=512 count=2880
 	mkfs.fat -n '$(ISO_LABEL)' $(BOOT_IMAGE)
 	mcopy -s -i $(BOOT_IMAGE) boot_part/* ::
