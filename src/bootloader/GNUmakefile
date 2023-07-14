@@ -13,8 +13,7 @@ $(VENDOR_ROOT) c-efi:
 	make -C $(VENDOR_ROOT)
 
 override CFILES := $(shell find -L . -type f -name '*.c')
-override OFILES := $(shell find -L . -type f -name '*.o')
 
 $(OUTPUT_NAME): c-efi $(CFILES)
 	clang $(C_ARGS) $(CFILES) -c
-	clang $(LINK_ARGS) $(OFILES) -o $(OUTPUT_NAME)
+	clang $(LINK_ARGS) $(shell find -L . -type f -name '*.o') -o $(OUTPUT_NAME)
