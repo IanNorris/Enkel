@@ -1,24 +1,18 @@
-/*
- * UEFI Hello World
- *
- * This is the classic 'Hello World' example written against c-efi. It uses the
- * standard console to print a string, then waits for any key-event before
- * exiting.
- */
-
 #include <c-efi.h>
 
-CEfiStatus efi_main(CEfiHandle h, CEfiSystemTable *st) {
-        CEfiStatus r;
-        CEfiUSize x;
+CEfiStatus efi_main(CEfiHandle imageHandle, CEfiSystemTable* systemTable)
+{
+	systemTable->con_out->reset(systemTable->con_out, 0);
 
-        r = st->con_out->output_string(st->con_out, L"Hello World!\n");
-        if (C_EFI_ERROR(r))
-                return r;
+	systemTable->con_out->output_string(systemTable->con_out, L"Starting Enkel...\r\n1");
 
-        r = st->boot_services->wait_for_event(1, &st->con_in->wait_for_key, &x);
-        if (C_EFI_ERROR(r))
-                return r;
 
-        return 0;
+
+	systemTable->con_out->output_string(systemTable->con_out, L"2");
+
+	systemTable->con_out->output_string(systemTable->con_out, L"3");
+
+	while (1);
+
+	return 0;
 }
