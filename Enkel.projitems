@@ -13,5 +13,7 @@
     <None Include="**/*.c" />
     <None Include="**/*.h" />
     <None Include="**/*.cpp" />
+	<None Include="**/GNUmakefile" />
+	<None Include="**/*.py" />
   </ItemGroup>
 </Project>
