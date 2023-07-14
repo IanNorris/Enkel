@@ -1,7 +1,7 @@
 # Nuke built-in rules and variables.
 override MAKEFLAGS += -rR
 
-override IMAGE_NAME := barebones
+override IMAGE_NAME := enkel
 
 # Convenience macro to reliably declare user overridable variables.
 define DEFAULT_VAR =
