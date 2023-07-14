@@ -1,5 +1,3 @@
-# PREP:
-# sudo apt install mtools genisoimage
 
 # See also: https://github.com/syzdek/efibootiso
 
