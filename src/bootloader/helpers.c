@@ -44,6 +44,19 @@ int witoabuf(CEfiChar16* buffer, int value, int base)
 	return offset;
 }
 
+int ascii_to_wide(CEfiChar16* bufferOut, const char* bufferIn, int bufferOutBytes)
+{
+	int index = 0;
+	while (bufferIn[index] != '\0' && index < bufferOutBytes)
+	{
+		bufferOut[index] = bufferIn[index];
+		index++;
+	}
+	bufferOut[index] = '\0';
+
+	return index;
+}
+
 void Print(CEfiSystemTable* systemTable, CEfiChar16* message)
 {
 	systemTable->con_out->output_string(systemTable->con_out, message);

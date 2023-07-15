@@ -37,7 +37,6 @@ $(KERNEL_OUT): $(KERNEL)
 	cp $(KERNEL) $(KERNEL_OUT)
 
 $(BOOT_IMAGE): $(BOOTLOADER_OUT) $(KERNEL_OUT)
-	echo "Hello"
 	#Calculate the actual size of the boot partition folder
 	$(eval BOOT_PART_SIZE := $(shell du -cb $(BOOT_PART) | tail -n 1 | awk '{print $$1}'))
 	#Now calculate how many sectors we need by inflating it by about 30% and adding 512kb on top.
@@ -45,7 +44,7 @@ $(BOOT_IMAGE): $(BOOTLOADER_OUT) $(KERNEL_OUT)
 	# Size needed is $(BOOT_PART_SIZE_SECTORS) sectors.
 
 	dd if=/dev/zero of=$(BOOT_IMAGE) bs=$(SECTOR_SIZE) count=$(BOOT_PART_SIZE_SECTORS)
-	mkfs.fat -n '$(ISO_LABEL)' $(BOOT_IMAGE)
+	mkfs.fat -F 12 -n '$(ISO_LABEL)' $(BOOT_IMAGE)
 	mcopy -s -i $(BOOT_IMAGE) $(BOOT_PART)/* ::
 	
 $(BIOS_BIN):

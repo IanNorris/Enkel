@@ -376,6 +376,5 @@ boot_iso/boot_part/*
 boot_iso/iso_content/efi.img
 boot_iso/efi.img
 boot_iso/ovmf_bios.bin
-vendor/gnu-efi
 src/bootloader/bootloader
 
