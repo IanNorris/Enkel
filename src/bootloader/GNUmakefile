@@ -13,7 +13,13 @@ $(VENDOR_ROOT) c-efi:
 	make -C $(VENDOR_ROOT)
 
 override CFILES := $(shell find -L . -type f -name '*.c')
+override HFILES := $(shell find -L . -type f -name '*.h') bootloader_build.h
+override OFILES := $(CFILES:.c=.c.o)
 
-$(OUTPUT_NAME): c-efi $(CFILES)
+bootloader_build.h:
+	echo "#define BOOTLOADER_BUILD_ID L\"$(shell git rev-parse HEAD | cut -c 1-8) $(shell date '+%FT %T')\"" > bootloader_build.h
+
+$(OUTPUT_NAME): c-efi $(CFILES) $(HFILES)
 	clang $(C_ARGS) $(CFILES) -c
 	clang $(LINK_ARGS) $(shell find -L . -type f -name '*.o') -o $(OUTPUT_NAME)
+	rm bootloader_build.h
