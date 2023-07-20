@@ -1,5 +1,9 @@
 #include "helpers.h"
+#include "memory/memory.h"
 #include "bootloader_build.h"
+//#include "fat16.h"
+
+//void load_image(CEfiSystemTable* systemTable, void* imageBase);
 
 CEfiStatus efi_main(CEfiHandle imageHandle, CEfiSystemTable* systemTable)
 {
@@ -21,25 +25,13 @@ CEfiStatus efi_main(CEfiHandle imageHandle, CEfiSystemTable* systemTable)
 	CEfiLoadedImageProtocol* loadedImageService;
 	ERROR_CHECK(bootServices->handle_protocol(imageHandle , &loadedImageServiceGuid, (void**)&loadedImageService), L"LI service");
 
-	CEfiChar16 buffer[16];
+	//load_image(systemTable, loadedImageService->image_base);
 	
-	Print(systemTable, L"\r\n\r\n");
-
-	for (int byte = 0; byte < 128; byte += 16)
-	{
-		for (int byteOffset = 0; byteOffset < 16; byteOffset++)
-		{
-			witoabuf(buffer, ((unsigned char*)loadedImageService->image_base)[byte + byteOffset], 16);
-
-			Print(systemTable, buffer);
-			Print(systemTable, L" ");
-		}
-		Print(systemTable, L"\r\n");
-	}
+	
+	
 
 	Print(systemTable, L"\r\n");
 		
-	
 	Print(systemTable, L"2");
 
 	Print(systemTable, L"3");
@@ -51,4 +43,87 @@ CEfiStatus efi_main(CEfiHandle imageHandle, CEfiSystemTable* systemTable)
 	}
 
 	return 0;
+}
+
+/*
+BLOCKDEV memoryDevice;
+uint32_t memoryPosition;
+void* bootImage;
+
+
+void mem_seek(const uint32_t pos)
+{
+	memoryPosition = pos;
+}
+
+void mem_rseek(const int16_t pos)
+{
+	memoryPosition += pos;
+}
+
+void mem_load(void* dest, const uint16_t len)
+{
+	memcpy(dest, ((char*)bootImage) + memoryPosition, len);
+	memoryPosition += len;
+}
+
+void mem_store(const void* source, const uint16_t len)
+{
+}
+
+void mem_write(const uint8_t b)
+{
+}
+
+uint8_t mem_read()
+{
+	return *(((char*)bootImage) + memoryPosition++);
+}
+
+void mem_open()
+{
+	memoryDevice.read = &mem_read;
+	memoryDevice.write = &mem_write;
+
+	memoryDevice.load = &mem_load;
+	memoryDevice.store = &mem_store;
+
+	memoryDevice.seek = &mem_seek;
+	memoryDevice.rseek = &mem_rseek;
+}
+
+void mem_close()
+{
+	bootImage = 0;
+	memoryPosition = 0;
+}
+*/
+void load_image(CEfiSystemTable* systemTable, void* imageBase)
+{
+	//mem_open();
+
+	//bootImage = imageBase;
+
+/*	// Initialize the FS
+	FAT16 fat;
+	ff_init(&memoryDevice, &fat);
+
+	FFILE file;
+	ff_root(&fat, &file);
+
+	char str[12];
+	CEfiChar16 buffer[64];
+
+	do
+	{
+		if (!ff_is_regular(&file))
+			continue;
+
+		ff_dispname(&file, str);
+		ascii_to_wide(buffer, str, sizeof(buffer));
+
+		Print(systemTable, buffer);
+
+	} while (ff_next(&file));
+	*/
 }

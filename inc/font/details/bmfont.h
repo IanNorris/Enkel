@@ -1,6 +1,8 @@
 #pragma once
 
-#include "common/types.h"
+#ifndef TESTBED
+    #include "common/types.h"
+#endif
 
 #pragma pack(push, 1)
 

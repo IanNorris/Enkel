@@ -1,7 +1,7 @@
 
 # See also: https://github.com/syzdek/efibootiso
 
-ISOLABEL=ENKEL
+ISO_LABEL=ENKEL
 BOOT_IMAGE=efi.img
 OUTPUT_ISO=enkel.iso
 BIOS_BIN=ovmf_bios.bin
@@ -16,7 +16,7 @@ KERNEL=$(KERNEL_ROOT)/enkel_boot.elf
 BOOTLOADER_OUT_DIR=$(BOOT_PART)/efi/boot
 BOOTLOADER_OUT=$(BOOTLOADER_OUT_DIR)/bootx64.efi
 KERNEL_OUT_DIR=$(BOOT_PART)/kernel
-KERNEL_OUT=$(KERNEL_OUT_DIR)/enkel_boot.elf
+KERNEL_OUT=$(KERNEL_OUT_DIR)/enkel.elf
 
 # Default target.
 .PHONY: all

@@ -9,6 +9,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{DDE565C2
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FontTest", "Tests\FontTest\FontTest.vcxproj", "{561BF69C-9975-4E84-8988-36B3D746A200}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FAT12Test", "Tests\FAT12Test\FAT12Test.vcxproj", "{4BE478FD-E1CA-4956-9683-69F51556F15C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -25,12 +27,21 @@ Global
 		{561BF69C-9975-4E84-8988-36B3D746A200}.Release|x64.Build.0 = Release|x64
 		{561BF69C-9975-4E84-8988-36B3D746A200}.Release|x86.ActiveCfg = Release|Win32
 		{561BF69C-9975-4E84-8988-36B3D746A200}.Release|x86.Build.0 = Release|Win32
+		{4BE478FD-E1CA-4956-9683-69F51556F15C}.Debug|x64.ActiveCfg = Debug|x64
+		{4BE478FD-E1CA-4956-9683-69F51556F15C}.Debug|x64.Build.0 = Debug|x64
+		{4BE478FD-E1CA-4956-9683-69F51556F15C}.Debug|x86.ActiveCfg = Debug|Win32
+		{4BE478FD-E1CA-4956-9683-69F51556F15C}.Debug|x86.Build.0 = Debug|Win32
+		{4BE478FD-E1CA-4956-9683-69F51556F15C}.Release|x64.ActiveCfg = Release|x64
+		{4BE478FD-E1CA-4956-9683-69F51556F15C}.Release|x64.Build.0 = Release|x64
+		{4BE478FD-E1CA-4956-9683-69F51556F15C}.Release|x86.ActiveCfg = Release|Win32
+		{4BE478FD-E1CA-4956-9683-69F51556F15C}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{561BF69C-9975-4E84-8988-36B3D746A200} = {DDE565C2-0A83-4E35-BAF8-924289ECD9F6}
+		{4BE478FD-E1CA-4956-9683-69F51556F15C} = {DDE565C2-0A83-4E35-BAF8-924289ECD9F6}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {9838FD31-8A09-4546-A54E-D8904252DE88}

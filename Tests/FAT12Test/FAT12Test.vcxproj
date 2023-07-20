@@ -21,8 +21,8 @@
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{561bf69c-9975-4e84-8988-36b3d746a200}</ProjectGuid>
-    <RootNamespace>FontTest</RootNamespace>
+    <ProjectGuid>{4be478fd-e1ca-4956-9683-69f51556f15c}</ProjectGuid>
+    <RootNamespace>FAT12Test</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -129,7 +129,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="FontTest.cpp" />
+    <ClCompile Include="FAT12Test.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
