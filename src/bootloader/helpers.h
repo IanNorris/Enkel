@@ -1,15 +1,13 @@
 #pragma once
 
+#define _Bool bool
 #include <c-efi.h>
 
 #define ONE_SECOND 1000000
-#define ERROR_CHECK(expression, message) CheckStatus( systemTable, (expression), message )
+#define ERROR_CHECK(expression, message) CheckStatus( (expression), message )
 
-void Print(CEfiSystemTable* systemTable, CEfiChar16* message);
-void CheckStatus(CEfiSystemTable* systemTable, CEfiStatus status, CEfiChar16* message);
+void InitHelpers(CEfiSystemTable* systemTable);
+void Print(const char16_t* message);
+void CheckStatus(CEfiStatus status, const char16_t* message);
 
-void Halt(CEfiSystemTable* systemTable, CEfiStatus status, CEfiChar16* message);
-
-int witoabuf(CEfiChar16* buffer, int value, int base);
-
-int ascii_to_wide(CEfiChar16* bufferOut, const char* bufferIn, int bufferOutBytes);
+void Halt(CEfiStatus status, const char16_t* message);

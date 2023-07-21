@@ -18,7 +18,7 @@ def main():
     data_variable_name = base_filename + file_ext + '_data'
 
     # write .c file
-    with open(target_filename + '.c', 'w') as f:
+    with open(target_filename + '.cpp', 'w') as f:
         f.write('const unsigned char ' + data_variable_name + '[] = {')
         f.write(','.join(f"{x:#0{4}x}" for x in data))
         f.write('};\n')

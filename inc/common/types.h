@@ -13,3 +13,8 @@
 #ifndef BOOL
 #define BOOL uint8_t
 #endif
+
+void AssertionFailed(const char* expression, const char* message, const char* filename, size_t lineNumber);
+
+#define _ASSERT(x) _ASSERTF(x, nullptr)
+#define _ASSERTF(x, message) if( !(x) ) { AssertionFailed(#x, message, __FILE__, __LINE__); }

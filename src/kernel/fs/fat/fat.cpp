@@ -1,65 +1,6 @@
-#include <iostream>
-
-#include <stdio.h>
-#include <string.h>
-
-#pragma pack(push, 1)
-#include "../../vendor/msdosfs/bootsect.h"
-#include "../../vendor/msdosfs/bpb.h"
-#include "../../vendor/msdosfs/direntry.h"
-#include "../../vendor/msdosfs/fat.h"
-#pragma pack(pop)
-
-#include <fstream>
-#include <vector>
-#include <iostream>
-
-std::vector<uint8_t> readFileIntoByteArray(const std::string& filePath)
-{
-    std::vector<uint8_t> buffer;
-
-    // Open the stream
-    std::ifstream file(filePath, std::ios::binary);
-
-    // Check if we opened the file correctly
-    if (!file.is_open()) {
-        std::cerr << "Failed to open file: " << filePath << "\n";
-        return {};
-    }
-
-    // Seek to the end of the file
-    file.seekg(0, std::ios::end);
-
-    // Get the file size
-    std::streamsize size = file.tellg();
-
-    // Seek back to the beginning of the file
-    file.seekg(0, std::ios::beg);
-
-    // Create a vector to hold the data
-    buffer.resize(size);
-
-    // Read the file
-    if (!file.read((char*)buffer.data(), size)) {
-        std::cerr << "Failed to read file: " << filePath << "\n";
-        return {};
-    }
-
-    // Close the file
-    file.close();
-
-    // Return the buffer
-    return buffer;
-}
-
-enum FILE_SYSTEM_FAT
-{
-    FILE_SYSTEM_FAT_NONE,
-
-    FILE_SYSTEM_FAT_12,
-    FILE_SYSTEM_FAT_16,
-    FILE_SYSTEM_FAT_32,
-};
+#include "fs/fat/fat.h"
+#include "memory/memory.h"
+#include "common/string.h"
 
 FILE_SYSTEM_FAT GetFileSystemType(const uint8_t* dataPtr)
 {
@@ -71,66 +12,36 @@ FILE_SYSTEM_FAT GetFileSystemType(const uint8_t* dataPtr)
         //Can read these variables as they alias in all three FATs.
         bpb33* bpb = (bpb33*)(bootsect->bs33.bsBPB);
         uint32_t clusterCount = bpb->bpbSectors / bpb->bpbSecPerClust;
-        
+
         if (clusterCount < 4085)
         {
-			return FILE_SYSTEM_FAT_12;
-		}
+            return FILE_SYSTEM_FAT_12;
+        }
         else if (clusterCount < 65525)
         {
-			return FILE_SYSTEM_FAT_16;
-		}
+            return FILE_SYSTEM_FAT_16;
+        }
         else
         {
-			return FILE_SYSTEM_FAT_32;
-		}
+            return FILE_SYSTEM_FAT_32;
+        }
     }
 
     return FILE_SYSTEM_FAT_NONE;
 }
 
-size_t IndexOfChar(const char* input, char c)
-{
-    uint32_t index = 0;
-    while (input[index] != '\0')
-    {
-        if (input[index] == c)
-        {
-            return index;
-        }
-        index++;
-    }
-    return -1;
-}
-
-size_t IndexOfSeparator(const char* input)
-{
-	uint32_t index = 0;
-    while (input[index] != '\0')
-    {
-        if (input[index] == '\\' || input[index] == '/')
-        {
-            return index;
-        }
-		index++;
-	}
-	return -1;
-}
-
-char LongFilenameBuffer[WIN_MAXLEN+1];
-
 struct direntry* GetFileCluster(const uint8_t* dataPtr, struct direntry* dirEntry, bpb33* bpb, uint32_t dirEntries, const char* filenameRemaining)
 {
     char filename[12];
-    
+
     size_t indexOfSeparator = IndexOfSeparator(filenameRemaining);
     size_t length = indexOfSeparator == -1 ? strlen(filenameRemaining) : indexOfSeparator;
 
     if (length > 11)
     {
         _ASSERT(false);
-		return NULL;
-	}
+        return NULL;
+    }
 
     size_t indexOfDot = indexOfSeparator == -1 ? IndexOfChar(filenameRemaining, '.') : -1;
 
@@ -152,8 +63,6 @@ struct direntry* GetFileCluster(const uint8_t* dataPtr, struct direntry* dirEntr
         }
     }
 
-    const char* currentLongFilename = LongFilenameBuffer;
-    
     // Search for the file in the root directory
     for (uint32_t i = 0; i < dirEntries; i++)
     {
@@ -165,10 +74,10 @@ struct direntry* GetFileCluster(const uint8_t* dataPtr, struct direntry* dirEntr
             winentry* we = (winentry*)de;
             //if( we->weCnt
 
-			continue;
-		}
+            continue;
+        }
 
-        if (   de->deAttributes == SLOT_EMPTY
+        if (de->deAttributes == SLOT_EMPTY
             || de->deAttributes == SLOT_E5
             || de->deAttributes == SLOT_DELETED
             || de->deAttributes & ATTR_VOLUME)
@@ -196,7 +105,7 @@ struct direntry* GetFileCluster(const uint8_t* dataPtr, struct direntry* dirEntr
         if (_strnicmp(filename, (const char*)de->deName, 11) == 0)
         {
             uint32_t unpackedSector = *(uint16_t*)de->deStartCluster | ((*(uint16_t*)de->deHighClust) << 16);
-            
+
             uint32_t root_dir_sector = bpb->bpbResSectors + (bpb->bpbFATs * bpb->bpbFATsecs);
 
             uint32_t data_sector = root_dir_sector +
@@ -214,8 +123,6 @@ struct direntry* GetFileCluster(const uint8_t* dataPtr, struct direntry* dirEntr
                 return de;
             }
         }
-
-        currentLongFilename = LongFilenameBuffer;
     }
 
     return NULL;
@@ -230,26 +137,26 @@ uint32_t GetNextCluster(FILE_SYSTEM_FAT fsMode, const uint8_t* dataPtr, const bp
     switch (fsMode)
     {
     case FILE_SYSTEM_FAT_12:
+    {
+        uint16_t fatEntry;
+
+        // Correctly calculate FAT12 entry
+        uint32_t fatOffset = cluster + (cluster / 2);  // Equivalent to cluster * 1.5
+
+        //Prevent misaligned read by memcpying value
+        memcpy(&fatEntry, fatBase + fatOffset, sizeof(uint16_t));
+
+        if (cluster & 1)
         {
-            uint16_t fatEntry;
-            
-            // Correctly calculate FAT12 entry
-            uint32_t fatOffset = cluster + (cluster / 2);  // Equivalent to cluster * 1.5
-
-            //Prevent misaligned read by memcpying value
-            memcpy(&fatEntry, fatBase + fatOffset, sizeof(uint16_t));
-
-            if (cluster & 1)
-            {
-                fatEntry = fatEntry >> 4;
-            }
-            else 
-            {
-                fatEntry = fatEntry & FAT12_MASK;
-            }
-
-            return fatEntry;
+            fatEntry = fatEntry >> 4;
         }
+        else
+        {
+            fatEntry = fatEntry & FAT12_MASK;
+        }
+
+        return fatEntry;
+    }
 
     case FILE_SYSTEM_FAT_16:
         return FAT16_MASK & ((uint16_t*)fatBase)[cluster];
@@ -319,42 +226,4 @@ void CopyFileToBuffer(FILE_SYSTEM_FAT fsMode, const uint8_t* dataPtr, const bpb3
 
         cluster = GetNextCluster(fsMode, dataPtr, bpb, cluster);
     }
-}
-
-int main()
-{
-
-
-    std::vector<uint8_t> data = readFileIntoByteArray("..\\..\\boot_iso\\efi.img");
-    std::vector<uint8_t> comparisonKernel = readFileIntoByteArray("..\\..\\boot_iso\\boot_part\\kernel\\enkel.elf");
-    const uint8_t* dataPtr = (const uint8_t*)data.data();
-
-    FILE_SYSTEM_FAT mode = GetFileSystemType(dataPtr);
-
-    struct direntry* rootEntry;
-
-    bootsector* bootsect = (bootsector*)dataPtr;
-
-    const char* filename = "KERNEL/ENKEL.ELF";
-
-    //Can read these variables as they alias in all three FATs.
-    bpb33* bpb = (bpb33*)(bootsect->bs33.bsBPB);
-    uint32_t root_dir_sector = bpb->bpbResSectors + (bpb->bpbFATs * bpb->bpbFATsecs);
-    rootEntry = (struct direntry*)(dataPtr + bpb->bpbBytesPerSec * root_dir_sector);
-    
-    const direntry* fileEntry = GetFileCluster(dataPtr, rootEntry, bpb, bpb->bpbRootDirEnts, filename);
-
-    uint32_t fileSize = *(uint32_t*)fileEntry->deFileSize;
-
-    uint32_t unpackedCluster = *(uint16_t*)fileEntry->deStartCluster | ((*(uint16_t*)fileEntry->deHighClust) << 16);
-    uint32_t data_sector = root_dir_sector +
-        (bpb->bpbRootDirEnts * 32 + bpb->bpbBytesPerSec - 1) / bpb->bpbBytesPerSec +
-        (unpackedCluster - 2) * bpb->bpbSecPerClust;
-
-    std::vector<uint8_t> buffer;
-    buffer.resize(fileSize);
-
-    //
-
-    CopyFileToBuffer(mode, dataPtr, bpb, unpackedCluster, fileSize, buffer.data(), buffer.size(), comparisonKernel.data());
 }

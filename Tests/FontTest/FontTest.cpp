@@ -1,14 +1,14 @@
 ﻿#include <iostream>
 
 #include "font/details/bmfont.h"
-#include "../../src/kernel/font/details/bmfont.c"
+#include "../../src/kernel/font/details/bmfont.cpp"
 
 //Include the font data directly
 #include "../../fonts/Jura.h"
-#include "../../fonts/Jura.c"
+#include "../../fonts/Jura.cpp"
 
 #include "../../fonts/Jura_0.h"
-#include "../../fonts/Jura_0.c"
+#include "../../fonts/Jura_0.cpp"
 
 int main()
 {
