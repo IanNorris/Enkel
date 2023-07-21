@@ -1,6 +1,8 @@
 #include "helpers.h"
 #include "common/string.h"
 
+#define HALT_ASSERT 0xBADC0DE
+
 CEfiSystemTable* GSystemTable = nullptr;
 
 void InitHelpers(CEfiSystemTable* systemTable)
@@ -15,17 +17,34 @@ void Print(const char16_t* message)
 
 void Halt(CEfiStatus status, const char16_t* message)
 {
-	GSystemTable->con_out->set_attribute(GSystemTable->con_out, C_EFI_RED);
-	Print(u"\r\nFATAL ERROR: ");
-	GSystemTable->con_out->set_attribute(GSystemTable->con_out, C_EFI_WHITE);
+	if (status != HALT_ASSERT)
+	{
+		GSystemTable->con_out->set_attribute(GSystemTable->con_out, C_EFI_BACKGROUND_RED | C_EFI_WHITE);
 
-	char16_t buffer[16];
-	witoabuf(buffer, status, 16);
+		Print(u"\r\n\r\n ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ");
+		Print(u"\r\n ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ");
 
-	Print(u"(0x");
-	Print(buffer);
-	Print(u") ");
-	Print(message);
+		GSystemTable->con_out->set_attribute(GSystemTable->con_out, C_EFI_YELLOW);
+
+		Print(u"\r\nFATAL ERROR: ");
+
+		char16_t buffer[16];
+		witoabuf(buffer, status, 16);
+
+		GSystemTable->con_out->set_attribute(GSystemTable->con_out, C_EFI_WHITE);
+
+		Print(u"(0x");
+		Print(buffer);
+		Print(u") ");
+		Print(message);
+
+		GSystemTable->con_out->set_attribute(GSystemTable->con_out, C_EFI_BACKGROUND_RED | C_EFI_WHITE);
+
+		Print(u"\r\n ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ");
+		Print(u"\r\n ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ");
+
+		GSystemTable->con_out->set_attribute(GSystemTable->con_out, C_EFI_WHITE);
+	}
 
 	while (1)
 	{
@@ -45,27 +64,36 @@ void AssertionFailed(const char* expression, const char* message, const char* fi
 {
 	char16_t buffer[2048];
 
-	GSystemTable->con_out->set_attribute(GSystemTable->con_out, C_EFI_RED);
-	Print(u"\r\n--------------------------------------------");
-	Print(u"\r\nASSERTION FAILED: ");
-	Print(u"\r\n--------------------------------------------");
-
+	GSystemTable->con_out->set_attribute(GSystemTable->con_out, C_EFI_BACKGROUND_RED | C_EFI_WHITE);
+	Print(u"\r\n\r\n__________ ASSERTION FAILED __________");
+	GSystemTable->con_out->set_attribute(GSystemTable->con_out, C_EFI_YELLOW);
+	
 	ascii_to_wide(buffer, expression, sizeof(buffer));
-	Print(buffer);
+	GSystemTable->con_out->set_attribute(GSystemTable->con_out, C_EFI_YELLOW);
+	Print(u"\r\nEXPRESSION: ");
 	GSystemTable->con_out->set_attribute(GSystemTable->con_out, C_EFI_WHITE);
-
-	Print(u"\r\nMESSAGE: ");
-	ascii_to_wide(buffer, message, sizeof(buffer));
 	Print(buffer);
 
-	Print(u"\r\nFILE: ");
+	GSystemTable->con_out->set_attribute(GSystemTable->con_out, C_EFI_YELLOW);
+	Print(u"\r\nFILE:       ");
 	ascii_to_wide(buffer, filename, sizeof(buffer));
+	GSystemTable->con_out->set_attribute(GSystemTable->con_out, C_EFI_WHITE);
 	Print(buffer);
 
-	Print(u"\r\nLINE: ");
+	GSystemTable->con_out->set_attribute(GSystemTable->con_out, C_EFI_YELLOW);
+	Print(u"\r\nLINE:       ");
 	witoabuf(buffer, lineNumber, 10);
+	GSystemTable->con_out->set_attribute(GSystemTable->con_out, C_EFI_WHITE);
 	Print(buffer);
 
-	Print(u"\r\n\r\n");
-	Halt(C_EFI_ABORTED, u"ASSERTED");
+	GSystemTable->con_out->set_attribute(GSystemTable->con_out, C_EFI_YELLOW);
+	Print(u"\r\nMESSAGE:    ");
+	ascii_to_wide(buffer, message, sizeof(buffer));
+	GSystemTable->con_out->set_attribute(GSystemTable->con_out, C_EFI_WHITE);
+	Print(buffer);
+
+	GSystemTable->con_out->set_attribute(GSystemTable->con_out, C_EFI_BACKGROUND_RED | C_EFI_WHITE);
+	Print(u"\r\n__________ ASSERTION FAILED __________");
+
+	Halt(HALT_ASSERT, nullptr);
 }
