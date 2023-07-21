@@ -6,7 +6,7 @@ OUTPUT_NAME=bootloader
 .PHONY: force all
 all: $(OUTPUT_NAME)
 
-C_ARGS=-target x86_64-unknown-windows -fno-stack-protector -ffreestanding -fshort-wchar -mno-red-zone -mno-mmx -mno-sse -I $(VENDOR_ROOT)/c-efi/src/ -I ../../inc/
+C_ARGS=-target x86_64-unknown-windows -fno-stack-protector -ffreestanding -fshort-wchar -mno-red-zone -mno-mmx -mno-sse -I $(VENDOR_ROOT)/c-efi/src/ -I $(VENDOR_ROOT)/uefi-headers/Include/ -I $(VENDOR_ROOT)/uefi-headers/Include/X64 -I ../../inc/
 LINK_ARGS=-target x86_64-unknown-windows -nostdlib -Wl,-entry:efi_main -Wl,-subsystem:efi_application -fuse-ld=lld-link
 
 $(VENDOR_ROOT) c-efi:

@@ -1,6 +1,6 @@
 # Default target.
 .PHONY: all
-all: c-efi
+all: uefi-headers
 
-c-efi:
-	git clone https://github.com/c-util/c-efi.git c-efi
+uefi-headers:
+	git clone https://github.com/kiznit/uefi-headers.git uefi-headers

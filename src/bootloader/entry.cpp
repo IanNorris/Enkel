@@ -1,77 +1,106 @@
 #include "helpers.h"
 #include "memory/memory.h"
+#include "common/string.h"
 #include "bootloader_build.h"
-#include "fs/fat/fat.h"
 
-//void load_image(CEfiSystemTable* systemTable, void* imageBase);
+#include "Protocol/LoadedImage.h"
+#include "Protocol/GraphicsOutput.h"
+#include "Guid/FileInfo.h"
 
-CEfiStatus efi_main(CEfiHandle imageHandle, CEfiSystemTable* systemTable)
+void load_image(EFI_HANDLE imageHandle, EFI_BOOT_SERVICES* bootServices);
+
+EFI_STATUS efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* systemTable)
 {
-	systemTable->con_out->reset(systemTable->con_out, 0);
+	systemTable->ConOut->Reset(systemTable->ConOut, 0);
 	InitHelpers(systemTable);
 
-	systemTable->con_out->set_attribute(systemTable->con_out, C_EFI_LIGHTGREEN);
+	systemTable->ConOut->SetAttribute(systemTable->ConOut, EFI_LIGHTGREEN);
 	Print(u"Starting Enkel (Revision ");
 	Print(BOOTLOADER_BUILD_ID);
 	Print(u")...\r\n");
-	systemTable->con_out->set_attribute(systemTable->con_out, C_EFI_WHITE);
+	systemTable->ConOut->SetAttribute(systemTable->ConOut, EFI_WHITE);
 
-	//Set a timeout of 5s, if we haven't transferred to the kernel by then we probably won't be...
-	CEfiBootServices* bootServices = systemTable->boot_services;
-	bootServices->set_watchdog_timer(5, 0, 0, 0);
+	//Set a timeout of 15s, if we haven't transferred to the kernel by then we probably won't be...
+	EFI_BOOT_SERVICES* bootServices = systemTable->BootServices;
+	bootServices->SetWatchdogTimer(15, 0, 0, 0);
 
-	Print(u"1");
+	load_image(imageHandle, bootServices);
+
+	EFI_GRAPHICS_OUTPUT_PROTOCOL* GraphicsOutput;
+	EFI_STATUS Status;
+
+	// Get the Graphics Output Protocol instance
+	EFI_GUID graphicsOutputProtocolGuid = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
+	Status = bootServices->LocateProtocol(&graphicsOutputProtocolGuid, NULL, (VOID**)&GraphicsOutput);
+	if (EFI_ERROR(Status)) {
+		Print(u"Failed to locate Graphics Output Protocol\n");
+		return Status;
+	}
+
+	// Get the mode information
+	EFI_GRAPHICS_OUTPUT_MODE_INFORMATION* Info = GraphicsOutput->Mode->Info;
+
+	ERROR_CHECK(GraphicsOutput->SetMode(GraphicsOutput, 23), u"Setting graphics mode");
+
+	// Get the frame buffer base
+	EFI_PHYSICAL_ADDRESS  FrameBufferBase = GraphicsOutput->Mode->FrameBufferBase;
+	*(uint32_t*)FrameBufferBase = 0xFF00FF00;
+
+	// Now you can use FrameBufferBase and Info to directly write to the screen
+	// Remember to call ExitBootServices when you're done using the boot services
+
+	/*Status = gBS->ExitBootServices(imageHandle, MapTable);
+	if (EFI_ERROR(Status)) {
+		Print(u"Failed to exit boot services\n");
+		return Status;
+	}*/
+
 	
-	CEfiGuid loadedImageServiceGuid = C_EFI_LOADED_IMAGE_PROTOCOL_GUID;
-	CEfiLoadedImageProtocol* loadedImageService;
-	ERROR_CHECK(bootServices->handle_protocol(imageHandle , &loadedImageServiceGuid, (void**)&loadedImageService), u"LI service");
-
-	//load_image(systemTable, loadedImageService->image_base);
-	
-	
-	
-
-	Print(u"\r\n");
-		
-	Print(u"2");
-
-	Print(u"3");
-
 	while (1)
 	{
 		Print(u".");
-		bootServices->stall(ONE_SECOND);
+		bootServices->Stall(ONE_SECOND);
 	}
 
 	return 0;
 }
 
-void load_image(CEfiSystemTable* systemTable, void* imageBase)
+void load_image(EFI_HANDLE imageHandle, EFI_BOOT_SERVICES* bootServices)
 {
-	//mem_open();
+	EFI_GUID loadedImageProtocolGuid = EFI_LOADED_IMAGE_PROTOCOL_GUID;
+	EFI_GUID simpleFileSystemProtocolGuid = EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID;
+	EFI_GUID getInfoGuid = EFI_FILE_INFO_ID;
 
-	//bootImage = imageBase;
+	EFI_LOADED_IMAGE_PROTOCOL* loadedImageService;
+	ERROR_CHECK(bootServices->HandleProtocol(imageHandle, &loadedImageProtocolGuid, (void**)&loadedImageService), u"LI service");
 
-/*	// Initialize the FS
-	FAT16 fat;
-	ff_init(&memoryDevice, &fat);
+	EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* simpleFileSystem;
+	ERROR_CHECK(bootServices->OpenProtocol(loadedImageService->DeviceHandle, &simpleFileSystemProtocolGuid, (void**)&simpleFileSystem, imageHandle, NULL, EFI_OPEN_PROTOCOL_GET_PROTOCOL), u"SFS protocol");
 
-	FFILE file;
-	ff_root(&fat, &file);
+	EFI_FILE_PROTOCOL* volume;
+	ERROR_CHECK(simpleFileSystem->OpenVolume(simpleFileSystem, &volume), u"Opening volume");
 
-	char str[12];
-	CEfiChar16 buffer[64];
+	EFI_FILE_PROTOCOL* kernelImage;
+	ERROR_CHECK(volume->Open(volume, &kernelImage, (unsigned short*)u"KERNEL\\ENKEL.ELF", EFI_FILE_MODE_READ, 0), u"Opening kernal image");
 
-	do
-	{
-		if (!ff_is_regular(&file))
-			continue;
+	char Buffer[128];
+	EFI_FILE_INFO* kernelFileInfo = (EFI_FILE_INFO*)Buffer;
+	UINTN kernelInfoSize = sizeof(Buffer);
 
-		ff_dispname(&file, str);
-		ascii_to_wide(buffer, str, sizeof(buffer));
+	ERROR_CHECK(kernelImage->GetInfo(kernelImage, &getInfoGuid, &kernelInfoSize, Buffer), u"Getting kernel file info");
 
-		Print(buffer);
+	Print(u"Kernel is ");
 
-	} while (ff_next(&file));
-	*/
+	char16_t sizeBuffer[16];
+	witoabuf(sizeBuffer, kernelFileInfo->FileSize / 1024, 10);
+
+	Print(sizeBuffer);
+	Print(u"KB.\r\n");
+
+	void* kernelImageBuffer;
+	UINTN outputBufferSize = kernelFileInfo->FileSize;
+
+	ERROR_CHECK(bootServices->AllocatePool(EfiLoaderData, outputBufferSize, &kernelImageBuffer), u"Allocating kernel image buffer");
+
+	ERROR_CHECK(kernelImage->Read(kernelImage, &outputBufferSize, kernelImageBuffer), u"Writing kernel into memory");
 }
