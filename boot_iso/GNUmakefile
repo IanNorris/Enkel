@@ -50,16 +50,16 @@ $(BOOT_IMAGE): $(BOOTLOADER_OUT) $(KERNEL_OUT)
 $(BIOS_BIN):
 	cp /usr/share/ovmf/OVMF.fd $(BIOS_BIN)
 	
-$(OUTPUT_ISO): $(BOOT_IMAGE) $(BIOS_BIN)
+$(OUTPUT_ISO): $(BOOT_IMAGE) $(BIOS_BIN) $(KERNEL) $(BOOTLOADER)
 	cp efi.img iso_content/
 	mkisofs \
 		-o $(OUTPUT_ISO) \
 		-input-charset utf-8 \
-		-R -J -v -d -N \
+		-R -J \
 		-x $(OUTPUT_ISO) \
 		-hide-rr-moved \
 		-no-emul-boot \
 		-e $(BOOT_IMAGE) \
-		-V "$(ISOLABEL)" \
-		-A "Enkel Image"  \
+		-V "$(ISO_LABEL)" \
+		-A "$(ISO_LABEL)" \
 		iso_content
