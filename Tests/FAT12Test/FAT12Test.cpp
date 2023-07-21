@@ -264,7 +264,7 @@ uint32_t GetNextCluster(FILE_SYSTEM_FAT fsMode, const uint8_t* dataPtr, const bp
     return 0;
 }
 
-void CopyFileToBuffer(FILE_SYSTEM_FAT fsMode, const uint8_t* dataPtr, const bpb33* bpb, uint32_t firstCluster, size_t fileSize, uint8_t* buffer, size_t bufferSize, uint8_t* comparisonData)
+void CopyFileToBuffer(FILE_SYSTEM_FAT fsMode, const uint8_t* dataPtr, const bpb33* bpb, uint32_t firstCluster, size_t fileSize, uint8_t* buffer, size_t bufferSize)
 {
     uint32_t cluster = firstCluster;
 
@@ -311,9 +311,6 @@ void CopyFileToBuffer(FILE_SYSTEM_FAT fsMode, const uint8_t* dataPtr, const bpb3
 
         memcpy(buffer + offset, newPointer, maxBytesToRead);
 
-        int result = memcmp(newPointer, comparisonData + offset, maxBytesToRead);
-        _ASSERT(result == 0);
-
         offset += maxBytesToRead;
         fileSize -= maxBytesToRead;
 
@@ -356,5 +353,8 @@ int main()
 
     //
 
-    CopyFileToBuffer(mode, dataPtr, bpb, unpackedCluster, fileSize, buffer.data(), buffer.size(), comparisonKernel.data());
+    CopyFileToBuffer(mode, dataPtr, bpb, unpackedCluster, fileSize, buffer.data(), buffer.size());
+
+    int result = memcmp(buffer.data(), comparisonKernel.data(), comparisonKernel.size());
+    _ASSERT(result == 0);
 }
