@@ -46,7 +46,9 @@ void AssertionFailed(const char* expression, const char* message, const char* fi
 	char16_t buffer[2048];
 
 	GSystemTable->con_out->set_attribute(GSystemTable->con_out, C_EFI_RED);
+	Print(u"\r\n--------------------------------------------");
 	Print(u"\r\nASSERTION FAILED: ");
+	Print(u"\r\n--------------------------------------------");
 
 	ascii_to_wide(buffer, expression, sizeof(buffer));
 	Print(buffer);
@@ -61,7 +63,7 @@ void AssertionFailed(const char* expression, const char* message, const char* fi
 	Print(buffer);
 
 	Print(u"\r\nLINE: ");
-	witoabuf(buffer, lineNumber, sizeof(buffer));
+	witoabuf(buffer, lineNumber, 10);
 	Print(buffer);
 
 	Print(u"\r\n\r\n");
