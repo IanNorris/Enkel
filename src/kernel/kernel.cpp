@@ -52,11 +52,11 @@ extern "C" void AssertionFailed(const char* expression, const char* message, con
     halt();
 }
 
-extern "C" void __attribute__((__cdecl__)) /*__attribute__((__noreturn__))*/ KernelMain(KernelBootData* bootData)
+extern "C" void __attribute__((sysv_abi)) /*__attribute__((__noreturn__))*/ KernelMain(KernelBootData* bootData)
 {
     bootData->Sum = 3 + 4;
 
-    //bootData.Print(u"Hello from the Kernel!\r\n");
+    bootData->Print(u"Hello from the Kernel!\r\n");
 
     /*BMFont Font;
 

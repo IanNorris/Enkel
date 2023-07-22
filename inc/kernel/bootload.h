@@ -1,10 +1,8 @@
 #pragma once
 
-extern "C"
-{
-typedef void (*BootPrintFunction)(const char16_t* message);
+typedef __attribute__((sysv_abi)) void (*BootPrintFunction)(const char16_t* message);
 
-struct __attribute__((packed)) KernelBootData
+struct KernelBootData
 {
 	BootPrintFunction Print;
 	uint32_t* Framebuffer;
@@ -15,5 +13,7 @@ struct __attribute__((packed)) KernelBootData
 	unsigned int Sum;
 };
 
-typedef void __attribute__((__cdecl__)) /*__attribute__((__noreturn__))*/ (*KernelStartFunction)(KernelBootData* bootData);
+extern "C"
+{
+	typedef void __attribute__((sysv_abi)) /*__attribute__((__noreturn__))*/ (*KernelStartFunction)(KernelBootData* bootData);
 }

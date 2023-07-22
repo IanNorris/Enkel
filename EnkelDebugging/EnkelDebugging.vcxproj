@@ -65,13 +65,13 @@
     <UseDebugLibraries>true</UseDebugLibraries>
     <ConfigurationType>Makefile</ConfigurationType>
     <RemoteRootDir>~/</RemoteRootDir>
-    <RemoteProjectRelDir>Enkel</RemoteProjectRelDir>
+    <RemoteProjectRelDir>Enkel/boot_iso/</RemoteProjectRelDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <UseDebugLibraries>false</UseDebugLibraries>
     <ConfigurationType>Makefile</ConfigurationType>
     <RemoteRootDir>~/</RemoteRootDir>
-    <RemoteProjectRelDir>Enkel</RemoteProjectRelDir>
+    <RemoteProjectRelDir>Enkel/boot_iso/</RemoteProjectRelDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'" Label="Configuration">
     <UseDebugLibraries>false</UseDebugLibraries>

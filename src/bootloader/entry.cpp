@@ -56,7 +56,7 @@ EFI_STATUS efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* systemTable)
 	Print(tempBuffer);
 	Print(u".\r\n");
 
-	_ASSERT(bootData.Sum == 12);
+	_ASSERT(bootData.Sum == 7);
 
 	while (1)
 	{

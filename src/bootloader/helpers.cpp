@@ -10,7 +10,7 @@ void InitHelpers(EFI_SYSTEM_TABLE* systemTable)
 	GSystemTable = systemTable;
 }
 
-void Print(const char16_t* message)
+void __attribute__((sysv_abi)) Print(const char16_t* message)
 {
 	UEFI_CALL(GSystemTable->ConOut, OutputString, (CHAR16*)message);
 }

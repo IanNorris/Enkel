@@ -14,7 +14,7 @@
 #define UEFI_CALL(target, functionName, ...) ERROR_CHECK(target->functionName(target, ##__VA_ARGS__), u ## #target)
 
 void InitHelpers(EFI_SYSTEM_TABLE* systemTable);
-void Print(const char16_t* message);
+void __attribute__((sysv_abi)) Print(const char16_t* message);
 void SetColor(int color);
 void CheckStatus(EFI_STATUS status, const char16_t* message);
 

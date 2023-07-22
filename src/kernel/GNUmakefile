@@ -82,7 +82,7 @@ override LDFLAGS += \
     -m elf_x86_64 \
     -nostdlib \
     -static \
-    -pic \
+    -pie \
     --no-dynamic-linker \
     -z text \
     -z max-page-size=0x1000 \
