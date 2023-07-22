@@ -10,13 +10,13 @@ NAMES=$(basename $(wildcard $(addprefix $(INPUT_DIR)/*.,$(INPUT_SUFFIXES))))
 OUTPUT_FILES_CPP=$(addsuffix .cpp,$(NAMES))
 OUTPUT_FILES_H=$(addsuffix .h,$(NAMES))
 
-all: $(OUTPUT_FILES_CPP) $(OUTPUT_FILES_H)
+all: $(OUTPUT_FILES_CPP) $(OUTPUT_FILES_H) $(TOOLS)/bin2c.py
 
 # Produce .h and .cpp files from the inputs
-%.cpp %.h: %.fnt
+%.cpp %.h: %.fnt $(TOOLS)/bin2c.py
 	python3 $(TOOLS)/bin2c.py $< $(basename $<)
 
-%.cpp %.h: %.tga
+%.cpp %.h: %.tga $(TOOLS)/bin2c.py
 	python3 $(TOOLS)/bin2c.py $< $(basename $<)
 
 clean:

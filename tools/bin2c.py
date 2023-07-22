@@ -19,15 +19,15 @@ def main():
 
     # write .c file
     with open(target_filename + '.cpp', 'w') as f:
-        f.write('const unsigned char ' + data_variable_name + '[] = {')
+        f.write('extern "C" const unsigned char ' + data_variable_name + '[] __attribute__((used)) = {')
         f.write(','.join(f"{x:#0{4}x}" for x in data))
         f.write('};\n')
-        f.write('const unsigned int ' + base_filename + file_ext + '_size = sizeof(' + data_variable_name + ');\n')
+        f.write('extern "C" const unsigned int ' + base_filename + file_ext + '_size __attribute__((used)) = sizeof(' + data_variable_name + ');\n')
 
     # write .h file
     with open(target_filename + '.h', 'w') as f:
-        f.write('extern const unsigned char ' + data_variable_name + '[];\n')
-        f.write('extern const unsigned int ' + base_filename + file_ext + '_size;\n')
+        f.write('extern "C" const unsigned char ' + data_variable_name + '[];\n')
+        f.write('extern "C" const unsigned int ' + base_filename + file_ext + '_size;\n')
 
 if __name__ == '__main__':
     main()

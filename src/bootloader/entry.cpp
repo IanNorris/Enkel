@@ -15,7 +15,7 @@
 #undef __APPLE__
 
 KernelStartFunction LoadKernel(EFI_HANDLE imageHandle, EFI_BOOT_SERVICES* bootServices);
-void SetResolution(EFI_BOOT_SERVICES* bootServices, int mode);
+void SetResolution(EFI_BOOT_SERVICES* bootServices, int mode, KernelBootData& bootData);
 
 EFI_STATUS efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* systemTable)
 {
@@ -40,10 +40,23 @@ EFI_STATUS efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* systemTable)
 		Halt(EFI_LOAD_ERROR, u"Failed to load kernel image");
 	}
 
-	Print(u"\r\nAbout to execute into the kernel....\r\n");
-	kernelStart(Print);
+	KernelBootData bootData;
+	bootData.Sum = 26;
+	bootData.Print = Print;
 
-	//set_resolution(bootServices, 21);
+	//SetResolution(bootServices, 21, bootData);
+
+	Print(u"\r\nAbout to execute into the kernel....\r\n");
+
+	kernelStart(&bootData);
+
+	char16_t tempBuffer[16];
+	witoabuf(tempBuffer, bootData.Sum, 10);
+	Print(u"Result: ");
+	Print(tempBuffer);
+	Print(u".\r\n");
+
+	_ASSERT(bootData.Sum == 12);
 
 	while (1)
 	{
@@ -126,7 +139,7 @@ KernelStartFunction PrepareKernel(EFI_BOOT_SERVICES* bootServices, const uint8_t
 	Print(tempBuffer);
 	Print(u".\r\n");
 
-	ERROR_CHECK(bootServices->AllocatePages(AllocateAddress, EfiLoaderCode, pageCount, &kernelStart), u"Unable to allocate pages for the kernel");
+	ERROR_CHECK(bootServices->AllocatePages(AllocateAddress, EfiLoaderData, pageCount, &kernelStart), u"Unable to allocate pages for the kernel");
 
 	if (kernelStart != lowestAddress)
 	{
@@ -195,7 +208,7 @@ KernelStartFunction LoadKernel(EFI_HANDLE imageHandle, EFI_BOOT_SERVICES* bootSe
 	return PrepareKernel(bootServices, kernelImageBuffer);
 }
 
-void SetResolution(EFI_BOOT_SERVICES* bootServices, int mode)
+void SetResolution(EFI_BOOT_SERVICES* bootServices, int mode, KernelBootData& bootData)
 {
 	EFI_GRAPHICS_OUTPUT_PROTOCOL* GraphicsOutput;
 
@@ -204,10 +217,19 @@ void SetResolution(EFI_BOOT_SERVICES* bootServices, int mode)
 	ERROR_CHECK(bootServices->LocateProtocol(&graphicsOutputProtocolGuid, NULL, (VOID**)&GraphicsOutput), u"Locating graphics output protocol");
 	
 	// Get the mode information
-	EFI_GRAPHICS_OUTPUT_MODE_INFORMATION* Info = GraphicsOutput->Mode->Info;
+	EFI_GRAPHICS_OUTPUT_MODE_INFORMATION* Info = GraphicsOutput->Mode[mode].Info;
 	UEFI_CALL(GraphicsOutput, SetMode, mode);
 
 	// Get the frame buffer base
-	EFI_PHYSICAL_ADDRESS FrameBufferBase = GraphicsOutput->Mode->FrameBufferBase;
-	//*(uint32_t*)FrameBufferBase = 0xFF00FF00;
+	EFI_PHYSICAL_ADDRESS FrameBufferBase = GraphicsOutput->Mode[mode].FrameBufferBase;
+	bootData.Framebuffer = (uint32_t*)FrameBufferBase;
+	bootData.FramebufferWidth = GraphicsOutput->Mode[mode].Info->HorizontalResolution;
+	bootData.FramebufferHeight = GraphicsOutput->Mode[mode].Info->VerticalResolution;
+	bootData.FramebufferPitch = bootData.FramebufferWidth * 4;
+	
+	for (int i = 0; i < 1000; i++)
+	{
+		*(uint32_t*)FrameBufferBase = i;
+		FrameBufferBase++;
+	}
 }

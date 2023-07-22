@@ -63,7 +63,7 @@ void CheckStatus(EFI_STATUS status, const char16_t* message)
 	}
 }
 
-void AssertionFailed(const char* expression, const char* message, const char* filename, size_t lineNumber)
+extern "C" void AssertionFailed(const char* expression, const char* message, const char* filename, size_t lineNumber)
 {
 	char16_t buffer[2048];
 
