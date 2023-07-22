@@ -14,6 +14,8 @@
 #define BOOL uint8_t
 #endif
 
+#define KERNEL_API __attribute__((sysv_abi))
+
 extern "C" void AssertionFailed(const char* expression, const char* message, const char* filename, size_t lineNumber);
 
 #define _ASSERT(x) _ASSERTF(x, nullptr)

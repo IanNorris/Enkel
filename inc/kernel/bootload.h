@@ -1,6 +1,6 @@
 #pragma once
 
-typedef __attribute__((sysv_abi)) void (*BootPrintFunction)(const char16_t* message);
+typedef KERNEL_API void (*BootPrintFunction)(const char16_t* message);
 
 struct KernelBootData
 {
@@ -15,5 +15,5 @@ struct KernelBootData
 
 extern "C"
 {
-	typedef void __attribute__((sysv_abi)) /*__attribute__((__noreturn__))*/ (*KernelStartFunction)(KernelBootData* bootData);
+	typedef void KERNEL_API /*__attribute__((__noreturn__))*/ (*KernelStartFunction)(KernelBootData* bootData);
 }

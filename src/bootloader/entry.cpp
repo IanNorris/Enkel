@@ -46,15 +46,15 @@ EFI_STATUS efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* systemTable)
 
 	//SetResolution(bootServices, 21, bootData);
 
-	Print(u"\r\nAbout to execute into the kernel....\r\n");
+	Print(u"About to execute into the kernel...\r\n");
 
 	kernelStart(&bootData);
 
 	char16_t tempBuffer[16];
 	witoabuf(tempBuffer, bootData.Sum, 10);
-	Print(u"Result: ");
+	Print(u"Sum result: ");
 	Print(tempBuffer);
-	Print(u".\r\n");
+	Print(u"\r\n");
 
 	_ASSERT(bootData.Sum == 7);
 
@@ -123,7 +123,7 @@ KernelStartFunction PrepareKernel(EFI_BOOT_SERVICES* bootServices, const uint8_t
 
 	EFI_PHYSICAL_ADDRESS kernelStart = lowestAddress;
 
-	char16_t tempBuffer[16];
+	/*char16_t tempBuffer[16];
 	witoabuf(tempBuffer, kernelStart, 16);
 	Print(u"Kernel to be loaded at 0x");
 	Print(tempBuffer);
@@ -137,7 +137,7 @@ KernelStartFunction PrepareKernel(EFI_BOOT_SERVICES* bootServices, const uint8_t
 	witoabuf(tempBuffer, kernelSize, 16);
 	Print(u"Kernel size is 0x");
 	Print(tempBuffer);
-	Print(u".\r\n");
+	Print(u".\r\n");*/
 
 	ERROR_CHECK(bootServices->AllocatePages(AllocateAddress, EfiLoaderData, pageCount, &kernelStart), u"Unable to allocate pages for the kernel");
 
