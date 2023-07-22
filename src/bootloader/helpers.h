@@ -11,9 +11,11 @@
 
 #define ONE_SECOND 1000000
 #define ERROR_CHECK(expression, message) CheckStatus( (expression), message )
+#define UEFI_CALL(target, functionName, ...) ERROR_CHECK(target->functionName(target, ##__VA_ARGS__), u ## #target)
 
 void InitHelpers(EFI_SYSTEM_TABLE* systemTable);
 void Print(const char16_t* message);
+void SetColor(int color);
 void CheckStatus(EFI_STATUS status, const char16_t* message);
 
 void Halt(EFI_STATUS status, const char16_t* message);

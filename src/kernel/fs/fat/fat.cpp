@@ -35,7 +35,7 @@ struct direntry* GetFileCluster(const uint8_t* dataPtr, struct direntry* dirEntr
     char filename[12];
 
     size_t indexOfSeparator = IndexOfSeparator(filenameRemaining);
-    size_t length = indexOfSeparator == -1 ? strlen(filenameRemaining) : indexOfSeparator;
+    size_t length = indexOfSeparator == (size_t)-1 ? strlen(filenameRemaining) : indexOfSeparator;
 
     if (length > 11)
     {
@@ -43,19 +43,19 @@ struct direntry* GetFileCluster(const uint8_t* dataPtr, struct direntry* dirEntr
         return NULL;
     }
 
-    size_t indexOfDot = indexOfSeparator == -1 ? IndexOfChar(filenameRemaining, '.') : -1;
+    size_t indexOfDot = indexOfSeparator == (size_t)-1 ? IndexOfChar(filenameRemaining, '.') : (size_t)-1;
 
     filename[11] = '\0';
     size_t initialFillBytes = indexOfDot < length ? indexOfDot : length;
     memcpy(filename, filenameRemaining, initialFillBytes);
 
-    size_t initialFill = indexOfDot == -1 ? 11 : 8;
+    size_t initialFill = indexOfDot == (size_t)-1 ? 11 : 8;
     for (size_t c = initialFillBytes; c < initialFill; c++)
     {
         filename[c] = ' ';
     }
 
-    if (indexOfDot != -1)
+    if (indexOfDot != (size_t)-1)
     {
         for (int c = 0; c < 3; c++)
         {
@@ -88,7 +88,7 @@ struct direntry* GetFileCluster(const uint8_t* dataPtr, struct direntry* dirEntr
         if (de->deAttributes & ATTR_DIRECTORY)
         {
             //We're looking for a file if we've got no separators left
-            if (indexOfSeparator == -1)
+            if (indexOfSeparator == (size_t)-1)
             {
                 continue;
             }
@@ -96,7 +96,7 @@ struct direntry* GetFileCluster(const uint8_t* dataPtr, struct direntry* dirEntr
         else
         {
             //We're looking for a directory if we've got at least one separator left
-            if (indexOfSeparator != -1)
+            if (indexOfSeparator != (size_t)-1)
             {
                 continue;
             }
@@ -179,7 +179,7 @@ void CopyFileToBuffer(FILE_SYSTEM_FAT fsMode, const uint8_t* dataPtr, const bpb3
 
     uint32_t root_dir_sector = bpb->bpbResSectors + (bpb->bpbFATs * bpb->bpbFATsecs);
 
-    uint32_t fatMask;
+    uint32_t fatMask = 0;
     switch (fsMode)
     {
     case FILE_SYSTEM_FAT_12:

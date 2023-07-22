@@ -12,38 +12,41 @@ void InitHelpers(EFI_SYSTEM_TABLE* systemTable)
 
 void Print(const char16_t* message)
 {
-	GSystemTable->ConOut->OutputString(GSystemTable->ConOut, (CHAR16*)message);
+	UEFI_CALL(GSystemTable->ConOut, OutputString, (CHAR16*)message);
+}
+
+void SetColor(int color)
+{
+	UEFI_CALL(GSystemTable->ConOut, SetAttribute, color);
 }
 
 void Halt(EFI_STATUS status, const char16_t* message)
 {
 	if (status != HALT_ASSERT)
 	{
-		GSystemTable->ConOut->SetAttribute(GSystemTable->ConOut, EFI_BACKGROUND_RED | EFI_WHITE);
-
+		SetColor(EFI_BACKGROUND_RED | EFI_WHITE);
 		Print(u"\r\n\r\n ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ");
 		Print(u"\r\n ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ");
-
-		GSystemTable->ConOut->SetAttribute(GSystemTable->ConOut, EFI_YELLOW);
+		SetColor(EFI_YELLOW);
 
 		Print(u"\r\nFATAL ERROR: ");
 
 		char16_t buffer[16];
-		witoabuf(buffer, status, 16);
+		witoabuf<int>(buffer, status, 16);
 
-		GSystemTable->ConOut->SetAttribute(GSystemTable->ConOut, EFI_WHITE);
+		SetColor(EFI_WHITE);
 
 		Print(u"(0x");
 		Print(buffer);
 		Print(u") ");
 		Print(message);
 
-		GSystemTable->ConOut->SetAttribute(GSystemTable->ConOut, EFI_BACKGROUND_RED | EFI_WHITE);
+		SetColor(EFI_BACKGROUND_RED | EFI_WHITE);
 
 		Print(u"\r\n ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ");
 		Print(u"\r\n ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ! ");
 
-		GSystemTable->ConOut->SetAttribute(GSystemTable->ConOut, EFI_WHITE);
+		SetColor(EFI_WHITE);
 	}
 
 	while (1)
@@ -64,35 +67,35 @@ void AssertionFailed(const char* expression, const char* message, const char* fi
 {
 	char16_t buffer[2048];
 
-	GSystemTable->ConOut->SetAttribute(GSystemTable->ConOut, EFI_BACKGROUND_RED | EFI_WHITE);
+	SetColor(EFI_BACKGROUND_RED | EFI_WHITE);
 	Print(u"\r\n\r\n__________ ASSERTION FAILED __________");
-	GSystemTable->ConOut->SetAttribute(GSystemTable->ConOut, EFI_YELLOW);
+	SetColor(EFI_YELLOW);
 	
 	ascii_to_wide(buffer, expression, sizeof(buffer));
-	GSystemTable->ConOut->SetAttribute(GSystemTable->ConOut, EFI_YELLOW);
+	SetColor(EFI_YELLOW);
 	Print(u"\r\nEXPRESSION: ");
-	GSystemTable->ConOut->SetAttribute(GSystemTable->ConOut, EFI_WHITE);
+	SetColor(EFI_WHITE);
 	Print(buffer);
 
-	GSystemTable->ConOut->SetAttribute(GSystemTable->ConOut, EFI_YELLOW);
+	SetColor(EFI_YELLOW);
 	Print(u"\r\nFILE:       ");
 	ascii_to_wide(buffer, filename, sizeof(buffer));
-	GSystemTable->ConOut->SetAttribute(GSystemTable->ConOut, EFI_WHITE);
+	SetColor(EFI_WHITE);
 	Print(buffer);
 
-	GSystemTable->ConOut->SetAttribute(GSystemTable->ConOut, EFI_YELLOW);
+	SetColor(EFI_YELLOW);
 	Print(u"\r\nLINE:       ");
 	witoabuf(buffer, lineNumber, 10);
-	GSystemTable->ConOut->SetAttribute(GSystemTable->ConOut, EFI_WHITE);
+	SetColor(EFI_WHITE);
 	Print(buffer);
 
-	GSystemTable->ConOut->SetAttribute(GSystemTable->ConOut, EFI_YELLOW);
+	SetColor(EFI_YELLOW);
 	Print(u"\r\nMESSAGE:    ");
 	ascii_to_wide(buffer, message, sizeof(buffer));
-	GSystemTable->ConOut->SetAttribute(GSystemTable->ConOut, EFI_WHITE);
+	SetColor(EFI_WHITE);
 	Print(buffer);
 
-	GSystemTable->ConOut->SetAttribute(GSystemTable->ConOut, EFI_BACKGROUND_RED | EFI_WHITE);
+	SetColor(EFI_BACKGROUND_RED | EFI_WHITE);
 	Print(u"\r\n__________ ASSERTION FAILED __________");
 
 	Halt(HALT_ASSERT, nullptr);

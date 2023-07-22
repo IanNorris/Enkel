@@ -28,20 +28,21 @@ size_t IndexOfSeparator(const char* input)
     return -1;
 }
 
-int witoabuf(char16_t* buffer, int value, int base)
+template<typename T>
+int witoabuf(char16_t* buffer, T value, int base)
 {
 	const static char16_t characters[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
 
-	const int isNegative = value < 0 && base == 10;
-	const unsigned int absValue = isNegative ? -value : (unsigned int)value;
+	const T isNegative = value < 0 && base == 10;
+	const T absValue = isNegative ? -value : value;
 
 	int offset = 0;
 
-	unsigned int currentValue = absValue;
+	T currentValue = absValue;
 	do
 	{
-		unsigned int nextValue = currentValue / base;
-		unsigned int remainder = currentValue - (nextValue * base);
+		T nextValue = currentValue / base;
+		T remainder = currentValue - (nextValue * base);
 
 		buffer[offset++] = characters[remainder];
 
@@ -71,6 +72,11 @@ int witoabuf(char16_t* buffer, int value, int base)
 
 	return offset;
 }
+
+template int witoabuf(char16_t* buffer, int32_t value, int base);
+template int witoabuf(char16_t* buffer, uint32_t value, int base);
+template int witoabuf(char16_t* buffer, int64_t value, int base);
+template int witoabuf(char16_t* buffer, uint64_t value, int base);
 
 int ascii_to_wide(char16_t* bufferOut, const char* bufferIn, int bufferOutBytes)
 {

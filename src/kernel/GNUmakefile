@@ -11,6 +11,8 @@ FONT_ROOT := ../../fonts
 FONT_CPP_FILES := $(FONT_ROOT)/$(FONT_NAME).cpp $(FONT_ROOT)/$(FONT_NAME)_0.cpp
 FONT_H_FILES := $(FONT_ROOT)/$(FONT_NAME).h  $(FONT_ROOT)/$(FONT_NAME)_0.h 
 
+LDTEMPLATE := linker.ld
+
 # Convenience macro to reliably declare user overridable variables.
 define DEFAULT_VAR =
     ifeq ($(origin $1),default)
@@ -51,11 +53,11 @@ $(eval $(call DEFAULT_VAR,LDFLAGS,$(DEFAULT_LDFLAGS)))
 override CFLAGS += \
     -Wall \
     -Wextra \
-    -std=gnu11 \
     -ffreestanding \
     -fno-stack-protector \
     -fno-stack-check \
     -fno-lto \
+    -pie \
     -fPIE \
     -m64 \
     -march=x86-64 \
@@ -84,7 +86,8 @@ override LDFLAGS += \
     --no-dynamic-linker \
     -z text \
     -z max-page-size=0x1000 \
-    -T linker.ld
+    -e KernelMain \
+    -T $(LDTEMPLATE)
 
 # Internal nasm flags that should not be changed by the user.
 override NASMFLAGS += \
@@ -112,7 +115,7 @@ fonts:
 	$(MAKE) -C ../../fonts
 
 # Link rules for the final kernel executable.
-$(KERNEL): $(OBJ)
+$(KERNEL): $(OBJ) $(CPPFILES) $(LDTEMPLATE)
 	$(LD) $(OBJ) $(LDFLAGS) -o $@
 
 # Include header dependencies.

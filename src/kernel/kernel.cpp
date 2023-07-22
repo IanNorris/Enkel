@@ -1,12 +1,16 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <limine.h>
+//#include <limine.h>
 
 #include "Jura.h"
 #include "Jura_0.h"
 #include "font/details/bmfont.h"
 #include "memory/memory.h"
+#include "utilities/termination.h"
 
+#include "kernel/bootload.h"
+
+/*
 // The Limine requests can be placed anywhere, but it is important that
 // the compiler does not optimise them away, so, usually, they should
 // be made volatile or equivalent.
@@ -40,4 +44,19 @@ void _start(void) {
 
     // We're done, just hang...
     halt();
+}
+*/
+
+void AssertionFailed(const char* expression, const char* message, const char* filename, size_t lineNumber)
+{
+    halt();
+}
+
+extern "C" void __attribute__((__noreturn__)) KernelMain(BootPrintFunction print)
+{
+    print(u"Hello from the KernelA!");
+
+    //We're dead Dave.
+    halt();
+    while(1);
 }

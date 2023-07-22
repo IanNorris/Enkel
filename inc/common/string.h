@@ -4,7 +4,10 @@
 
 size_t IndexOfChar(const char* input, char c);
 size_t IndexOfSeparator(const char* input);
-int witoabuf(char16_t* buffer, int value, int base);
+
+template<typename T>
+int witoabuf(char16_t* buffer, T value, int base);
+
 int ascii_to_wide(char16_t* bufferOut, const char* bufferIn, int bufferOutBytes);
 
 int _isalpha(int c);
