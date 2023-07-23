@@ -23,6 +23,8 @@ define DEFAULT_VAR =
     endif
 endef
 
+VENDOR_ROOT := ../../vendor
+
 # It is highly recommended to use a custom built cross toolchain to build a kernel.
 # We are only using "cc" as a placeholder here. It may work by using
 # the host system's toolchain, but this is not guaranteed.
@@ -68,7 +70,9 @@ override CFLAGS += \
     -mno-sse2 \
     -mno-red-zone \
     -I $(FONT_ROOT) \
-	-I ../../inc
+	-I ../../inc \
+    -I $(VENDOR_ROOT)/uefi-headers/Include/ \
+    -I $(VENDOR_ROOT)/uefi-headers/Include/X64
 
 # Internal C preprocessor flags that should not be changed by the user.
 override CPPFLAGS := \
