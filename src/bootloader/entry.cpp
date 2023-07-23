@@ -15,10 +15,10 @@
 #include <elf.h>
 #undef __APPLE__
 
-void ExitToKernel(EFI_BOOT_SERVICES* bootServices, EFI_HANDLE imageHandle, KernelBootData& bootData, KernelStartFunction kernelStart);
+void __attribute__((__noreturn__)) ExitToKernel(EFI_BOOT_SERVICES* bootServices, EFI_HANDLE imageHandle, KernelBootData& bootData, KernelStartFunction kernelStart);
 void SetResolution(EFI_BOOT_SERVICES* bootServices, KernelBootData& bootData);
 
-EFI_STATUS efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* systemTable)
+EFI_STATUS __attribute__((__noreturn__)) efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* systemTable)
 {
 	UEFI_CALL(systemTable->ConOut, Reset, 0);
 	InitHelpers(systemTable);
@@ -48,16 +48,10 @@ EFI_STATUS efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* systemTable)
 
 	ExitToKernel(bootServices, imageHandle, bootData, kernelStart);
 
-	while (1)
-	{
-		Print(u".");
-		bootServices->Stall(ONE_SECOND);
-	}
-
-	return 0;
+	//Should never get here...
 }
 
-void ExitToKernel(EFI_BOOT_SERVICES* bootServices, EFI_HANDLE imageHandle, KernelBootData& bootData, KernelStartFunction kernelStart)
+void __attribute__((__noreturn__)) ExitToKernel(EFI_BOOT_SERVICES* bootServices, EFI_HANDLE imageHandle, KernelBootData& bootData, KernelStartFunction kernelStart)
 {
 	UINTN memoryMapSize = 0;
 	UINTN memoryMapKey = 0;
@@ -139,7 +133,7 @@ void ExitToKernel(EFI_BOOT_SERVICES* bootServices, EFI_HANDLE imageHandle, Kerne
 	Print(unit);
 	Print(u"\r\n");
 
-	Print(u"Exiting boot services...\r\n");
+	Print(u"Starting kernel...\r\n");
 
 	SetResolution(bootServices, bootData);
 
@@ -172,6 +166,9 @@ void PrintStat(const char16_t* message, int value)
 
 void SetResolution(EFI_BOOT_SERVICES* bootServices, KernelBootData& bootData)
 {
+	int desiredResolutionX = 1920;
+	int desiredResolutionY = 1080;
+
 	char16_t tempBuffer[16];
 
 	EFI_GRAPHICS_OUTPUT_PROTOCOL* GraphicsOutput;
@@ -182,37 +179,40 @@ void SetResolution(EFI_BOOT_SERVICES* bootServices, KernelBootData& bootData)
 	
 	PrintStat(u"Display modes: ", GraphicsOutput->Mode[0].MaxMode);
 
+	UINTN InfoSize = 0;
+	EFI_GRAPHICS_OUTPUT_MODE_INFORMATION* Info = nullptr;
+
 	int mode = 0;
-	int selectedMode = 0;
+	int selectedMode = -1;
+	int currentResolutionX = 0;
 	EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE* Mode = GraphicsOutput->Mode;
 	while (mode < Mode->MaxMode)
 	{
-		UINTN InfoSize = 0;
-		EFI_GRAPHICS_OUTPUT_MODE_INFORMATION* Info = nullptr;
-
 		UEFI_CALL(GraphicsOutput, QueryMode, mode, &InfoSize, &Info);
 
-		/*PrintStat(u"Mode: ", mode);
-		PrintStat(u"--Width: ", Info->HorizontalResolution);
-		PrintStat(u"--Height: ", Info->VerticalResolution);
-		PrintStat(u"--Pitch: ", Info->PixelsPerScanLine);
-		PrintStat(u"--PixelFormat: ", Info->PixelFormat);*/
-
-		if (Info->HorizontalResolution == 800)
+		if (Info->HorizontalResolution <= desiredResolutionX && Info->VerticalResolution <= desiredResolutionY && Info->HorizontalResolution >= currentResolutionX)
 		{
 			selectedMode = mode;
-			break;
+			currentResolutionX = Info->HorizontalResolution;
 		}
 		mode++;
 	}
 
-	if (mode == -1)
+	if (selectedMode != -1)
+	{
+		PrintStat(u"Picked display mode: ", mode);
+		PrintStat(u"--Width: ", Info->HorizontalResolution);
+		PrintStat(u"--Height: ", Info->VerticalResolution);
+		PrintStat(u"--Pitch: ", Info->PixelsPerScanLine);
+		PrintStat(u"--PixelFormat: ", Info->PixelFormat);
+	}
+	else
 	{
 		Halt(10, u"Failed to find a suitable graphics mode");
 	}
 
 	// Get the mode information
-	EFI_GRAPHICS_OUTPUT_MODE_INFORMATION* Info = GraphicsOutput->Mode[mode].Info;
+	Info = GraphicsOutput->Mode[mode].Info;
 	UEFI_CALL(GraphicsOutput, SetMode, selectedMode);
 
 	// Get the frame buffer base
