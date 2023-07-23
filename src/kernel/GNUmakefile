@@ -112,9 +112,6 @@ all: $(KERNEL) $(FONT_CPP_FILES) $(FONT_H_FILES)
 
 $(FONT_CPP_FILES) $(FONT_H_FILES): fonts
 
-limine.h:
-	curl -Lo $@ https://github.com/limine-bootloader/limine/raw/trunk/limine.h
-	
 fonts: 
 	$(MAKE) -C ../../fonts
 
@@ -126,11 +123,11 @@ $(KERNEL): $(OBJ) $(CPPFILES) $(LDTEMPLATE)
 -include $(HEADER_DEPS)
 
 # Compilation rules for *.cpp files.
-%.cpp.o: %.cpp limine.h
+%.cpp.o: %.cpp
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@
 
 # Compilation rules for *.S files.
-%.S.o: %.S limine.h
+%.S.o: %.S
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@
 
 # Compilation rules for *.asm (nasm) files.
@@ -141,8 +138,3 @@ $(KERNEL): $(OBJ) $(CPPFILES) $(LDTEMPLATE)
 .PHONY: clean
 clean:
 	rm -rf $(KERNEL) $(OBJ) $(HEADER_DEPS)
-
-.PHONY: distclean
-distclean: clean
-	rm -f limine.h
-
