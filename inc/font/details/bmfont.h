@@ -92,6 +92,13 @@ typedef struct
     int16_t Amount;
 }BMFontKerningPair;
 
+typedef struct
+{
+    uint8_t Red;
+    uint8_t Green;
+    uint8_t Blue;
+}BMFontColor;
+
 #pragma pack(pop)
 
 typedef struct
@@ -111,4 +118,4 @@ typedef struct
 }BMFont;
 
 bool BMFont_Load(const void* FileData, uint32_t FileSize, BMFont* FontOut);
-void BMFont_Render(BMFont* Font, void* Framebuffer, uint32_t FramebufferPitch, int32_t StartX, int32_t StartY, const wchar_t* String);
+void BMFont_Render(BMFont* Font, void* Framebuffer, uint32_t FramebufferPitch, int32_t& StartX, int32_t& StartY, const char16_t* String, const BMFontColor& Color);

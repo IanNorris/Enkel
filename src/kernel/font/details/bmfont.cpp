@@ -84,7 +84,7 @@ BMFontChar* BMFont_FindGlyph(BMFont* Font, uint32_t Id)
 	return nullptr;
 }
 
-void BMFont_RenderGlyph(BMFont* Font, BMFontChar* Glyph, void* Framebuffer, uint32_t FramebufferPitch, int32_t StartX, int32_t StartY)
+void BMFont_RenderGlyph(BMFont* Font, BMFontChar* Glyph, void* Framebuffer, uint32_t FramebufferPitch, int32_t StartX, int32_t StartY, const BMFontColor& Color)
 {
 	uint32_t* PageTextureBytes = (uint32_t*)(Font->PageTextureData[Glyph->Page]+18);
 	uint32_t* FramebufferU32 = (uint32_t*)Framebuffer;
@@ -145,7 +145,11 @@ void BMFont_RenderGlyph(BMFont* Font, BMFontChar* Glyph, void* Framebuffer, uint
 			
 			if (GlyphChannel)
 			{
-				uint32_t GlyphColor = GlyphChannel | (GlyphChannel << 8) | (GlyphChannel << 16) | (GlyphChannel << 24);
+				uint32_t RedChannel = (Color.Red * GlyphChannel) / 255;
+				uint32_t GreenChannel = (Color.Green * GlyphChannel) / 255;
+				uint32_t BlueChannel = (Color.Blue * GlyphChannel) / 255;
+				
+				uint32_t GlyphColor = BlueChannel | (GreenChannel << 8) | (RedChannel << 16);
 
 				uint32_t OutputPos = ((GlyphY + StartY) * FramebufferQuadPitch) + GlyphX + StartX;
 				FramebufferU32[OutputPos] = GlyphColor;
@@ -154,7 +158,7 @@ void BMFont_RenderGlyph(BMFont* Font, BMFontChar* Glyph, void* Framebuffer, uint
 	}
 }
 
-void BMFont_Render(BMFont* Font, void* Framebuffer, uint32_t FramebufferPitch, int32_t StartX, int32_t StartY, const wchar_t* String)
+void BMFont_Render(BMFont* Font, void* Framebuffer, uint32_t FramebufferPitch, int32_t& StartX, int32_t& StartY, const char16_t* String, const BMFontColor& Color)
 {
 	int32_t OriginalStartX = StartX;
 	while (*String)
@@ -179,7 +183,7 @@ void BMFont_Render(BMFont* Font, void* Framebuffer, uint32_t FramebufferPitch, i
 			return;
 		}
 
-		BMFont_RenderGlyph(Font, Glyph, Framebuffer, FramebufferPitch, StartX + Glyph->XOffset, StartY + Glyph->YOffset);
+		BMFont_RenderGlyph(Font, Glyph, Framebuffer, FramebufferPitch, StartX + Glyph->XOffset, StartY + Glyph->YOffset, Color);
 		StartX += Glyph->XAdvance;
 
 		String++;

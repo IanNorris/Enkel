@@ -1,6 +1,13 @@
 #pragma once
 
+#ifdef NULL
+#undef NULL
+#endif
 #include "Uefi.h"
+#ifdef NULL
+#undef NULL
+#endif
+#define NULL nullptr
 #include "Protocol/GraphicsOutput.h"
 
 typedef KERNEL_API void (*BootPrintFunction)(const char16_t* message);

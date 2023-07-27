@@ -18,12 +18,39 @@ void* memcpy(void* dest, const void* src, size_t n)
     return dest;
 }
 
-void* memset(void* s, int c, size_t n)
+void* memset(void* s, uint8_t value, size_t n)
 {
     uint8_t* p = (uint8_t*)s;
 
-    for (size_t i = 0; i < n; i++) {
-        p[i] = (uint8_t)c;
+    for (size_t i = 0; i < n; i++)
+    {
+        p[i] = value;
+    }
+
+    return s;
+}
+
+void* memset32(void* s, uint32_t value, size_t n)
+{
+    uint32_t* p = (uint32_t*)s;
+
+    size_t count = n / sizeof(value);
+    for (size_t i = 0; i < count; i++)
+    {
+        p[i] = value;
+    }
+
+    return s;
+}
+
+void* memset64(void* s, uint64_t value, size_t n)
+{
+    uint64_t* p = (uint64_t*)s;
+
+    size_t count = n / sizeof(value);
+    for (size_t i = 0; i < count; i++)
+    {
+        p[i] = value;
     }
 
     return s;

@@ -152,6 +152,11 @@ void __attribute__((__noreturn__)) ExitToKernel(EFI_BOOT_SERVICES* bootServices,
 	ERROR_CHECK(bootServices->ExitBootServices(imageHandle, memoryMapKey), u"Error exiting boot services");
 
 	kernelStart(&bootData);
+
+	while (1)
+	{
+		bootServices->Stall(ONE_SECOND);
+	}
 }
 
 void PrintStat(const char16_t* message, int value)
@@ -177,7 +182,7 @@ void SetResolution(EFI_BOOT_SERVICES* bootServices, KernelBootData& bootData)
 	EFI_GUID graphicsOutputProtocolGuid = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
 	ERROR_CHECK(bootServices->LocateProtocol(&graphicsOutputProtocolGuid, NULL, (VOID**)&GraphicsOutput), u"Locating graphics output protocol");
 	
-	PrintStat(u"Display modes: ", GraphicsOutput->Mode[0].MaxMode);
+	//PrintStat(u"Display modes: ", GraphicsOutput->Mode[0].MaxMode);
 
 	UINTN InfoSize = 0;
 	EFI_GRAPHICS_OUTPUT_MODE_INFORMATION* Info = nullptr;
@@ -198,18 +203,18 @@ void SetResolution(EFI_BOOT_SERVICES* bootServices, KernelBootData& bootData)
 		mode++;
 	}
 
-	if (selectedMode != -1)
+	if (selectedMode == -1)
+	{
+		Halt(10, u"Failed to find a suitable graphics mode");
+	}
+	/*else
 	{
 		PrintStat(u"Picked display mode: ", mode);
 		PrintStat(u"--Width: ", Info->HorizontalResolution);
 		PrintStat(u"--Height: ", Info->VerticalResolution);
 		PrintStat(u"--Pitch: ", Info->PixelsPerScanLine);
 		PrintStat(u"--PixelFormat: ", Info->PixelFormat);
-	}
-	else
-	{
-		Halt(10, u"Failed to find a suitable graphics mode");
-	}
+	}*/
 
 	// Get the mode information
 	Info = GraphicsOutput->Mode[mode].Info;
