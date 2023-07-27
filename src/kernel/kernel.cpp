@@ -65,12 +65,8 @@ extern "C" void AssertionFailed(const char* expression, const char* message, con
 
 extern "C" void __attribute__((sysv_abi, __noreturn__)) /*__attribute__((__noreturn__))*/ KernelMain(KernelBootData* bootData)
 {
-    BMFont Font;
     GBootData = *bootData;
 
-    BMFont_Load(Jura_fnt_data, Jura_fnt_size, &Font);
-    Font.PageTextureData[0] = Jura_0_tga_data;
-    Font.PageTextureSize[0] = Jura_0_tga_size;
     BMFont_Load(Jura_fnt_data, Jura_fnt_size, &GDefaultFont);
     GDefaultFont.PageTextureData[0] = Jura_0_tga_data;
     GDefaultFont.PageTextureSize[0] = Jura_0_tga_size;
