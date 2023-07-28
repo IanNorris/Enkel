@@ -52,6 +52,7 @@ override DEFAULT_LDFLAGS :=
 $(eval $(call DEFAULT_VAR,LDFLAGS,$(DEFAULT_LDFLAGS)))
 
 # Internal C flags that should not be changed by the user.
+# -mgeneral-regs-only for interrupt handling (for now, see https://wiki.osdev.org/Interrupt_Service_Routines)
 override CFLAGS += \
     -Wall \
     -Wextra \
@@ -61,6 +62,7 @@ override CFLAGS += \
     -fno-lto \
     -pie \
     -fPIE \
+    -mgeneral-regs-only \
     -m64 \
     -march=x86-64 \
     -mabi=sysv \
