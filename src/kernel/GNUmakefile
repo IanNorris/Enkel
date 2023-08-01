@@ -100,6 +100,10 @@ override NASMFLAGS += \
     -Wall \
     -f elf64
 
+override SFLAGS += \
+    -Wall \
+    -fPIC
+
 # Use "find" to glob all *.c, *.S, and *.asm files in the tree and obtain the
 # object and header dependency file names.
 override CPPFILES := $(shell find -L . -type f -name '*.cpp') $(FONT_CPP_FILES)
@@ -110,7 +114,7 @@ override HEADER_DEPS := $(CPPFILES:.cpp=.cpp.d) $(ASFILES:.S=.S.d)
 
 # Default target.
 .PHONY: all
-all: $(KERNEL) $(FONT_CPP_FILES) $(FONT_H_FILES)
+all: $(KERNEL) $(FONT_CPP_FILES) $(FONT_H_FILES) $(NASMFILES)
 
 $(FONT_CPP_FILES) $(FONT_H_FILES): fonts
 
@@ -118,7 +122,7 @@ fonts:
 	$(MAKE) -C ../../fonts
 
 # Link rules for the final kernel executable.
-$(KERNEL): $(OBJ) $(CPPFILES) $(LDTEMPLATE)
+$(KERNEL): $(OBJ) $(CPPFILES) $(LDTEMPLATE) $(NASMFILES)
 	$(LD) $(OBJ) $(LDFLAGS) -o $@
 
 # Include header dependencies.
@@ -130,7 +134,7 @@ $(KERNEL): $(OBJ) $(CPPFILES) $(LDTEMPLATE)
 
 # Compilation rules for *.S files.
 %.S.o: %.S
-	$(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@
+	$(CC) $(SFLAGS) -c $< -o $@
 
 # Compilation rules for *.asm (nasm) files.
 %.asm.o: %.asm

@@ -74,12 +74,16 @@ void InterruptDummy(const char16_t* Str, struct interrupt_frame* frame)
     halt();
 }
 
+extern "C" void SetGDT(uint16_t limit, uint64_t base);
+extern "C" void ReloadSegments();
+
 #define PRINT_INTERRUPT(n) extern "C" void __attribute__((interrupt)) Interrupt_##n(struct interrupt_frame* frame) \
 { (void)frame; InterruptDummy(u"Interrupt " #n, frame);}
 
 #define PRINT_NAMED_INTERRUPT(functionName, string) extern "C" void __attribute__((interrupt)) functionName(struct interrupt_frame* frame) {InterruptDummy(string, frame);}
 
-PRINT_NAMED_INTERRUPT(Interrupt_Div0, u"Divide by 0") //0
+PRINT_INTERRUPT(0)
+//PRINT_NAMED_INTERRUPT(Interrupt_Div0, u"Divide by 0") //0
 PRINT_NAMED_INTERRUPT(Interrupt_SingleStep, u"Single step") //1
 PRINT_NAMED_INTERRUPT(Interrupt_NonMaskableInterrupt, u"Non-maskable Interrupt") //2
 PRINT_NAMED_INTERRUPT(Interrupt_Breakpoint, u"Breakpoint") //3
@@ -150,7 +154,7 @@ PRINT_INTERRUPT(69)
 uint64_t ISRAddress = (uint64_t)&Interrupt_##num; \
 IDT[num].OffsetLow = (uint16_t)(ISRAddress & 0xFFFF); \
 IDT[num].OffsetMid = (uint16_t)((ISRAddress >> 16) & 0xFFFF); \
-IDT[num].OffsetHigh = (uint32_t)(ISRAddress >> 32); \
+IDT[num].OffsetHigh = (uint32_t)((ISRAddress >> 32) & 0xFFFFFFFF); \
 IDT[num].Selector = KERNEL_CODE_SEGMENT * sizeof(GDTEntry); \
 IDT[num].IST = 0; \
 IDT[num].Flags = TrapGate; \
@@ -162,7 +166,7 @@ IDT[num].Reserved = 0; \
 uint64_t ISRAddress = (uint64_t)&functionName; \
 IDT[num].OffsetLow = (uint16_t)(ISRAddress & 0xFFFF); \
 IDT[num].OffsetMid = (uint16_t)((ISRAddress >> 16) & 0xFFFF); \
-IDT[num].OffsetHigh = (uint32_t)(ISRAddress >> 32); \
+IDT[num].OffsetHigh = (uint32_t)((ISRAddress >> 32) & 0xFFFFFFFF); \
 IDT[num].Selector = KERNEL_CODE_SEGMENT * sizeof(GDTEntry); \
 IDT[num].IST = 0; \
 IDT[num].Flags = InterruptGate; \
@@ -174,7 +178,7 @@ IDT[num].Reserved = 0; \
 uint64_t ISRAddress = (uint64_t)&functionName; \
 IDT[num].OffsetLow = (uint16_t)(ISRAddress & 0xFFFF); \
 IDT[num].OffsetMid = (uint16_t)((ISRAddress >> 16) & 0xFFFF); \
-IDT[num].OffsetHigh = (uint32_t)(ISRAddress >> 32); \
+IDT[num].OffsetHigh = (uint32_t)((ISRAddress >> 32) & 0xFFFFFFFF); \
 IDT[num].Selector = KERNEL_CODE_SEGMENT * sizeof(GDTEntry); \
 IDT[num].IST = 0; \
 IDT[num].Flags = TrapGate; \
@@ -182,23 +186,117 @@ IDT[num].Reserved = 0; \
 }
 
 #define IDT_SIZE 256
-IDTEntry IDT[IDT_SIZE];
-GDTPointer IDTLimits;
+static IDTEntry IDT[IDT_SIZE];
+static GDTPointer IDTLimits;
 
-// Define our GDT
-GDTEntry GDT[3] =
+static GDTEntry GDT[] =
 {
-    // Null descriptor
-    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-    // Code Segment: base=0, limit=0xfffff, 64-bit code segment
-    {0xffff, 0, 0, CODE_ExecuteRead_Acc, 1, 0, 1, 0xf, 0, 1, 1, 1, 0},
-    // Data Segment: base=0, limit=0xfffff, 64-bit data segment
-    {0xffff, 0, 0, DATA_ReadWrite_Acc, 1, 0, 1, 0xf, 0, 1, 1, 1, 0}
+    // Null
+    {
+        .LimitLow = 0,
+        .BaseLow = 0,
+        .BaseMiddle = 0,
+        .Accessed = 0,
+        .ReadWrite = 0,
+        .DirectionConforming = 0,
+        .Executable = 0,
+        .DescriptorType = 0,
+        .Privilege = 0,
+        .Present = 0,
+        .LimitHigh = 0x0,
+        .Reserved = 0,
+        .LongModeCode = 0,
+        .OpSize = 0,
+        .Granularity = 0,
+        .BaseHigh = 0
+    },
+    // Code
+    {
+        .LimitLow = 0xFFFF,
+        .BaseLow = 0,
+        .BaseMiddle = 0,
+        .Accessed = 0,
+        .ReadWrite = 1, //Can READ from code (can never write when Executable)
+        .DirectionConforming = 0, //?
+        .Executable = 1,
+        .DescriptorType = 1,
+        .Privilege = 0,
+        .Present = 1,
+        .LimitHigh = 0xF,
+        .Reserved = 0,
+        .LongModeCode = 1,
+        .OpSize = 0, //Always zero when LongModeCode is set
+        .Granularity = 1, //4KiB
+        .BaseHigh = 0
+    },
+    // Data
+    {
+        .LimitLow = 0xFFFF,
+        .BaseLow = 0,
+        .BaseMiddle = 0,
+        .Accessed = 0,
+        .ReadWrite = 1, // Writeable data segment
+        .DirectionConforming = 0,
+        .Executable = 0,
+        .DescriptorType = 1,
+        .Privilege = 0,
+        .Present = 1,
+        .LimitHigh = 0xF,
+        .Reserved = 0,
+        .LongModeCode = 0,
+        .OpSize = 1,
+        .Granularity = 1, //4KiB
+        .BaseHigh = 0
+    }
 };
-GDTPointer GDTLimits;
+
+static GDTPointer GDTLimits;
 
 static_assert(sizeof(GDTEntry) == 0x8);
 static_assert(sizeof(IDTEntry) == 0x10);
+
+extern "C" void Slow()
+{
+    for (int i = 0; i < 10000000; i++)
+    {
+        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
+        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
+        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
+        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
+        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
+        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
+        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
+        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
+        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
+        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
+        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
+        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
+        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
+        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
+        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
+        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
+        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
+        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
+        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
+        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
+        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
+        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
+        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
+        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
+        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
+        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
+        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
+        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
+        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
+        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
+        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
+        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
+        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
+        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
+        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
+        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
+    }
+}
 
 extern "C" void InitializeLongMode()
 {
@@ -207,7 +305,8 @@ extern "C" void InitializeLongMode()
 
     memset(IDT, 0, sizeof(IDT));
 
-    SET_NAMED_TRAP(0, Interrupt_Div0) //0
+    SET_INTERRUPT(0)
+    //SET_NAMED_TRAP(0, Interrupt_Div0) //0
     SET_NAMED_TRAP(1, Interrupt_SingleStep) //1
     SET_NAMED_TRAP(2, Interrupt_NonMaskableInterrupt) //2
     SET_NAMED_TRAP(3, Interrupt_Breakpoint) //3
@@ -220,7 +319,8 @@ extern "C" void InitializeLongMode()
     SET_NAMED_TRAP(10, Interrupt_InvalidTaskStateSegment) //10
     SET_NAMED_TRAP(11, Interrupt_SegmentNotPresent) //11
     SET_NAMED_TRAP(12, Interrupt_StackSegmentFault) //12
-    SET_NAMED_TRAP(13, Interrupt_GeneralProtectionFault) //13
+    SET_NAMED_INTERRUPT(13, Interrupt_GeneralProtectionFault) //13
+    //SET_NAMED_TRAP(13, ISRWrapper) //13
     SET_NAMED_TRAP(14, Interrupt_PageFault) //14
     // 15 is reserved
     SET_NAMED_TRAP(16, Interrupt_x87FloatingPointException) //16
@@ -271,35 +371,42 @@ extern "C" void InitializeLongMode()
     SET_INTERRUPT(68)
     SET_INTERRUPT(69)
 
-    GDTLimits.Limit = sizeof(GDT) - 1;
-    GDTLimits.Base = (uint64_t)&GDT;
-
     IDTLimits.Limit = sizeof(IDT) - 1;
-    IDTLimits.Base = (uint64_t)&IDT;
+    IDTLimits.Base = (uint64_t)IDT;
 
-    //Load the GDT & IDT
-    asm volatile("lgdt %0" : : "m"(GDTLimits));
-    asm volatile("lidt %0" : : "m"(IDTLimits));
+    GDTLimits.Limit = sizeof(GDT) - 1;
+    GDTLimits.Base = (uint64_t)GDT;
+
+    int StartX = 0;
+    int StartY = 40;
+    BMFontColor Col = { 0x8c, 0xFF, 0x0 }; //Light Green
+
+    BMFont_Render(&GDefaultFont, GBootData.Framebuffer, GBootData.FramebufferPitch, StartX, StartY, u"1\n", Col);
+    Slow();
+
+    //Load the GDT
+    SetGDT((sizeof(GDTEntry) * 3) - 1, (uint64_t)&GDT[0]);
+
+    BMFont_Render(&GDefaultFont, GBootData.Framebuffer, GBootData.FramebufferPitch, StartX, StartY, u"2\n", Col);
+    Slow();
 
     //Force a jump to apply all the changes
-    asm volatile (
-        "pushq $0x08\n"     // Reload CS register
-        "lea reload(%rip), %rax\n"  // Load the address of the next instruction
-        "pushq %rax\n"     // Push the address onto the stack
-        "lretq\n"           // Pop return address and CS into RIP and CS
-        "reload:\n"              // This is where the `lretq` will return to
+    ReloadSegments();
 
-        // Now update the data segment registers
-        "movw $0x10, %ax\n"   // 0x10 is the segment selector for the data segment
-        "movw %ax, %ds\n"
-        "movw %ax, %es\n"
-        "movw %ax, %fs\n"
-        "movw %ax, %gs\n"
-        "movw %ax, %ss\n"
-        );
+    //Load the IDT
+    BMFont_Render(&GDefaultFont, GBootData.Framebuffer, GBootData.FramebufferPitch, StartX, StartY, u"3\n", Col);
+    Slow();
 
+    asm volatile("lidt %0" : : "m"(IDTLimits));
+
+    BMFont_Render(&GDefaultFont, GBootData.Framebuffer, GBootData.FramebufferPitch, StartX, StartY, u"4\n", Col);
+    Slow();
+        
     //We can now re-enable interrupts.
     __asm("sti");
+
+    BMFont_Render(&GDefaultFont, GBootData.Framebuffer, GBootData.FramebufferPitch, StartX, StartY, u"5\n", Col);
+    Slow();
 }
 
 extern "C" void __attribute__((sysv_abi, __noreturn__)) /*__attribute__((__noreturn__))*/ KernelMain(KernelBootData* bootData)
@@ -317,48 +424,25 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) /*__attribute__((__noret
 
     memset(bootData->Framebuffer, 0x66, 200 * bootData->FramebufferPitch);
 
-    int StartX = 0;
+    int StartX = 100;
     int StartY = 0;
     BMFontColor Col = { 0x8c, 0xFF, 0x0 }; //Light Green
     BMFont_Render(&GDefaultFont, bootData->Framebuffer, bootData->FramebufferPitch, StartX, StartY, u"Starting Enkel...\n", Col);
+    Slow();
 
     InitializeLongMode();
 
-    BMFont_Render(&GDefaultFont, bootData->Framebuffer, bootData->FramebufferPitch, StartX, StartY, u"We're not dead!...\n", Col);
+    BMFont_Render(&GDefaultFont, GBootData.Framebuffer, GBootData.FramebufferPitch, StartX, StartY, u"6\n", Col);
+    Slow();
 
-    //asm volatile("int $3");
+    int x = 1;
+    int y = 1;
+    int z = x / (y-1);
 
-    int quadPitch = bootData->FramebufferPitch / 4;
-    int color = 0x00FFFF00;
 
-    StartX = 20;
-    StartY = 400;
-    int count = 1000;
-    while (true)
-    {
-        count--;
-        color += 0x00000022;
-
-        StartX = 20;
-        StartY = 400;
-
-        for (int x = 0; x < 40; x++)
-        {
-            for (int y = 0; y < 40; y++)
-            {
-                uint32_t OutputPos = ((StartY + y) * quadPitch) + StartX + x;
-                ((uint32_t*)bootData->Framebuffer)[OutputPos] = color;
-            }
-        }
-
-        if (count == 0)
-        {
-            int* null = 0;
-            //*null = 0;
-
-            asm volatile("int $3");
-        }
-    }
+    BMFont_Render(&GDefaultFont, GBootData.Framebuffer, GBootData.FramebufferPitch, StartX, StartY, u"Done\n" + z, Col);
+    Slow();
 
     halt();
+    while (1);
 }

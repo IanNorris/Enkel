@@ -1,36 +1,30 @@
 #pragma once
 
-enum SegmentType : uint8_t
-{
-    DATA_ReadWrite_NonAcc = 0x02,
-    DATA_ReadWrite_Acc = 0x03,
-    CODE_ExecuteOnly_NonAcc = 0x08,
-    CODE_ExecuteRead_NonAcc = 0x0A,
-    CODE_ExecuteOnly_Acc = 0x09,
-    CODE_ExecuteRead_Acc = 0x0B
-};
-
 enum InterruptType : uint8_t
 {
     InterruptGate = 0x8E,
     TrapGate = 0x8F
 };
 
+
 struct GDTEntry
 {
-    uint16_t LimitLow;                          //Lower 16bits of the limit
-    uint16_t BaseLow;                           //Lower 16bits of the base
-    uint8_t  BaseMiddle;                        //Next 8bits of the base
-    uint8_t  SegmentType : 4;                   //Segment type (eg code/data)
-    uint8_t  DescriptorType : 1;                //Descriptor type (0 == system, 1 = code or data) 
-    uint8_t  DescriptorPrivilegeLevel : 2;      //Descriptor privilege level (DPL) - rings 0-3 (0==kernel)
-    uint8_t  IsPresent : 1;                     //Is this descriptor present in memory?
-    uint8_t  LimitHigh : 4; 			    	//Upper 4bits of the limit     
-    uint8_t  IsAvailable : 1;                   //Is available for system use (always set to zero)
-    uint8_t  LongModeSegment : 1;               //Is Long mode
-    uint8_t  SegmentSizeMode : 1;  			    //Operation size
-    uint8_t  Granularity : 1;                   //Grandularity of the segment. 0 = 1b, 1 = 4kb pages. When set the limit is shifted left by 12 bits and 1bits are filled in behind.
-    uint8_t  BaseHigh;						    //Upper 8bits of the base 
+    uint16_t LimitLow;          // The lower 16 bits of the limit.
+    uint16_t BaseLow;           // The lower 16 bits of the base.
+    uint8_t  BaseMiddle;        // The next 8 bits of the base.
+    uint8_t  Accessed : 1;    // The accessed flag
+    uint8_t  ReadWrite : 1;    // Read/Write flag (for code selectors)
+    uint8_t  DirectionConforming : 1;    // Direction conforming flag (for code selectors - 0 - segment grows up, 1 - segment grows down). Controls if lower DPLs can access.
+    uint8_t  Executable : 1;    // Executable flag
+    uint8_t  DescriptorType : 1;    // Descriptor type (0 for system, 1 for code/data)
+    uint8_t  Privilege : 2;    // Descriptor Privilege Level - ring 0 - 3.
+    uint8_t  Present : 1;    // Present
+    uint8_t  LimitHigh : 4;    // The upper 4 bits of the limit.
+    uint8_t  Reserved : 1;    // Reserved for system use.
+    uint8_t  LongModeCode : 1;    // Long mode for 64bit code segment.
+    uint8_t  OpSize : 1;    // Operation size (0 = 16bit, 1 = 32bit)
+    uint8_t  Granularity : 1;    // Granularity.
+    uint8_t  BaseHigh;          // The last 8 bits of the base.
 } __attribute__((packed));
 
 struct GDTPointer
