@@ -63,40 +63,56 @@ extern "C" void AssertionFailed(const char* expression, const char* message, con
     while (1);
 }
 
-void InterruptDummy(const char16_t* Str, struct interrupt_frame* frame)
+void Slow();
+
+void InterruptDummy(const char16_t* Str, struct interrupt_frame* frame, bool terminate)
 {
     (void)frame;
 
     BMFontColor Col = { 0x8c, 0xFF, 0x0 };
-    int StartX = 500;
-    int StartY = 500;
+    static int StartX = 200;
+    static int StartY = 300;
+    int CurrentX = StartX;
     BMFont_Render(&GDefaultFont, GBootData.Framebuffer, GBootData.FramebufferPitch, StartX, StartY, Str, Col);
-    halt();
+    StartX = CurrentX;
+    StartY += GDefaultFont.Common->LineHeight;
+    if (StartY >= 1000)
+    {
+        StartX += 200;
+        StartY = 300;
+    }
+
+    Slow();
+
+    if (terminate)
+    {
+        halt();
+    }
 }
 
 extern "C" void SetGDT(uint16_t limit, uint64_t base);
 extern "C" void ReloadSegments();
 
 #define PRINT_INTERRUPT(n) extern "C" void __attribute__((interrupt)) Interrupt_##n(struct interrupt_frame* frame) \
-{ (void)frame; InterruptDummy(u"Interrupt " #n, frame);}
+{ (void)frame; InterruptDummy(u"Interrupt " #n, frame, false);}
 
-#define PRINT_NAMED_INTERRUPT(functionName, string) extern "C" void __attribute__((interrupt)) functionName(struct interrupt_frame* frame) {InterruptDummy(string, frame);}
+#define PRINT_NAMED_INTERRUPT(functionName, string) extern "C" void __attribute__((interrupt)) functionName(struct interrupt_frame* frame) {InterruptDummy(string, frame, false);}
+#define PRINT_NAMED_INTERRUPT_HALT(functionName, string) extern "C" void __attribute__((interrupt)) functionName(struct interrupt_frame* frame) {InterruptDummy(string, frame, true);}
 
-PRINT_INTERRUPT(0)
-//PRINT_NAMED_INTERRUPT(Interrupt_Div0, u"Divide by 0") //0
-PRINT_NAMED_INTERRUPT(Interrupt_SingleStep, u"Single step") //1
-PRINT_NAMED_INTERRUPT(Interrupt_NonMaskableInterrupt, u"Non-maskable Interrupt") //2
+PRINT_NAMED_INTERRUPT(Interrupt_Div0, u"Divide by 0") //0
+PRINT_NAMED_INTERRUPT_HALT(Interrupt_SingleStep, u"Single step") //1
+PRINT_NAMED_INTERRUPT_HALT(Interrupt_NonMaskableInterrupt, u"Non-maskable Interrupt") //2
 PRINT_NAMED_INTERRUPT(Interrupt_Breakpoint, u"Breakpoint") //3
-PRINT_NAMED_INTERRUPT(Interrupt_Overflow, u"Overflow") //4
-PRINT_NAMED_INTERRUPT(Interrupt_BoundRangeExceeded, u"Bound range exceeded") //5
-PRINT_NAMED_INTERRUPT(Interrupt_InvalidOpcode, u"Invalid opcode") //6
+PRINT_NAMED_INTERRUPT_HALT(Interrupt_Overflow, u"Overflow") //4
+PRINT_NAMED_INTERRUPT_HALT(Interrupt_BoundRangeExceeded, u"Bound range exceeded") //5
+PRINT_NAMED_INTERRUPT_HALT(Interrupt_InvalidOpcode, u"Invalid opcode") //6
 PRINT_NAMED_INTERRUPT(Interrupt_CoprocessorUnavailable, u"Coprocessor unavailable") //7
-PRINT_NAMED_INTERRUPT(Interrupt_DoubleFault, u"Double fault") //8
+PRINT_NAMED_INTERRUPT_HALT(Interrupt_DoubleFault, u"Double fault") //8
 PRINT_NAMED_INTERRUPT(Interrupt_CoprocessorSegmentOverrun, u"Coprocessor segment overrun") //9
 PRINT_NAMED_INTERRUPT(Interrupt_InvalidTaskStateSegment, u"Invalid task state segment") //10
-PRINT_NAMED_INTERRUPT(Interrupt_SegmentNotPresent, u"Segment not present") //11
-PRINT_NAMED_INTERRUPT(Interrupt_StackSegmentFault, u"Stack segment fault") //12
-PRINT_NAMED_INTERRUPT(Interrupt_GeneralProtectionFault, u"General protection fault") //13
+PRINT_NAMED_INTERRUPT_HALT(Interrupt_SegmentNotPresent, u"Segment not present") //11
+PRINT_NAMED_INTERRUPT_HALT(Interrupt_StackSegmentFault, u"Stack segment fault") //12
+PRINT_NAMED_INTERRUPT_HALT(Interrupt_GeneralProtectionFault, u"General protection fault") //13
 PRINT_NAMED_INTERRUPT(Interrupt_PageFault, u"Page fault") //14
 //15 is reserved
 PRINT_NAMED_INTERRUPT(Interrupt_x87FloatingPointException, u"x87 Floating point exception") //16
@@ -255,7 +271,7 @@ static GDTPointer GDTLimits;
 static_assert(sizeof(GDTEntry) == 0x8);
 static_assert(sizeof(IDTEntry) == 0x10);
 
-extern "C" void Slow()
+void Slow()
 {
     for (int i = 0; i < 10000000; i++)
     {
@@ -298,15 +314,14 @@ extern "C" void Slow()
     }
 }
 
-extern "C" void InitializeLongMode()
+void InitializeLongMode()
 {
     //Disable interrupts because we won't be able to handle these until we initialize the GDT and the interrupt handlers.
     __asm("cli");
 
     memset(IDT, 0, sizeof(IDT));
 
-    SET_INTERRUPT(0)
-    //SET_NAMED_TRAP(0, Interrupt_Div0) //0
+    SET_NAMED_TRAP(0, Interrupt_Div0) //0
     SET_NAMED_TRAP(1, Interrupt_SingleStep) //1
     SET_NAMED_TRAP(2, Interrupt_NonMaskableInterrupt) //2
     SET_NAMED_TRAP(3, Interrupt_Breakpoint) //3
@@ -409,6 +424,24 @@ extern "C" void InitializeLongMode()
     Slow();
 }
 
+void Div0()
+{
+    int StartX = 400;
+    int StartY = 0;
+    BMFontColor Col = { 0x8c, 0xFF, 0x0 }; //Light Green
+
+    int x = 1000;
+    int y = 100;
+    int z = 0;
+    while (y > -2)
+    {
+        z+= x / (--y);
+    }
+
+    BMFont_Render(&GDefaultFont, GBootData.Framebuffer, GBootData.FramebufferPitch, StartX, StartY, u"Done\n" + (z > 0 ? 1 : 0), Col);
+    Slow();
+}
+
 extern "C" void __attribute__((sysv_abi, __noreturn__)) /*__attribute__((__noreturn__))*/ KernelMain(KernelBootData* bootData)
 {
     GBootData = *bootData;
@@ -435,12 +468,14 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) /*__attribute__((__noret
     BMFont_Render(&GDefaultFont, GBootData.Framebuffer, GBootData.FramebufferPitch, StartX, StartY, u"6\n", Col);
     Slow();
 
-    int x = 1;
-    int y = 1;
-    int z = x / (y-1);
+    asm volatile("int $3");
 
+    BMFont_Render(&GDefaultFont, GBootData.Framebuffer, GBootData.FramebufferPitch, StartX, StartY, u"7\n", Col);
+    Slow();
 
-    BMFont_Render(&GDefaultFont, GBootData.Framebuffer, GBootData.FramebufferPitch, StartX, StartY, u"Done\n" + z, Col);
+    Div0();
+
+    BMFont_Render(&GDefaultFont, GBootData.Framebuffer, GBootData.FramebufferPitch, StartX, StartY, u"Exiting\n", Col);
     Slow();
 
     halt();
