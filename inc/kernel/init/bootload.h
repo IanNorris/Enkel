@@ -9,6 +9,7 @@
 #endif
 #define NULL nullptr
 #include "Protocol/GraphicsOutput.h"
+#include "kernel/framebuffer/framebuffer.h"
 
 typedef KERNEL_API void (*BootPrintFunction)(const char16_t* message);
 
@@ -24,10 +25,7 @@ struct KernelBootData
 	KernelMemoryLayout MemoryLayout;
 
 	EFI_GRAPHICS_OUTPUT_PROTOCOL* GraphicsOutput;
-	uint32_t* Framebuffer;
-	unsigned int FramebufferWidth;
-	unsigned int FramebufferHeight;
-	unsigned int FramebufferPitch;
+	FramebufferLayout Framebuffer;
 };
 
 extern "C"

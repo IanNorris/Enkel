@@ -1,4 +1,5 @@
-﻿#include "font/details/bmfont.h"
+﻿#include "font/details/bmfont_internal.h"
+#include "font/details/bmfont.h"
 #include "memory/memory.h"
 
 #define INC_SIZE(size)		\
@@ -53,7 +54,7 @@ bool BMFont_Load(const void* FileData, uint32_t FileSize, BMFont* FontOut)
 	return true;
 }
 
-BMFontChar* BMFont_FindGlyph(BMFont* Font, uint32_t Id)
+const BMFontChar* BMFont_FindGlyph(const BMFont* Font, uint32_t Id)
 {
 	uint32_t Start = 0;
 	uint32_t End = Font->TotalCharacters - 1;
@@ -84,7 +85,7 @@ BMFontChar* BMFont_FindGlyph(BMFont* Font, uint32_t Id)
 	return nullptr;
 }
 
-void BMFont_RenderGlyph(BMFont* Font, BMFontChar* Glyph, void* Framebuffer, uint32_t FramebufferPitch, int32_t StartX, int32_t StartY, const BMFontColor& Color)
+void BMFont_RenderGlyph(const BMFont* Font, const BMFontChar* Glyph, void* Framebuffer, uint32_t FramebufferPitch, int32_t StartX, int32_t StartY, const BMFontColor& Color)
 {
 	uint32_t* PageTextureBytes = (uint32_t*)(Font->PageTextureData[Glyph->Page]+18);
 	uint32_t* FramebufferU32 = (uint32_t*)Framebuffer;
@@ -158,20 +159,19 @@ void BMFont_RenderGlyph(BMFont* Font, BMFontChar* Glyph, void* Framebuffer, uint
 	}
 }
 
-void BMFont_Render(BMFont* Font, void* Framebuffer, uint32_t FramebufferPitch, int32_t& StartX, int32_t& StartY, const char16_t* String, const BMFontColor& Color)
+void BMFont_Render(const BMFont* Font, void* Framebuffer, uint32_t FramebufferPitch, int32_t& StartX, int32_t& StartY, int32_t ReturnX, const char16_t* String, const BMFontColor& Color)
 {
-	int32_t OriginalStartX = StartX;
 	while (*String)
 	{
 		if (*String == '\n')
 		{
-			StartX = OriginalStartX;
+			StartX = ReturnX;
 			StartY += Font->Common->LineHeight;
 			String++;
 			continue;
 		}
 
-		BMFontChar* Glyph = BMFont_FindGlyph(Font, *String);
+		const BMFontChar* Glyph = BMFont_FindGlyph(Font, *String);
 
 		if (!Glyph)
 		{

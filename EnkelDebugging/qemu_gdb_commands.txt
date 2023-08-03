@@ -1,0 +1,2 @@
+add-symbol-file ~/Enkel/boot_iso/boot_part/kernel/enkel.elf
+extended-remote localhost:5000

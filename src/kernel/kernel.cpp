@@ -1,92 +1,32 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include "Jura.h"
-#include "Jura_0.h"
-#include "common/string.h"
-#include "font/details/bmfont.h"
+
 #include "memory/memory.h"
 #include "utilities/termination.h"
 
-#include "kernel/bootload.h"
-#include "kernel/gdt.h"
+#include "kernel/console/console.h"
+#include "kernel/utilities/slow.h"
+#include "kernel/init/bootload.h"
+#include "kernel/init/gdt.h"
 
-BMFont GDefaultFont;
+//TO DELETE:
+#include "font/details/bmfont.h"
+extern BMFont GDefaultFont;
+
 KernelBootData GBootData;
-
-extern "C" void AssertionFailed(const char* expression, const char* message, const char* filename, size_t lineNumber)
-{
-    char16_t messageBuffer[2048];
-
-    BMFontColor Background = { 0x54, 0x00, 0x2C };
-    uint32_t BackgroundU32 = Background.Blue | (Background.Green << 8) | (Background.Red << 16);
-
-    memset32(GBootData.Framebuffer, BackgroundU32, 240 * GBootData.FramebufferPitch);
-
-    int OriginX = 20;
-
-    int StartX = OriginX;
-    int StartY = 20;
-
-    BMFontColor Header = { 0xFF, 0x7B, 0x0 }; //Red/Orange
-    BMFontColor Label = { 0x8c, 0xFF, 0x0 }; //Light Green
-    BMFontColor Text = { 0x00, 0x7F, 0xFF }; //Mid Blue
-
-    BMFont_Render(&GDefaultFont, GBootData.Framebuffer, GBootData.FramebufferPitch, StartX, StartY, u"ASSERTION FAILED", Header);
-    StartY += 2* GDefaultFont.Common->LineHeight;
-
-    StartX = OriginX;
-    BMFont_Render(&GDefaultFont, GBootData.Framebuffer, GBootData.FramebufferPitch, StartX, StartY, u"Message: ", Label);
-    ascii_to_wide(messageBuffer, message, 2048);
-    BMFont_Render(&GDefaultFont, GBootData.Framebuffer, GBootData.FramebufferPitch, StartX, StartY, messageBuffer, Text);
-    StartY += GDefaultFont.Common->LineHeight;
-
-    StartX = OriginX;
-    BMFont_Render(&GDefaultFont, GBootData.Framebuffer, GBootData.FramebufferPitch, StartX, StartY, u"Expression: ", Label);
-    ascii_to_wide(messageBuffer, expression, 2048);
-    BMFont_Render(&GDefaultFont, GBootData.Framebuffer, GBootData.FramebufferPitch, StartX, StartY, messageBuffer, Text);
-    StartY += GDefaultFont.Common->LineHeight;
-
-    StartX = OriginX;
-    BMFont_Render(&GDefaultFont, GBootData.Framebuffer, GBootData.FramebufferPitch, StartX, StartY, u"Filename: ", Label);
-    ascii_to_wide(messageBuffer, filename, 2048);
-    BMFont_Render(&GDefaultFont, GBootData.Framebuffer, GBootData.FramebufferPitch, StartX, StartY, messageBuffer, Text);
-    StartY += GDefaultFont.Common->LineHeight;
-
-    StartX = OriginX;
-    BMFont_Render(&GDefaultFont, GBootData.Framebuffer, GBootData.FramebufferPitch, StartX, StartY, u"Line: ", Label);
-    witoabuf(messageBuffer, lineNumber, 10);
-    BMFont_Render(&GDefaultFont, GBootData.Framebuffer, GBootData.FramebufferPitch, StartX, StartY, messageBuffer, Text);
-    StartY += GDefaultFont.Common->LineHeight;
-
-    halt();
-    while (1);
-}
-
-void Slow();
 
 void InterruptDummy(const char16_t* Str, struct interrupt_frame* frame, bool terminate)
 {
     (void)frame;
 
-    BMFontColor Col = { 0x8c, 0xFF, 0x0 };
-    static int StartX = 200;
-    static int StartY = 300;
-    int CurrentX = StartX;
-    BMFont_Render(&GDefaultFont, GBootData.Framebuffer, GBootData.FramebufferPitch, StartX, StartY, Str, Col);
-    StartX = CurrentX;
-    StartY += GDefaultFont.Common->LineHeight;
-    if (StartY >= 1000)
-    {
-        StartX += 200;
-        StartY = 300;
-    }
+    ConsolePrint(Str);
 
     Slow();
 
     if (terminate)
     {
-        halt();
+        HaltPermanently();
     }
 }
 
@@ -96,8 +36,8 @@ extern "C" void ReloadSegments();
 #define PRINT_INTERRUPT(n) extern "C" void __attribute__((interrupt)) Interrupt_##n(struct interrupt_frame* frame) \
 { (void)frame; InterruptDummy(u"Interrupt " #n, frame, false);}
 
-#define PRINT_NAMED_INTERRUPT(functionName, string) extern "C" void __attribute__((interrupt)) functionName(struct interrupt_frame* frame) {InterruptDummy(string, frame, false);}
-#define PRINT_NAMED_INTERRUPT_HALT(functionName, string) extern "C" void __attribute__((interrupt)) functionName(struct interrupt_frame* frame) {InterruptDummy(string, frame, true);}
+#define PRINT_NAMED_INTERRUPT(functionName, string) extern "C" void __attribute__((interrupt)) functionName(struct interrupt_frame* frame) {InterruptDummy(string u"\n", frame, false);}
+#define PRINT_NAMED_INTERRUPT_HALT(functionName, string) extern "C" void __attribute__((interrupt)) functionName(struct interrupt_frame* frame) {InterruptDummy(string u"\n", frame, true);}
 
 PRINT_NAMED_INTERRUPT(Interrupt_Div0, u"Divide by 0") //0
 PRINT_NAMED_INTERRUPT_HALT(Interrupt_SingleStep, u"Single step") //1
@@ -271,48 +211,6 @@ static GDTPointer GDTLimits;
 static_assert(sizeof(GDTEntry) == 0x8);
 static_assert(sizeof(IDTEntry) == 0x10);
 
-void Slow()
-{
-    for (int i = 0; i < 10000000; i++)
-    {
-        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
-        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
-        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
-        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
-        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
-        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
-        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
-        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
-        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
-        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
-        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
-        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
-        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
-        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
-        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
-        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
-        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
-        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
-        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
-        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
-        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
-        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
-        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
-        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
-        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
-        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
-        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
-        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
-        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
-        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
-        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
-        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
-        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
-        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
-        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
-        asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
-    }
-}
 
 void InitializeLongMode()
 {
@@ -392,44 +290,31 @@ void InitializeLongMode()
     GDTLimits.Limit = sizeof(GDT) - 1;
     GDTLimits.Base = (uint64_t)GDT;
 
-    int StartX = 0;
-    int StartY = 40;
-    BMFontColor Col = { 0x8c, 0xFF, 0x0 }; //Light Green
-
-    BMFont_Render(&GDefaultFont, GBootData.Framebuffer, GBootData.FramebufferPitch, StartX, StartY, u"1\n", Col);
-    Slow();
+    ConsolePrint(u"1\n");
 
     //Load the GDT
     SetGDT((sizeof(GDTEntry) * 3) - 1, (uint64_t)&GDT[0]);
 
-    BMFont_Render(&GDefaultFont, GBootData.Framebuffer, GBootData.FramebufferPitch, StartX, StartY, u"2\n", Col);
-    Slow();
+    ConsolePrint(u"2\n");
 
     //Force a jump to apply all the changes
     ReloadSegments();
 
     //Load the IDT
-    BMFont_Render(&GDefaultFont, GBootData.Framebuffer, GBootData.FramebufferPitch, StartX, StartY, u"3\n", Col);
-    Slow();
+    ConsolePrint(u"3\n");
 
     asm volatile("lidt %0" : : "m"(IDTLimits));
 
-    BMFont_Render(&GDefaultFont, GBootData.Framebuffer, GBootData.FramebufferPitch, StartX, StartY, u"4\n", Col);
-    Slow();
+    ConsolePrint(u"4\n");
         
     //We can now re-enable interrupts.
     __asm("sti");
 
-    BMFont_Render(&GDefaultFont, GBootData.Framebuffer, GBootData.FramebufferPitch, StartX, StartY, u"5\n", Col);
-    Slow();
+    ConsolePrint(u"5\n");
 }
 
 void Div0()
 {
-    int StartX = 400;
-    int StartY = 0;
-    BMFontColor Col = { 0x8c, 0xFF, 0x0 }; //Light Green
-
     int x = 1000;
     int y = 100;
     int z = 0;
@@ -438,46 +323,38 @@ void Div0()
         z+= x / (--y);
     }
 
-    BMFont_Render(&GDefaultFont, GBootData.Framebuffer, GBootData.FramebufferPitch, StartX, StartY, u"Done\n" + (z > 0 ? 1 : 0), Col);
+    ConsolePrint(u"Done Div0\n");
     Slow();
 }
 
-extern "C" void __attribute__((sysv_abi, __noreturn__)) /*__attribute__((__noreturn__))*/ KernelMain(KernelBootData* bootData)
+void Div0_Broken()
 {
-    GBootData = *bootData;
-
-    BMFont_Load(Jura_fnt_data, Jura_fnt_size, &GDefaultFont);
-    GDefaultFont.PageTextureData[0] = Jura_0_tga_data;
-    GDefaultFont.PageTextureSize[0] = Jura_0_tga_size;
-
-
-    //AssertionFailed("1==2", "This is a test", __FILE__, __LINE__);
-
-    ///bootData->GraphicsOutput->SetMode(bootData->GraphicsOutput, 4);
-
-    memset(bootData->Framebuffer, 0x66, 200 * bootData->FramebufferPitch);
-
-    int StartX = 100;
-    int StartY = 0;
-    BMFontColor Col = { 0x8c, 0xFF, 0x0 }; //Light Green
-    BMFont_Render(&GDefaultFont, bootData->Framebuffer, bootData->FramebufferPitch, StartX, StartY, u"Starting Enkel...\n", Col);
+    int x = 1;
+    int y = 1;
+    int z = x / (y-1);
+    
+    ConsolePrint(u"Done Div0\n");
     Slow();
+}
+
+extern "C" void __attribute__((sysv_abi, __noreturn__)) /*__attribute__((__noreturn__))*/ KernelMain(KernelBootData* BootData)
+{
+    GBootData = *BootData;
+    DefaultConsoleInit(GBootData.Framebuffer, BMFontColor{ 0x0, 0x20, 0x80 }, BMFontColor{ 0x8c, 0xFF, 0x0 });
+
+    ConsolePrint(u"Starting Enkel...\n");
 
     InitializeLongMode();
 
-    BMFont_Render(&GDefaultFont, GBootData.Framebuffer, GBootData.FramebufferPitch, StartX, StartY, u"6\n", Col);
-    Slow();
+    ConsolePrint(u"6\n");
 
     asm volatile("int $3");
 
-    BMFont_Render(&GDefaultFont, GBootData.Framebuffer, GBootData.FramebufferPitch, StartX, StartY, u"7\n", Col);
-    Slow();
+    ConsolePrint(u"7\n");
 
     Div0();
 
-    BMFont_Render(&GDefaultFont, GBootData.Framebuffer, GBootData.FramebufferPitch, StartX, StartY, u"Exiting\n", Col);
-    Slow();
+    ConsolePrint(u"Exiting\n");
 
-    halt();
-    while (1);
+    HaltPermanently();
 }

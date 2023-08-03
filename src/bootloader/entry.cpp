@@ -35,7 +35,7 @@ EFI_STATUS __attribute__((__noreturn__)) efi_main(EFI_HANDLE imageHandle, EFI_SY
 	SetColor(EFI_WHITE);
 
 	//Set a timeout of 15s, if we haven't transferred to the kernel by then we probably won't be...
-	bootServices->SetWatchdogTimer(15, 0, 0, 0);
+	//bootServices->SetWatchdogTimer(15, 0, 0, 0);
 
 	KernelStartFunction kernelStart = LoadKernel(imageHandle, bootServices);
 
@@ -223,8 +223,8 @@ void SetResolution(EFI_BOOT_SERVICES* bootServices, KernelBootData& bootData)
 	// Get the frame buffer base
 	EFI_PHYSICAL_ADDRESS FrameBufferBase = GraphicsOutput->Mode[0].FrameBufferBase;
 	bootData.GraphicsOutput = GraphicsOutput;
-	bootData.Framebuffer = (uint32_t*)FrameBufferBase;
-	bootData.FramebufferWidth = GraphicsOutput->Mode[0].Info->HorizontalResolution;
-	bootData.FramebufferHeight = GraphicsOutput->Mode[0].Info->VerticalResolution;
-	bootData.FramebufferPitch = GraphicsOutput->Mode[0].Info->PixelsPerScanLine * 4;
+	bootData.Framebuffer.Base = (uint32_t*)FrameBufferBase;
+	bootData.Framebuffer.Width = GraphicsOutput->Mode[0].Info->HorizontalResolution;
+	bootData.Framebuffer.Height = GraphicsOutput->Mode[0].Info->VerticalResolution;
+	bootData.Framebuffer.Pitch = GraphicsOutput->Mode[0].Info->PixelsPerScanLine * 4;
 }

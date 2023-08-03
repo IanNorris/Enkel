@@ -15,6 +15,7 @@
 #endif
 
 #define KERNEL_API __attribute__((sysv_abi))
+#define KERNEL_NORETURN __attribute__((noreturn))
 
 extern "C" void AssertionFailed(const char* expression, const char* message, const char* filename, size_t lineNumber);
 
