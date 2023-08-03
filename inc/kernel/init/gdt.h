@@ -1,5 +1,7 @@
 #pragma once
 
+#include "common/types.h"
+
 enum InterruptType : uint8_t
 {
     InterruptGate = 0x8E,
@@ -43,3 +45,8 @@ struct IDTEntry
     uint32_t OffsetHigh;          // The high 32 bits of the ISR address
     uint32_t Reserved;            // Reserved, must be zero
 } __attribute__((packed));
+
+extern "C" void SetGDT(uint16_t limit, uint64_t base);
+extern "C" void ReloadSegments();
+
+void InitGDT();
