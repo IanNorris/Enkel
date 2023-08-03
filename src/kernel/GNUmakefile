@@ -56,6 +56,7 @@ $(eval $(call DEFAULT_VAR,LDFLAGS,$(DEFAULT_LDFLAGS)))
 override CFLAGS += \
     -Wall \
     -Wextra \
+    -finput-charset=CP1252\
     -ffreestanding \
     -fno-stack-protector \
     -fno-stack-check \
@@ -79,7 +80,7 @@ override CFLAGS += \
 # Internal C preprocessor flags that should not be changed by the user.
 override CPPFLAGS := \
     -I. \
-    $(CPPFLAGS) \
+    $(CFLAGS) \
     -MMD \
     -MP
 

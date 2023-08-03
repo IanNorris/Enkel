@@ -1,5 +1,7 @@
 #pragma once
 
+#include "kernel/framebuffer/framebuffer.h"
+
 #define BMFont_MaxPages 8
 
 #pragma pack(push, 1)
@@ -37,4 +39,4 @@ struct BMFont
 };
 
 bool BMFont_Load(const void* FileData, uint32_t FileSize, BMFont* FontOut);
-void BMFont_Render(const BMFont* Font, void* Framebuffer, uint32_t FramebufferPitch, int32_t& StartX, int32_t& StartY, int32_t ReturnX, const char16_t* String, const BMFontColor& Color);
+void BMFont_Render(const BMFont* Font, FramebufferLayout* Framebuffer, int32_t& StartX, int32_t& StartY, int32_t ReturnX, const char16_t* String, const BMFontColor& Color);

@@ -75,7 +75,7 @@ void ConsolePrintAtPosWithColor(const char16_t* String, int32_t& X, int32_t& Y, 
 		Console = &GDefaultConsole;
 	}
 
-	BMFont_Render(Console->Font, Console->Framebuffer.Base, Console->Framebuffer.Pitch, X, Y, ReturnX, String, ForegroundColor);
+	BMFont_Render(Console->Font, &Console->Framebuffer, X, Y, ReturnX, String, ForegroundColor);
 }
 
 void ConsolePrintAtPos(const char16_t* String, int32_t& X, int32_t& Y, int32_t ReturnX, Console* Console)

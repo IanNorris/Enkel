@@ -1,6 +1,7 @@
-﻿#include "font/details/bmfont_internal.h"
+#include "font/details/bmfont_internal.h"
 #include "font/details/bmfont.h"
 #include "memory/memory.h"
+#include "common/string.h"
 
 #define INC_SIZE(size)		\
 	FileDataPtr += size;	\
@@ -85,12 +86,12 @@ const BMFontChar* BMFont_FindGlyph(const BMFont* Font, uint32_t Id)
 	return nullptr;
 }
 
-void BMFont_RenderGlyph(const BMFont* Font, const BMFontChar* Glyph, void* Framebuffer, uint32_t FramebufferPitch, int32_t StartX, int32_t StartY, const BMFontColor& Color)
+void BMFont_RenderGlyph(const BMFont* Font, const BMFontChar* Glyph, FramebufferLayout* Framebuffer, int32_t StartX, int32_t StartY, const BMFontColor& Color)
 {
 	uint32_t* PageTextureBytes = (uint32_t*)(Font->PageTextureData[Glyph->Page]+18);
-	uint32_t* FramebufferU32 = (uint32_t*)Framebuffer;
+	uint32_t* FramebufferU32 = (uint32_t*)Framebuffer->Base;
 	uint32_t PagePitch = Font->Common->ScaleW;
-	uint32_t FramebufferQuadPitch = FramebufferPitch / 4;
+	uint32_t FramebufferQuadPitch = Framebuffer->Pitch / 4;
 
 	uint32_t Mask = 0xFFFFFF00;
 	uint32_t Shift = 0;
@@ -134,9 +135,19 @@ void BMFont_RenderGlyph(const BMFont* Font, const BMFontChar* Glyph, void* Frame
 			continue;
 		}
 
+		if (GlyphX + StartX >= Framebuffer->Width)
+		{
+			continue;
+		}
+
 		for (int32_t GlyphY = 0; GlyphY < Glyph->Height; GlyphY++)
 		{
 			if (GlyphY + StartY < 0)
+			{
+				continue;
+			}
+
+			if (GlyphY + StartY >= Framebuffer->Height)
 			{
 				continue;
 			}
@@ -159,15 +170,81 @@ void BMFont_RenderGlyph(const BMFont* Font, const BMFontChar* Glyph, void* Frame
 	}
 }
 
-void BMFont_Render(const BMFont* Font, void* Framebuffer, uint32_t FramebufferPitch, int32_t& StartX, int32_t& StartY, int32_t ReturnX, const char16_t* String, const BMFontColor& Color)
+void BMFont_Render(const BMFont* Font, FramebufferLayout* Framebuffer, int32_t& StartX, int32_t& StartY, int32_t ReturnX, const char16_t* String, const BMFontColor& Color)
 {
+	int Index = 0;
+	int NextOffset = -1;
+	int BreakAfterChar = -1;
 	while (*String)
 	{
-		if (*String == '\n')
+		if (*String == '\r')
 		{
+			String++;
+			Index++;
+			continue;
+		}
+
+		//We're attempting to find the next whitespace to see if we need to break at the end of the line
+		if (NextOffset == -1)
+		{
+			NextOffset = IndexOfWhitespace(String, 0);
+			if (NextOffset == -1)
+			{
+				NextOffset = strlen(String);
+			}
+
+			//Calculate the length of the next word
+			uint32_t NextWordPixelLength = 0;
+			for (int AdvanceChar = 0; AdvanceChar < NextOffset; AdvanceChar++)
+			{
+				const BMFontChar* Glyph = BMFont_FindGlyph(Font, *(String + AdvanceChar));
+
+				if (NextWordPixelLength + Glyph->XAdvance > Framebuffer->Width)
+				{
+					BreakAfterChar = AdvanceChar;
+					goto escapeLongString;
+				}
+
+				NextWordPixelLength += Glyph->XAdvance;
+			}
+
+			//If we're longer than the line
+			if (StartX + NextWordPixelLength > Framebuffer->Width)
+			{
+				//If we're longer than screen width
+				if (NextWordPixelLength > Framebuffer->Width)
+				{
+					//Do nothing here as BreakAfterChar will be triggered above anyway.
+				}
+				else
+				{
+					StartX = ReturnX;
+					StartY += Font->Common->LineHeight;
+					continue;
+				}
+			}
+		}
+
+escapeLongString:
+
+		if (BreakAfterChar != -1 && --BreakAfterChar == 0)
+		{
+			BreakAfterChar = -1;
+			StartX = ReturnX;
+			StartY += Font->Common->LineHeight;
+			NextOffset = -1;
+			continue;
+		}
+		else if (*String == '\n')
+		{
+			BreakAfterChar = -1;
 			StartX = ReturnX;
 			StartY += Font->Common->LineHeight;
 			String++;
+			if (*String == ' ')
+			{
+				String++;
+			}
 			continue;
 		}
 
@@ -183,10 +260,16 @@ void BMFont_Render(const BMFont* Font, void* Framebuffer, uint32_t FramebufferPi
 			return;
 		}
 
-		BMFont_RenderGlyph(Font, Glyph, Framebuffer, FramebufferPitch, StartX + Glyph->XOffset, StartY + Glyph->YOffset, Color);
+		BMFont_RenderGlyph(Font, Glyph, Framebuffer, StartX + Glyph->XOffset, StartY + Glyph->YOffset, Color);
 		StartX += Glyph->XAdvance;
 
 		String++;
+		Index++;
+
+		if (NextOffset != -1)
+		{
+			NextOffset--;
+		}
 	}
 
 }

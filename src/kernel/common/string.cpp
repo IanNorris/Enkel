@@ -1,5 +1,33 @@
 #include "common/string.h"
 
+size_t IndexOfWhitespace(const char* input, size_t offset)
+{
+	uint32_t index = offset;
+	while (input[index] != '\0')
+	{
+		if (input[index] == ' ' || input[index] == '\t' || input[index] == '\r' || input[index] == '\n')
+		{
+			return index;
+		}
+		index++;
+	}
+	return -1;
+}
+
+size_t IndexOfWhitespace(const char16_t* input, size_t offset)
+{
+	uint32_t index = offset;
+	while (input[index] != '\0')
+	{
+		if (input[index] == ' ' || input[index] == '\t' || input[index] == '\r' || input[index] == '\n')
+		{
+			return index;
+		}
+		index++;
+	}
+	return -1;
+}
+
 size_t IndexOfChar(const char* input, char c)
 {
     uint32_t index = 0;
@@ -14,6 +42,20 @@ size_t IndexOfChar(const char* input, char c)
     return -1;
 }
 
+size_t IndexOfChar(const char16_t* input, char c)
+{
+	uint32_t index = 0;
+	while (input[index] != '\0')
+	{
+		if (input[index] == c)
+		{
+			return index;
+		}
+		index++;
+	}
+	return -1;
+}
+
 size_t IndexOfSeparator(const char* input)
 {
     uint32_t index = 0;
@@ -26,6 +68,20 @@ size_t IndexOfSeparator(const char* input)
         index++;
     }
     return -1;
+}
+
+size_t IndexOfSeparator(const char16_t* input)
+{
+	uint32_t index = 0;
+	while (input[index] != '\0')
+	{
+		if (input[index] == '\\' || input[index] == '/')
+		{
+			return index;
+		}
+		index++;
+	}
+	return -1;
 }
 
 template<typename T>
@@ -99,6 +155,14 @@ size_t _strlen(const char* str)
 	return s - str;
 }
 
+size_t _strlen(const char16_t* str)
+{
+	const char16_t* s = str;
+	while (*s)
+		++s;
+	return s - str;
+}
+
 int _strcmp(const char* str1, const char* str2)
 {
 	while (*str1 && (*str1 == *str2))
@@ -106,23 +170,44 @@ int _strcmp(const char* str1, const char* str2)
 		str1++;
 		str2++;
 	}
-	return *(unsigned char*)str1 - *(unsigned char*)str2;
+	return *(int*)str1 - *(int*)str2;
+}
+
+int _strcmp(const char16_t* str1, const char16_t* str2)
+{
+	while (*str1 && (*str1 == *str2))
+	{
+		str1++;
+		str2++;
+	}
+	return *(int*)str1 - *(int*)str2;
 }
 
 int _stricmp(const char* str1, const char* str2)
 {
-	while (*str1 && (tolower((unsigned char)*str1) == tolower((unsigned char)*str2)))
+	while (*str1 && (tolower(*str1) == tolower(*str2)))
 	{
 		str1++;
 		str2++;
 	}
 
-	return tolower((unsigned char)*str1) - tolower((unsigned char)*str2);
+	return tolower(*str1) - tolower(*str2);
+}
+
+int _stricmp(const char16_t* str1, const char16_t* str2)
+{
+	while (*str1 && (tolower(*str1) == tolower(*str2)))
+	{
+		str1++;
+		str2++;
+	}
+
+	return tolower(*str1) - tolower(*str2);
 }
 
 int _strnicmp(const char* str1, const char* str2, size_t n)
 {
-	while (n && *str1 && (tolower((unsigned char)*str1) == tolower((unsigned char)*str2)))
+	while (n && *str1 && (tolower(*str1) == tolower(*str2)))
 	{
 		str1++;
 		str2++;
@@ -135,8 +220,65 @@ int _strnicmp(const char* str1, const char* str2, size_t n)
 	}
 	else
 	{
-		return tolower((unsigned char)*str1) - tolower((unsigned char)*str2);
+		return tolower(*str1) - tolower(*str2);
 	}
+}
+
+int _strnicmp(const char16_t* str1, const char16_t* str2, size_t n)
+{
+	while (n && *str1 && (tolower(*str1) == tolower(*str2)))
+	{
+		str1++;
+		str2++;
+		n--;
+	}
+
+	if (n == 0)
+	{
+		return 0;
+	}
+	else
+	{
+		return tolower(*str1) - tolower(*str2);
+	}
+}
+
+char* _strcpy(char* dest, const char* src)
+{
+	char* save = dest;
+	while ((*dest++ = *src++));
+	return save;
+}
+
+char* _strncpy(char* dest, const char* src, size_t n)
+{
+	size_t i;
+	for (i = 0; i < n && src[i] != '\0'; i++)
+	{
+		dest[i] = src[i];
+	}
+	for (; i < n; i++)
+	{
+		dest[i] = '\0';
+	}
+	return dest;
+}
+
+char16_t* _strcpy(char16_t* dest, const char16_t* src)
+{
+	char16_t* save = dest;
+	while ((*dest++ = *src++));
+	return save;
+}
+
+char16_t* _strncpy(char16_t* dest, const char16_t* src, size_t n)
+{
+	size_t i;
+	for (i = 0; i < n && src[i] != u'\0'; i++)
+		dest[i] = src[i];
+	for (; i < n; i++)
+		dest[i] = u'\0';
+	return dest;
 }
 
 int _isalpha(int c)
