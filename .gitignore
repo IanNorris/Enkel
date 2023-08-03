@@ -379,3 +379,4 @@ boot_iso/ovmf_bios.bin
 src/bootloader/bootloader
 
 src/bootloader/bootloader_build.h
+src/kernel/kernel_build.cpp

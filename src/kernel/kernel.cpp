@@ -6,13 +6,17 @@
 
 KernelBootData GBootData;
 
+extern const char16_t* KernelBuildId;
+
 extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootData* BootData)
 {
     GBootData = *BootData;
 
     DefaultConsoleInit(GBootData.Framebuffer, BMFontColor{ 0x0, 0x20, 0x80 }, BMFontColor{ 0x8c, 0xFF, 0x0 });
 
-    ConsolePrint(u"Starting Enkel...\n");
+    ConsolePrint(u"Starting Enkel (Revision ");
+    ConsolePrint(KernelBuildId);
+    ConsolePrint(u")...\n");
 
     ConsolePrint(u"Entering long mode...\n");
     EnterLongMode();

@@ -9,7 +9,7 @@ all: $(OUTPUT_NAME)
 C_ARGS=-target x86_64-unknown-windows -fno-stack-protector -ffreestanding -fshort-wchar -mno-red-zone -mno-mmx -mno-sse -I $(VENDOR_ROOT)/uefi-headers/Include/ -I $(VENDOR_ROOT)/uefi-headers/Include/X64 -I ../../inc/ -I $(VENDOR_ROOT)/elf/
 LINK_ARGS=-target x86_64-unknown-windows -nostdlib -Wl,-entry:efi_main -Wl,-subsystem:efi_application -fuse-ld=lld-link
 
-$(VENDOR_ROOT) c-efi:
+uefi-headers:
 	make -C $(VENDOR_ROOT)
 
 override CPPFILES := $(wildcard *.cpp)
@@ -31,6 +31,6 @@ bootloader_build.h: force
 	rm -f bootloader_build.h
 	echo "#define BOOTLOADER_BUILD_ID u\"$(shell git rev-parse HEAD | cut -c 1-8) $(shell date '+%FT %T')\"" > bootloader_build.h
 
-$(OUTPUT_NAME): c-efi $(CPPFILES) $(HFILES) $(KERNEL_OBJECTS) bootloader_build.h
+$(OUTPUT_NAME): uefi-headers $(CPPFILES) $(HFILES) $(KERNEL_OBJECTS) bootloader_build.h
 	clang $(C_ARGS) $(CPPFILES) -c
 	clang $(LINK_ARGS) $(OFILES) $(KERNEL_OBJECTS) -o $(OUTPUT_NAME)

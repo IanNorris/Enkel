@@ -113,10 +113,14 @@ override OBJ := $(CPPFILES:.cpp=.cpp.o) $(ASFILES:.S=.S.o) $(NASMFILES:.asm=.asm
 override HEADER_DEPS := $(CPPFILES:.cpp=.cpp.d) $(ASFILES:.S=.S.d)
 
 # Default target.
-.PHONY: all
+.PHONY: force all
 all: $(KERNEL) $(FONT_CPP_FILES) $(FONT_H_FILES) $(NASMFILES)
 
 $(FONT_CPP_FILES) $(FONT_H_FILES): fonts
+
+kernel_build.cpp: force
+	rm -f kernel_build.cpp
+	echo "const char16_t* KernelBuildId = u\"$(shell git rev-parse HEAD | cut -c 1-8) $(shell date '+%FT %T')\";\n" > kernel_build.cpp
 
 fonts: 
 	$(MAKE) -C ../../fonts
