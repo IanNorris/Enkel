@@ -1,0 +1,22 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "(gdb) Debug QEmu",
+            "type": "gdb",
+            "request": "attach",
+            "target": "localhost:5000",
+            "remote": true,
+            "executable": "boot_iso/boot_part/kernel/enkel.elf",
+            "cwd": "${workspaceRoot}",
+            "args": [
+                "gdb",
+                "-x",
+                "EnkelDebugging/qemu_gdb_commands.txt",
+            ]
+        }
+    ]
+}
