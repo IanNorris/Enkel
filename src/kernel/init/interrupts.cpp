@@ -8,47 +8,102 @@
 #include "kernel/utilities/slow.h"
 #include "kernel/init/gdt.h"
 
-void InterruptDummy(const char16_t* Str, struct interrupt_frame* frame, bool terminate)
+struct interrupt_frame
+{
+    uint64_t ip;
+    uint64_t cs;
+    uint64_t flags;
+    uint64_t sp;
+    uint64_t ss;
+};
+
+void __attribute__((used,noinline)) DebuggerHook()
+{
+    //Need some instructions to insert an interrupt into
+    asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
+}
+
+bool IsDebuggerPresent()
+{
+    const unsigned char BreakpointOpcode = 0xCC; // int 3
+
+    unsigned char* functionBytes = (unsigned char*)&DebuggerHook;
+
+    // If we see an `int 3`, then a debugger has set a breakpoint here.
+    // Can't just check the first instruction though because of CET (ENDBR64)
+    // potentially being placed on the first instruction.
+    for(int i = 0; i < 8; i++)
+    {
+        if(*functionBytes == BreakpointOpcode)
+        {
+            return true;
+        }
+        functionBytes++;
+    }
+
+    
+    return false;
+}
+
+//GCC bug! If this is not tagged with noinline, if this function can be inlined it
+//this inlined function will be labelled as an ISR itself and it'll generate:
+// "error : interrupt service routine cannot be called directly" which is incorrect.
+void __attribute__((used,noinline)) InterruptDummy(const char16_t* Str, struct interrupt_frame* frame, bool terminate, bool hook)
 {
     (void)frame;
+    (void)Str;
 
-    ConsolePrint(Str);
+    bool debuggerPresent = IsDebuggerPresent();
 
-    Slow();
-
-    if (terminate)
+    if (hook)
     {
-        HaltPermanently();
+        DebuggerHook();
+    }
+
+    if (debuggerPresent)
+    {
+
+    }
+    else
+    {
+        ConsolePrint(Str);
+
+        Slow();
+
+        if (terminate)
+        {
+            HaltPermanently();
+        }
     }
 }
 
 #define PRINT_INTERRUPT(n) extern "C" void __attribute__((interrupt)) Interrupt_##n(struct interrupt_frame* frame) \
-{ (void)frame; InterruptDummy(u"Interrupt " #n, frame, false);}
+{ InterruptDummy(u"Interrupt " #n, frame, false, false);}
 
-#define PRINT_NAMED_INTERRUPT(functionName, string) extern "C" void __attribute__((interrupt)) functionName(struct interrupt_frame* frame) {InterruptDummy(string u"\n", frame, false);}
-#define PRINT_NAMED_INTERRUPT_HALT(functionName, string) extern "C" void __attribute__((interrupt)) functionName(struct interrupt_frame* frame) {InterruptDummy(string u"\n", frame, true);}
+#define PRINT_NAMED_INTERRUPT(functionName, string, hook) extern "C" void __attribute__((interrupt)) functionName(struct interrupt_frame* frame) {InterruptDummy(string u"\n", frame, false, hook);}
+#define PRINT_NAMED_INTERRUPT_HALT(functionName, string) extern "C" void __attribute__((interrupt)) functionName(struct interrupt_frame* frame) {InterruptDummy(string u"\n", frame, true, true);}
 
-PRINT_NAMED_INTERRUPT(Interrupt_Div0, u"Divide by 0") //0
+PRINT_NAMED_INTERRUPT(Interrupt_Div0, u"Divide by 0", true) //0
 PRINT_NAMED_INTERRUPT_HALT(Interrupt_SingleStep, u"Single step") //1
 PRINT_NAMED_INTERRUPT_HALT(Interrupt_NonMaskableInterrupt, u"Non-maskable Interrupt") //2
-PRINT_NAMED_INTERRUPT(Interrupt_Breakpoint, u"Breakpoint") //3
+PRINT_NAMED_INTERRUPT(Interrupt_Breakpoint, u"Breakpoint", true) //3
 PRINT_NAMED_INTERRUPT_HALT(Interrupt_Overflow, u"Overflow") //4
 PRINT_NAMED_INTERRUPT_HALT(Interrupt_BoundRangeExceeded, u"Bound range exceeded") //5
 PRINT_NAMED_INTERRUPT_HALT(Interrupt_InvalidOpcode, u"Invalid opcode") //6
-PRINT_NAMED_INTERRUPT(Interrupt_CoprocessorUnavailable, u"Coprocessor unavailable") //7
+PRINT_NAMED_INTERRUPT(Interrupt_CoprocessorUnavailable, u"Coprocessor unavailable", true) //7
 PRINT_NAMED_INTERRUPT_HALT(Interrupt_DoubleFault, u"Double fault") //8
-PRINT_NAMED_INTERRUPT(Interrupt_CoprocessorSegmentOverrun, u"Coprocessor segment overrun") //9
-PRINT_NAMED_INTERRUPT(Interrupt_InvalidTaskStateSegment, u"Invalid task state segment") //10
+PRINT_NAMED_INTERRUPT(Interrupt_CoprocessorSegmentOverrun, u"Coprocessor segment overrun", true) //9
+PRINT_NAMED_INTERRUPT(Interrupt_InvalidTaskStateSegment, u"Invalid task state segment", true) //10
 PRINT_NAMED_INTERRUPT_HALT(Interrupt_SegmentNotPresent, u"Segment not present") //11
 PRINT_NAMED_INTERRUPT_HALT(Interrupt_StackSegmentFault, u"Stack segment fault") //12
 PRINT_NAMED_INTERRUPT_HALT(Interrupt_GeneralProtectionFault, u"General protection fault") //13
-PRINT_NAMED_INTERRUPT(Interrupt_PageFault, u"Page fault") //14
+PRINT_NAMED_INTERRUPT(Interrupt_PageFault, u"Page fault", false) //14
 //15 is reserved
-PRINT_NAMED_INTERRUPT(Interrupt_x87FloatingPointException, u"x87 Floating point exception") //16
-PRINT_NAMED_INTERRUPT(Interrupt_AlignmentCheck, u"Alignment check") //17
-PRINT_NAMED_INTERRUPT(Interrupt_MachineCheck, u"Machine check") //18
-PRINT_NAMED_INTERRUPT(Interrupt_SIMDFloatingPointException, u"SIMD floating point exception") //19
-PRINT_NAMED_INTERRUPT(Interrupt_VirtualizationException, u"Virtualization exception") //20
+PRINT_NAMED_INTERRUPT(Interrupt_x87FloatingPointException, u"x87 Floating point exception", true) //16
+PRINT_NAMED_INTERRUPT(Interrupt_AlignmentCheck, u"Alignment check", true) //17
+PRINT_NAMED_INTERRUPT(Interrupt_MachineCheck, u"Machine check", false) //18
+PRINT_NAMED_INTERRUPT(Interrupt_SIMDFloatingPointException, u"SIMD floating point exception", true) //19
+PRINT_NAMED_INTERRUPT(Interrupt_VirtualizationException, u"Virtualization exception", true) //20
 //21-29 are reserved
 
 PRINT_INTERRUPT(30)
