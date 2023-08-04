@@ -135,7 +135,7 @@ void BMFont_RenderGlyph(const BMFont* Font, const BMFontChar* Glyph, Framebuffer
 			continue;
 		}
 
-		if (GlyphX + StartX >= Framebuffer->Width)
+		if (GlyphX + StartX >= (int32_t)Framebuffer->Width)
 		{
 			continue;
 		}
@@ -147,7 +147,7 @@ void BMFont_RenderGlyph(const BMFont* Font, const BMFontChar* Glyph, Framebuffer
 				continue;
 			}
 
-			if (GlyphY + StartY >= Framebuffer->Height)
+			if (GlyphY + StartY >= (int32_t)Framebuffer->Height)
 			{
 				continue;
 			}
