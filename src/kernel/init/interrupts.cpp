@@ -17,6 +17,14 @@ struct interrupt_frame
     uint64_t ss;
 };
 
+bool GIsDebuggerPresent = false;
+
+void __attribute__((used, noinline)) OnKernelMainHook()
+{
+    //Need some instructions to insert an interrupt into
+    asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
+}
+
 void __attribute__((used,noinline)) DebuggerHook()
 {
     //Need some instructions to insert an interrupt into
@@ -25,24 +33,7 @@ void __attribute__((used,noinline)) DebuggerHook()
 
 bool IsDebuggerPresent()
 {
-    const unsigned char BreakpointOpcode = 0xCC; // int 3
-
-    unsigned char* functionBytes = (unsigned char*)&DebuggerHook;
-
-    // If we see an `int 3`, then a debugger has set a breakpoint here.
-    // Can't just check the first instruction though because of CET (ENDBR64)
-    // potentially being placed on the first instruction.
-    for(int i = 0; i < 8; i++)
-    {
-        if(*functionBytes == BreakpointOpcode)
-        {
-            return true;
-        }
-        functionBytes++;
-    }
-
-    
-    return false;
+    return GIsDebuggerPresent;
 }
 
 //GCC bug! If this is not tagged with noinline, if this function can be inlined it

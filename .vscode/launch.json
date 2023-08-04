@@ -12,11 +12,7 @@
             "remote": true,
             "executable": "boot_iso/boot_part/kernel/enkel.elf",
             "cwd": "${workspaceRoot}",
-            "args": [
-                "gdb",
-                "-x",
-                "EnkelDebugging/qemu_gdb_commands.txt",
-            ]
+            "autorun": [ "source EnkelDebugging/qemu_gdb_commands.txt", "source EnkelDebugging/qemu_gdb_onlaunch.py" ]
         }
     ]
 }
