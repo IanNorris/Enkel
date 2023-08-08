@@ -148,5 +148,9 @@ KernelStartFunction LoadKernel(EFI_HANDLE imageHandle, EFI_BOOT_SERVICES* bootSe
 
 	UEFI_CALL(kernelFile, Close);
 
-	return PrepareKernel(bootServices, kernelImageBuffer);
+	KernelStartFunction kernelMain = PrepareKernel(bootServices, kernelImageBuffer);
+
+	ERROR_CHECK(bootServices->FreePool(kernelImageBuffer), u"Error freeing kernel image");
+
+	return kernelMain;
 }

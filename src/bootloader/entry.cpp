@@ -53,6 +53,14 @@ EFI_STATUS __attribute__((__noreturn__)) efi_main(EFI_HANDLE imageHandle, EFI_SY
 
 void __attribute__((__noreturn__)) ExitToKernel(EFI_BOOT_SERVICES* bootServices, EFI_HANDLE imageHandle, KernelBootData& bootData, KernelStartFunction kernelStart)
 {
+	UINT64 stackSize = 1 * 1024 * 1024;
+
+	//We need a new block of memory that will become the kernel's stack
+	EFI_PHYSICAL_ADDRESS stackLow = 4 * 1024 * 1024; //Must be 2MB aligned if we want to enable NX later.
+	UINT64 pageCount = stackSize / EFI_PAGE_SIZE;
+	EFI_PHYSICAL_ADDRESS stackHigh = stackLow + stackSize;
+	ERROR_CHECK(bootServices->AllocatePages(AllocateAddress, EfiLoaderData, pageCount, &stackLow), u"Failed to allocate memory for the stack");
+
 	UINTN memoryMapSize = 0;
 	UINTN memoryMapKey = 0;
 
@@ -151,7 +159,8 @@ void __attribute__((__noreturn__)) ExitToKernel(EFI_BOOT_SERVICES* bootServices,
 
 	ERROR_CHECK(bootServices->ExitBootServices(imageHandle, memoryMapKey), u"Error exiting boot services");
 
-	kernelStart(&bootData);
+	//kernelStart(&bootData);
+	EnterKernel(&bootData, kernelStart, stackHigh);
 
 	while (1)
 	{

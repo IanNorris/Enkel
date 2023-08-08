@@ -96,7 +96,6 @@ override LDFLAGS += \
     -e KernelMain \
     -T $(LDTEMPLATE)
 
-# Internal nasm flags that should not be changed by the user.
 override NASMFLAGS += \
     -Wall \
     -f elf64

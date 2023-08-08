@@ -7,23 +7,26 @@
 
 void Slow(SlowType type)
 {
-    uint64_t nopCount = 100000;
+    uint64_t nopCount = 1000;
 
     switch (type)
     {
+        case Flush:
+            break;
         case Blip:
+            nopCount *= 100;
             break;
         case Dawdle:
-            nopCount *= 10;
+            nopCount *= 1000;
             break;
         case Loitering:
-            nopCount *= 50;
+            nopCount *= 5000;
             break;
         case LoooooooongCat:
-            nopCount *= 250;
+            nopCount *= 25000;
             break;
         case LoooooooongLoooooooongMan:
-            nopCount *= 1000;
+            nopCount *= 100000;
             break;
     }
 

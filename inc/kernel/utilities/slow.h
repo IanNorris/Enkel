@@ -2,6 +2,7 @@
 
 enum SlowType
 {
+	Flush,
 	Blip,
 	Dawdle,
 	Loitering,
