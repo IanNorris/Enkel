@@ -59,53 +59,134 @@ struct PDEntry
     uint64_t NoExecute : 1;   // No execute bit
 } __attribute__((packed));
 
+struct PTEntry
+{
+    uint64_t Present : 1;
+    uint64_t ReadWrite : 1;
+    uint64_t UserSupervisor : 1;
+    uint64_t PageWriteThrough : 1;
+    uint64_t PageCacheDisable : 1;
+    uint64_t Accessed : 1;
+    uint64_t Dirty : 1;
+    uint64_t Reserved : 1;  // This must be 0
+    uint64_t Global : 1;
+    uint64_t Available : 3;
+    uint64_t PageBaseAddress : 40;
+    uint64_t Available2 : 11;
+    uint64_t NoExecute : 1;
+} __attribute__((packed));
+
+#define PAGE_SIZE 0x1000
 
 static_assert(sizeof(PML4Entry) == 8, "PML4Entry should be 8 bytes");
 static_assert(sizeof(PDPTEntry) == 8, "PDPTEntry should be 8 bytes");
 static_assert(sizeof(PDEntry) == 8, "PDEntry should be 8 bytes");
+
+static_assert(EFI_PAGE_SIZE == PAGE_SIZE, "Page sizes between kernel and EFI should match.");
 
 #pragma pack(pop)
 
 // Reserve space for the page tables
 PML4Entry PLM4Table[512] __attribute__((aligned(4096)));
 PDPTEntry PDPTTable[512] __attribute__((aligned(4096)));   // For simplicity, just one PDPT for now
-PDEntry   PDTable[512]   __attribute__((aligned(4096)));       // One PD, which will map 2MB pages
-
-#define PAGE_SIZE 0x200000
+PDEntry   PDTable[512]   __attribute__((aligned(4096)));  
+PTEntry   PTTable[512 * 512]   __attribute__((aligned(4096))); 
 
 #define PML4_INDEX(x) ((x >> 39) & 0x1FF)
 #define PDPT_INDEX(x) ((x >> 30) & 0x1FF)
 #define PD_INDEX(x)   ((x >> 21) & 0x1FF)
+#define PTE_INDEX(x)  ((x >> 12) & 0x1FF)
 
-void Map2MBPage(uint64_t virtualAddress, uint64_t physicalAddress, bool writable, bool executable)
+
+void MapPages(uint64_t virtualAddress, uint64_t physicalAddress, uint64_t size, bool writable, bool executable, bool debug)
 {
+    uint64_t originalVirtualAddress = virtualAddress;
+    uint64_t originalPhysicalAddress = physicalAddress;
+
     virtualAddress &= ~(PAGE_SIZE - 1);
     physicalAddress &= ~(PAGE_SIZE - 1);
 
-    uint64_t PML4Index = PML4_INDEX(virtualAddress);
-    uint64_t PDPTIndex = PDPT_INDEX(virtualAddress);
-    uint64_t PDIndex = PD_INDEX(virtualAddress);
+    uint64_t originalSize = size;
 
-    if (!(PLM4Table[PML4Index].Present))
+    while (size > 0)
     {
-        PLM4Table[PML4Index].Present = true;
-        PLM4Table[PML4Index].ReadWrite = writable;
-        PLM4Table[PML4Index].NoExecute = !executable;
-        PLM4Table[PML4Index].Address = ((uint64_t)&PDPTTable[PDPTIndex]) >> 12;
+        uint64_t PML4Index = PML4_INDEX(virtualAddress);
+        uint64_t PDPTIndex = PDPT_INDEX(virtualAddress);
+        uint64_t PDIndex = PD_INDEX(virtualAddress);
+        uint64_t PTIndex = PTE_INDEX(virtualAddress);
+
+        // PML4 Table
+        if (!(PLM4Table[PML4Index].Present))
+        {
+            PLM4Table[PML4Index].Present = true;
+            PLM4Table[PML4Index].ReadWrite = writable;
+            PLM4Table[PML4Index].NoExecute = !executable;
+            PLM4Table[PML4Index].Address = ((uint64_t)&PDPTTable[PDPTIndex]) >> 12;
+        }
+
+        // PDPT Table
+        if (!(PDPTTable[PDPTIndex].Present))
+        {
+            PDPTTable[PDPTIndex].Present = true;
+            PDPTTable[PDPTIndex].ReadWrite = writable;
+            PDPTTable[PDPTIndex].NoExecute = !executable;
+            PDPTTable[PDPTIndex].PDAddress = ((uint64_t)&PDTable[PDIndex]) >> 12;
+        }
+
+        // PD Table
+        PDTable[PDIndex].LargePage = 0;  // Clear the LargePage flag
+        PDTable[PDIndex].PageBaseAddress = 0;
+        PDTable[PDIndex].Present = true;
+        PDTable[PDIndex].ReadWrite = writable;
+        PDTable[PDIndex].NoExecute = !executable;
+        PDTable[PDIndex].PageBaseAddress = ((uint64_t)&PTTable[PDIndex * 512]) >> 12;  // Point to the PT
+
+        // PT Table
+        PTTable[(PDIndex * 512) + PTIndex].Present = true;
+        PTTable[(PDIndex * 512) + PTIndex].ReadWrite = writable;
+        PTTable[(PDIndex * 512) + PTIndex].NoExecute = !executable;
+        PTTable[(PDIndex * 512) + PTIndex].PageBaseAddress = physicalAddress >> 12;
+
+
+        virtualAddress += PAGE_SIZE;
+        physicalAddress += PAGE_SIZE;
+        
+        if (size < PAGE_SIZE)
+        {
+            break;
+        }
+
+        size -= PAGE_SIZE;
     }
 
-    if (!(PDPTTable[PDPTIndex].Present))
-    {
-        PDPTTable[PDPTIndex].Present = true;
-        PDPTTable[PDPTIndex].ReadWrite = writable;
-        PDPTTable[PDPTIndex].NoExecute = !executable;
-        PDPTTable[PDPTIndex].PDAddress = ((uint64_t)&PDTable[PDIndex]) >> 12;
-    }
+    uint64_t virtualAddressEnd = originalVirtualAddress + originalSize;
+    uint64_t physicalAddressEnd = originalPhysicalAddress + originalSize;
 
-    PDTable[PDIndex].Present = true;
-    PDTable[PDIndex].ReadWrite = writable;
-    PDTable[PDIndex].NoExecute = !executable;
-    PDTable[PDIndex].PageBaseAddress = physicalAddress >> 21;
+    if (debug)
+    {
+        ConsolePrint(u"Mapped virt 0x");
+        char16_t Buffer[32];
+        witoabuf(Buffer, (uint64_t)originalVirtualAddress, 16);
+        ConsolePrint(Buffer);
+
+        ConsolePrint(u"-0x");
+        witoabuf(Buffer, virtualAddressEnd, 16);
+        ConsolePrint(Buffer);
+
+        ConsolePrint(u" to phys 0x");
+        witoabuf(Buffer, originalPhysicalAddress, 16);
+        ConsolePrint(Buffer);
+
+        ConsolePrint(u"-0x");
+        witoabuf(Buffer, physicalAddressEnd, 16);
+        ConsolePrint(Buffer);
+
+        ConsolePrint(u" size 0x");
+        witoabuf(Buffer, originalSize, 16);
+        ConsolePrint(Buffer);
+
+        ConsolePrint(u"\n");
+    }
 }
 
 void BuildPML4(const KernelBootData* bootData)
@@ -133,8 +214,6 @@ void BuildPML4(const KernelBootData* bootData)
     ConsolePrint(Buffer);
     ConsolePrint(u"\n");
 
-    Map2MBPage((uint64_t)Buffer, (uint64_t)Buffer, true, true /*executable*/);
-
     for (uint32_t entry = 0; entry < memoryLayout.Entries; entry++)
     {
         const EFI_MEMORY_DESCRIPTOR& Desc = *((EFI_MEMORY_DESCRIPTOR*)((UINT8*)memoryLayout.Map + (entry* memoryLayout.DescriptorSize)));
@@ -146,6 +225,9 @@ void BuildPML4(const KernelBootData* bootData)
             uint64_t VirtualStart = Desc.VirtualStart;
             uint64_t VirtualEnd = VirtualStart + Desc.NumberOfPages * EFI_PAGE_SIZE;
 
+            uint64_t Size = Desc.NumberOfPages * EFI_PAGE_SIZE;
+
+            bool CareAboutPrintOut = false;
             if (
                     Desc.Type != EfiACPIMemoryNVS 
                 &&  Desc.Type != EfiBootServicesData 
@@ -155,7 +237,9 @@ void BuildPML4(const KernelBootData* bootData)
                 &&  Desc.Type != EfiACPIReclaimMemory
                 &&  Desc.Type != EfiReservedMemoryType)
             {
-                ConsolePrint(u"Mapped virt 0x");
+                CareAboutPrintOut = true;
+
+                ConsolePrint(u"Allocated virt 0x");
                 witoabuf(Buffer, VirtualStart, 16);
                 ConsolePrint(Buffer);
                 ConsolePrint(u"-0x");
@@ -178,12 +262,7 @@ void BuildPML4(const KernelBootData* bootData)
                 ConsolePrint(u"\n");
             }
 
-            // Map each 2MB chunk
-            for (uint64_t Address = Start; Address < End; Address += PAGE_SIZE)
-            {
-                Map2MBPage(VirtualStart, Address, true, true /*executable*/);
-                VirtualStart += PAGE_SIZE;
-            }
+            MapPages(Desc.VirtualStart, Desc.PhysicalStart, Size, true, true /*executable*/, CareAboutPrintOut);
 
             if ((uint64_t)PLM4Table >= VirtualStart && (uint64_t)PLM4Table <= VirtualEnd)
             {
