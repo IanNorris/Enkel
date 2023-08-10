@@ -15,6 +15,7 @@ struct Console
 	BMFontColor Foreground;
 	uint32_t CurrentX;
 	uint32_t CurrentY;
+	uint32_t ReturnX;
 
 	uint32_t CharacterHeight;
 

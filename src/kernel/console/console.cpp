@@ -35,6 +35,7 @@ void ConsoleClear(Console* Console)
 	}
 
 	Console->CurrentRow = 0;
+	Console->ReturnX = 0;
 	memset(Console->CharacterBuffer, 0, sizeof(Console->CharacterBuffer[0]) * CONSOLE_MAX_CHARS);
 	memset(Console->RowIndices, 0, sizeof(Console->RowIndices[0]) * CONSOLE_MAX_ROWS);
 	memset(Console->RowLength, 0, sizeof(Console->RowLength[0]) * CONSOLE_MAX_ROWS);
@@ -52,6 +53,7 @@ void ConsoleInit(Console* Console, const BMFont* Font, const FramebufferLayout& 
 	Console->Foreground = ForegroundColor;
 	Console->CurrentX = 0;
 	Console->CurrentY = 0;
+	Console->ReturnX = 0;
 	Console->CharacterHeight = Console->Font->Common->LineHeight;
 	Console->ScreenRows = Console->Framebuffer.Height / Console->CharacterHeight;
 	if (Console->ScreenRows > CONSOLE_MAX_ROWS)
@@ -95,9 +97,17 @@ void ConsolePrint(const char16_t* String, Console* Console)
 		Console = &GDefaultConsole;
 	}
 
+	if (Console->CurrentY + Console->Font->Common->LineHeight > Console->Framebuffer.Height)
+	{
+		Console->ReturnX += 400;
+
+		Console->CurrentY = 0;
+		Console->CurrentX = Console->ReturnX;
+	}
+
 	int32_t X = Console->CurrentX;
 	int32_t Y = Console->CurrentY;
-	ConsolePrintAtPos(String, X, Y, 0, Console);
+	ConsolePrintAtPos(String, X, Y, Console->ReturnX, Console);
 
 	Console->CurrentX = X;
 	Console->CurrentY = Y;
