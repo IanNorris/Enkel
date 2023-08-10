@@ -15,7 +15,7 @@
 #include <elf.h>
 #undef __APPLE__
 
-void __attribute__((__noreturn__)) ExitToKernel(EFI_BOOT_SERVICES* bootServices, EFI_HANDLE imageHandle, KernelBootData& bootData, KernelStartFunction kernelStart);
+void __attribute__((__noreturn__)) ExitToKernel(EFI_BOOT_SERVICES* bootServices, EFI_RUNTIME_SERVICES* runtimeServices, EFI_HANDLE imageHandle, KernelBootData& bootData, KernelStartFunction kernelStart);
 void SetResolution(EFI_BOOT_SERVICES* bootServices, KernelBootData& bootData);
 
 EFI_STATUS __attribute__((__noreturn__)) efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* systemTable)
@@ -37,7 +37,7 @@ EFI_STATUS __attribute__((__noreturn__)) efi_main(EFI_HANDLE imageHandle, EFI_SY
 	//Set a timeout of 15s, if we haven't transferred to the kernel by then we probably won't be...
 	//bootServices->SetWatchdogTimer(15, 0, 0, 0);
 
-	KernelStartFunction kernelStart = LoadKernel(imageHandle, bootServices);
+	KernelStartFunction kernelStart = LoadKernel(imageHandle, bootServices, bootData);
 
 	if (kernelStart == nullptr)
 	{
@@ -46,20 +46,24 @@ EFI_STATUS __attribute__((__noreturn__)) efi_main(EFI_HANDLE imageHandle, EFI_SY
 
 	Print(u"About to execute into the kernel...\r\n");
 
-	ExitToKernel(bootServices, imageHandle, bootData, kernelStart);
+	ExitToKernel(bootServices, systemTable->RuntimeServices, imageHandle, bootData, kernelStart);
 
 	//Should never get here...
 }
 
-void __attribute__((__noreturn__)) ExitToKernel(EFI_BOOT_SERVICES* bootServices, EFI_HANDLE imageHandle, KernelBootData& bootData, KernelStartFunction kernelStart)
+void __attribute__((__noreturn__)) ExitToKernel(EFI_BOOT_SERVICES* bootServices, EFI_RUNTIME_SERVICES* runtimeServices, EFI_HANDLE imageHandle, KernelBootData& bootData, KernelStartFunction kernelStart)
 {
-	UINT64 stackSize = 1 * 1024 * 1024;
+	UINT64 stackSize = 256 * 1024;
 
 	//We need a new block of memory that will become the kernel's stack
-	EFI_PHYSICAL_ADDRESS stackLow = 4 * 1024 * 1024; //Must be 2MB aligned if we want to enable NX later.
+	EFI_PHYSICAL_ADDRESS stackLow = 4 * 1024 * 1024; //Must be 4K aligned if we want to enable NX later.
 	UINT64 pageCount = stackSize / EFI_PAGE_SIZE;
 	EFI_PHYSICAL_ADDRESS stackHigh = stackLow + stackSize;
 	ERROR_CHECK(bootServices->AllocatePages(AllocateAddress, EfiLoaderData, pageCount, &stackLow), u"Failed to allocate memory for the stack");
+
+	bootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_KernelStack].VirtualStart = stackLow;
+	bootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_KernelStack].PhysicalStart = stackLow;
+	bootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_KernelStack].ByteSize = stackSize;
 
 	UINTN memoryMapSize = 0;
 	UINTN memoryMapKey = 0;
@@ -157,7 +161,17 @@ void __attribute__((__noreturn__)) ExitToKernel(EFI_BOOT_SERVICES* bootServices,
 	bootData.MemoryLayout.Entries = memoryMapEntries;
 	bootData.MemoryLayout.DescriptorSize = descriptorSize;
 
+	//Now we need to find the page mapping for the framebuffer
+	const KernelMemoryLayout& memoryLayout = bootData.MemoryLayout;
+	KernelMemoryLocation& framebufferLocation = bootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_Framebuffer];
+	framebufferLocation.PhysicalStart = (uint64_t)bootData.Framebuffer.Base; //NOTE: Framebuffer Base is a *PHYSICAL ADDRESS*.
+	framebufferLocation.VirtualStart = (uint64_t)bootData.Framebuffer.Base; //It seems to need an implicit memory map entry
+	framebufferLocation.ByteSize = bootData.Framebuffer.Pitch * bootData.Framebuffer.Height;
+
 	ERROR_CHECK(bootServices->ExitBootServices(imageHandle, memoryMapKey), u"Error exiting boot services");
+
+	bootData.RuntimeServices = runtimeServices;
+	ERROR_CHECK(runtimeServices->SetVirtualAddressMap(memoryMapSize, descriptorSize, descriptorVersion, memoryMap), u"Failed to transition to virtual address mode");
 
 	//kernelStart(&bootData);
 	EnterKernel(&bootData, kernelStart, stackHigh);
@@ -191,8 +205,6 @@ void SetResolution(EFI_BOOT_SERVICES* bootServices, KernelBootData& bootData)
 	EFI_GUID graphicsOutputProtocolGuid = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
 	ERROR_CHECK(bootServices->LocateProtocol(&graphicsOutputProtocolGuid, NULL, (VOID**)&GraphicsOutput), u"Locating graphics output protocol");
 	
-	//PrintStat(u"Display modes: ", GraphicsOutput->Mode[0].MaxMode);
-
 	UINTN InfoSize = 0;
 	EFI_GRAPHICS_OUTPUT_MODE_INFORMATION* Info = nullptr;
 
@@ -216,14 +228,6 @@ void SetResolution(EFI_BOOT_SERVICES* bootServices, KernelBootData& bootData)
 	{
 		Halt(10, u"Failed to find a suitable graphics mode");
 	}
-	/*else
-	{
-		PrintStat(u"Picked display mode: ", mode);
-		PrintStat(u"--Width: ", Info->HorizontalResolution);
-		PrintStat(u"--Height: ", Info->VerticalResolution);
-		PrintStat(u"--Pitch: ", Info->PixelsPerScanLine);
-		PrintStat(u"--PixelFormat: ", Info->PixelFormat);
-	}*/
 
 	// Get the mode information
 	Info = GraphicsOutput->Mode[mode].Info;

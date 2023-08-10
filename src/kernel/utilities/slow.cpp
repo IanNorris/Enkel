@@ -1,6 +1,8 @@
 #include <stdint.h>
 #include "kernel/utilities/slow.h"
 
+extern bool GIsDebuggerPresent;
+
 #define NOP_SLED asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;")
 #define NOP_SLED_X10 NOP_SLED; NOP_SLED; NOP_SLED; NOP_SLED; NOP_SLED; NOP_SLED; NOP_SLED; NOP_SLED; NOP_SLED; NOP_SLED;
 #define NOP_SLEDX100 NOP_SLED_X10 NOP_SLED_X10 NOP_SLED_X10 NOP_SLED_X10 NOP_SLED_X10 NOP_SLED_X10 NOP_SLED_X10 NOP_SLED_X10 NOP_SLED_X10 NOP_SLED_X10
@@ -28,6 +30,11 @@ void Slow(SlowType type)
         case LoooooooongLoooooooongMan:
             nopCount *= 100000;
             break;
+    }
+
+    if (GIsDebuggerPresent)
+    {
+        nopCount /= 10;
     }
 
     for (uint64_t index = 0; index < nopCount; index++)

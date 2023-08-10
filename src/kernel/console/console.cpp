@@ -99,7 +99,7 @@ void ConsolePrint(const char16_t* String, Console* Console)
 
 	if (Console->CurrentY + Console->Font->Common->LineHeight > Console->Framebuffer.Height)
 	{
-		Console->ReturnX += 400;
+		Console->ReturnX += 600;
 
 		Console->CurrentY = 0;
 		Console->CurrentX = Console->ReturnX;

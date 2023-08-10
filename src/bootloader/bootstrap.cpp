@@ -12,7 +12,7 @@
 #undef __APPLE__
 
 // Function to validate and retrieve the entry point
-KernelStartFunction PrepareKernel(EFI_BOOT_SERVICES* bootServices, const uint8_t* elfStart)
+KernelStartFunction PrepareKernel(EFI_BOOT_SERVICES* bootServices, const uint8_t* elfStart, KernelBootData& bootData)
 {
 	const Elf64_Ehdr* elfHeader = (const Elf64_Ehdr*)elfStart;
 	const Elf64_Phdr* programHeader = (const Elf64_Phdr*)((const char*)elfStart + elfHeader->e_phoff);
@@ -67,23 +67,11 @@ KernelStartFunction PrepareKernel(EFI_BOOT_SERVICES* bootServices, const uint8_t
 
 	EFI_PHYSICAL_ADDRESS kernelStart = lowestAddress;
 
-	/*char16_t tempBuffer[16];
-	witoabuf(tempBuffer, kernelStart, 16);
-	Print(u"Kernel to be loaded at 0x");
-	Print(tempBuffer);
-	Print(u".\r\n");
-
-	witoabuf(tempBuffer, elfHeader->e_entry, 16);
-	Print(u"Entry at 0x");
-	Print(tempBuffer);
-	Print(u".\r\n");
-
-	witoabuf(tempBuffer, kernelSize, 16);
-	Print(u"Kernel size is 0x");
-	Print(tempBuffer);
-	Print(u".\r\n");*/
-
 	ERROR_CHECK(bootServices->AllocatePages(AllocateAddress, EfiLoaderData, pageCount, &kernelStart), u"Unable to allocate pages for the kernel");
+
+	bootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_KernelBinary].VirtualStart = kernelStart;
+	bootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_KernelBinary].PhysicalStart = kernelStart;
+	bootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_KernelBinary].ByteSize = pageCount * EFI_PAGE_SIZE;
 
 	if (kernelStart != lowestAddress)
 	{
@@ -108,7 +96,7 @@ KernelStartFunction PrepareKernel(EFI_BOOT_SERVICES* bootServices, const uint8_t
 	return kernelEntry;
 }
 
-KernelStartFunction LoadKernel(EFI_HANDLE imageHandle, EFI_BOOT_SERVICES* bootServices)
+KernelStartFunction LoadKernel(EFI_HANDLE imageHandle, EFI_BOOT_SERVICES* bootServices, KernelBootData& bootData)
 {
 	EFI_GUID loadedImageProtocolGuid = EFI_LOADED_IMAGE_PROTOCOL_GUID;
 	EFI_GUID simpleFileSystemProtocolGuid = EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID;
@@ -148,7 +136,7 @@ KernelStartFunction LoadKernel(EFI_HANDLE imageHandle, EFI_BOOT_SERVICES* bootSe
 
 	UEFI_CALL(kernelFile, Close);
 
-	KernelStartFunction kernelMain = PrepareKernel(bootServices, kernelImageBuffer);
+	KernelStartFunction kernelMain = PrepareKernel(bootServices, kernelImageBuffer, bootData);
 
 	ERROR_CHECK(bootServices->FreePool(kernelImageBuffer), u"Error freeing kernel image");
 

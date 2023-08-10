@@ -15,5 +15,6 @@
 	<None Include="**/GNUmakefile" />
 	<None Include="**/*.py" />
 	<None Include="**/*.asm" />
+	<None Include="**/*.ld" />
   </ItemGroup>
 </Project>

@@ -10,12 +10,10 @@ global EnterKernel
 EnterKernel:
     ; Set up the new stack pointer
     mov rsp, rdx
-    
-    ; Clear RBP for the new stack frame
-    mov rbp, rsp
+    mov rbp, rdx
     
     ; Call kernel main, rdi is already the boot data
-    call rsi
+    jmp rsi
     
     ; Should never get here
     hlt
