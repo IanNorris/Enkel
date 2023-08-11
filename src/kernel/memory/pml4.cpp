@@ -158,6 +158,31 @@ void MapPages(uint64_t virtualAddress, uint64_t physicalAddress, uint64_t size, 
         PTTable[(PDIndex * 512) + PTIndex].NoExecute = !executable;
         PTTable[(PDIndex * 512) + PTIndex].PageBaseAddress = physicalAddress >> 12;
 
+        //if (virtualAddress <= 0x0200510f && virtualAddress >= 0x0200510f & ~(PAGE_SIZE - 1))
+        {
+            char16_t Buffer[32];
+
+            ConsolePrint(u"PML4 0x");
+            witoabuf(Buffer, *((uint64_t*)&PML4Table[PML4Index]), 16);
+            ConsolePrint(Buffer);
+            ConsolePrint(u"\n");
+
+            ConsolePrint(u"PDPT 0x");
+            witoabuf(Buffer, *((uint64_t*)&PDPTTable[PDPTIndex]), 16);
+            ConsolePrint(Buffer);
+            ConsolePrint(u"\n");
+
+            ConsolePrint(u"PD 0x");
+            witoabuf(Buffer, *((uint64_t*)&PDTable[PDIndex]), 16);
+            ConsolePrint(Buffer);
+            ConsolePrint(u"\n");
+
+            ConsolePrint(u"PT 0x");
+            witoabuf(Buffer, *((uint64_t*)&PTTable[(PDIndex * 512) + PTIndex]), 16);
+            ConsolePrint(Buffer);
+            ConsolePrint(u"\n");
+        }
+
         //TODO
         //TODO: Execute INVLPG to invalidate the pages
         //TODO
@@ -268,12 +293,12 @@ void BuildPML4(const KernelBootData* bootData)
             uint64_t Size = Desc.NumberOfPages * EFI_PAGE_SIZE;
 
             bool CareAboutPrintOut = false;
-            if (//Desc.Type != EfiConventionalMemory
+            if (
                     Desc.Type != EfiACPIMemoryNVS
-                //&&  Desc.Type != EfiBootServicesData 
+                &&  Desc.Type != EfiBootServicesData 
                 &&  Desc.Type != EfiBootServicesCode
                 &&  Desc.Type != EfiRuntimeServicesCode
-                //&&  Desc.Type != EfiRuntimeServicesData
+                &&  Desc.Type != EfiRuntimeServicesData
                 &&  Desc.Type != EfiACPIReclaimMemory
                 &&  Desc.Type != EfiReservedMemoryType)
             {
