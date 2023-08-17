@@ -29,17 +29,17 @@ void KERNEL_NORETURN AssertionFailed(const char* expression, const char* message
 
     const BMFont* Font = GetFont();
 
-    int OriginX = 20;
+    int OriginX = 0;
 
-    int StartX = OriginX;
-    int StartY = 20;
+    int StartX = 0;
+    int StartY = -1;
 
     BMFontColor Header = { 0xFF, 0x7B, 0x0 }; //Red/Orange
     BMFontColor Label = { 0x8c, 0xFF, 0x0 }; //Light Green
-    BMFontColor Text = { 0x00, 0x7F, 0xFF }; //Mid Blue
+    BMFontColor Text = { 0xFF, 0xFF, 0x00 }; //Yellow
 
-    ConsolePrintAtPosWithColor(u"ASSERTION FAILED", StartX, StartY, OriginX, Header);
-    StartY += 2 * Font->Common->LineHeight;
+    ConsolePrintAtPosWithColor(u"\n\nASSERTION FAILED", StartX, StartY, OriginX, Header);
+    StartY += Font->Common->LineHeight;
 
     StartX = OriginX;
     ConsolePrintAtPosWithColor(u"Message: ", StartX, StartY, OriginX, Label);
