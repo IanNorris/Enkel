@@ -5,6 +5,9 @@ override MAKEFLAGS += -rR
 # Change as needed.
 override KERNEL := enkel_boot.elf
 
+override DEBUG_FLAGS := -g3 -O0
+#override DEBUG_FLAGS := -O3
+
 # The name of the font
 FONT_NAME := Jura
 FONT_ROOT := ../../fonts
@@ -54,6 +57,7 @@ $(eval $(call DEFAULT_VAR,LDFLAGS,$(DEFAULT_LDFLAGS)))
 # Internal C flags that should not be changed by the user.
 # -mgeneral-regs-only for interrupt handling (for now, see https://wiki.osdev.org/Interrupt_Service_Routines)
 override CFLAGS += \
+    $(DEBUG_FLAGS) \
     -Wall \
     -Wextra \
     -finput-charset=CP1252\
