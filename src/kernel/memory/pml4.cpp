@@ -3,7 +3,6 @@
 #include "kernel/init/long_mode.h"
 #include "kernel/console/console.h"
 #include "memory/memory.h"
-#include "kernel/utilities/slow.h"
 #include "common/string.h"
 
 #define PAGE_SIZE 4096
@@ -246,27 +245,11 @@ void BuildPML4(const KernelBootData* bootData)
     const KernelMemoryLocation& binary = bootData->MemoryLayout.SpecialLocations[SpecialMemoryLocation_KernelBinary];
     const KernelMemoryLocation& framebuffer = bootData->MemoryLayout.SpecialLocations[SpecialMemoryLocation_Framebuffer];
 
-    ConsolePrint(u"Allocating stack...\n");
-    MapPages(stack.VirtualStart, stack.PhysicalStart, stack.ByteSize, true, true /*executable*/, true);
-
-    ConsolePrint(u"Framebuffer at 0x");
-    witoabuf(Buffer, (uint64_t)bootData->Framebuffer.Base, 16);
-    ConsolePrint(Buffer);
-    ConsolePrint(u" and size 0x");
-    witoabuf(Buffer, (uint64_t)(bootData->Framebuffer.Pitch * bootData->Framebuffer.Height), 16);
-    ConsolePrint(Buffer);
-    ConsolePrint(u"\n");
-    MapPages(framebuffer.VirtualStart, framebuffer.PhysicalStart, framebuffer.ByteSize, true, true /*executable*/, true);
-
-    ConsolePrint(u"Allocating kernel...\n");
-    MapPages(binary.VirtualStart, binary.PhysicalStart, binary.ByteSize, true, true /*executable*/, true);
+    MapPages(stack.VirtualStart, stack.PhysicalStart, stack.ByteSize, true, true /*executable*/, false);
+    MapPages(framebuffer.VirtualStart, framebuffer.PhysicalStart, framebuffer.ByteSize, true, true /*executable*/, false);
+    MapPages(binary.VirtualStart, binary.PhysicalStart, binary.ByteSize, true, true /*executable*/, false);
 
     _ASSERTF((uint64_t)&PML4 > binary.VirtualStart && (uint64_t)&PML4 < binary.VirtualStart + binary.ByteSize, "PML4 is not inside the kernel virtual range");
-
-    ConsolePrint(u"PML4 located at virt/phys 0x");
-    witoabuf(Buffer, (uint64_t)&PML4, 16);
-    ConsolePrint(Buffer);
-    ConsolePrint(u"\n");
 
     for (uint32_t entry = 0; entry < memoryLayout.Entries; entry++)
     {
@@ -287,7 +270,7 @@ void BuildPML4(const KernelBootData* bootData)
             uint64_t Size = Desc.NumberOfPages * EFI_PAGE_SIZE;
 
             bool CareAboutPrintOut = false;
-            if (
+            /*if (
                     Desc.Type != EfiACPIMemoryNVS
                 &&  Desc.Type != EfiBootServicesData 
                 &&  Desc.Type != EfiBootServicesCode
@@ -319,29 +302,19 @@ void BuildPML4(const KernelBootData* bootData)
                 ConsolePrint(u" type ");
                 ConsolePrint(Buffer);
                 ConsolePrint(u"\n");
-            }
+            }*/
 
             MapPages(Desc.VirtualStart, Desc.PhysicalStart, Size, true, true /*executable*/, CareAboutPrintOut);
         }
     }
-
-    ConsolePrint(u"Finished BuildPML4\n");
-
-    Slow(Loitering);
 }
 
 void BuildAndLoadPML4(const KernelBootData* bootData)
 {
-    ConsolePrint(u"Building PML4...\n");
-    Slow(Loitering);
     BuildPML4(bootData);
-    Slow(Loitering);
 
     ConsolePrint(u"Loading PML4...\n");
     LoadPageMapLevel4((uint64_t)&PML4);
-    ConsolePrint(u"After PML4...\n");
-    Slow(Loitering);
 
     ConsolePrint(u"Now in long mode!...\n");
-    Slow(Loitering);
 }
