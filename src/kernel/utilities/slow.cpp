@@ -34,7 +34,7 @@ void Slow(SlowType type)
 
     if (GIsDebuggerPresent)
     {
-        nopCount /= 10;
+        nopCount /= 100;
     }
 
     for (uint64_t index = 0; index < nopCount; index++)
