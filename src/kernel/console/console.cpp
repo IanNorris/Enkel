@@ -77,6 +77,21 @@ void ConsolePrintAtPosWithColor(const char16_t* String, int32_t& X, int32_t& Y, 
 		Console = &GDefaultConsole;
 	}
 
+	if (X == -1)
+	{
+		X = Console->CurrentX;
+	}
+
+	if (Y == -1)
+	{
+		Y = Console->CurrentY;
+	}
+
+	if (ReturnX == -1)
+	{
+		ReturnX = Console->ReturnX;
+	}
+
 	BMFont_Render(Console->Font, &Console->Framebuffer, X, Y, ReturnX, String, ForegroundColor);
 }
 
@@ -85,6 +100,21 @@ void ConsolePrintAtPos(const char16_t* String, int32_t& X, int32_t& Y, int32_t R
 	if (Console == nullptr)
 	{
 		Console = &GDefaultConsole;
+	}
+
+	if (X == -1)
+	{
+		X = Console->CurrentX;
+	}
+
+	if (Y == -1)
+	{
+		Y = Console->CurrentY;
+	}
+
+	if (ReturnX == -1)
+	{
+		ReturnX = Console->ReturnX;
 	}
 
 	ConsolePrintAtPosWithColor(String, X, Y, ReturnX, Console->Foreground, Console);
