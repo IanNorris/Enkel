@@ -1,0 +1,1 @@
+Setting System by Edwin PM from <a href="https://thenounproject.com/browse/icons/term/setting-system/" target="_blank" title="Setting System Icons">Noun Project</a> (CC BY 3.0)
