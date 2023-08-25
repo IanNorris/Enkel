@@ -33,6 +33,20 @@ bool IsDebuggerPresent()
 // "error : interrupt service routine cannot be called directly" which is incorrect.
 void __attribute__((used,noinline)) InterruptDummy(const char16_t* message, int64_t rip, uint64_t cr2, uint64_t errorCode, bool terminate, bool hook)
 {
+    char16_t Buffer[32];
+
+    ConsolePrint(message);
+    ConsolePrint(u"\nError code: 0x");
+    witoabuf(Buffer, errorCode, 16);
+    ConsolePrint(Buffer);
+    ConsolePrint(u"\nRIP: 0x");
+    witoabuf(Buffer, rip, 16);
+    ConsolePrint(Buffer);
+    ConsolePrint(u"\nCR2: 0x");
+    witoabuf(Buffer, cr2, 16);
+    ConsolePrint(Buffer);
+    ConsolePrint(u"\n");
+
     bool debuggerPresent = IsDebuggerPresent();
 
     if (hook)
@@ -46,20 +60,6 @@ void __attribute__((used,noinline)) InterruptDummy(const char16_t* message, int6
     }
     else
     {
-        char16_t Buffer[32];
-
-        ConsolePrint(message);
-        ConsolePrint(u"\nError code: 0x");
-        witoabuf(Buffer, errorCode, 16);
-        ConsolePrint(Buffer);
-        ConsolePrint(u"\nRIP: 0x");
-        witoabuf(Buffer, rip, 16);
-        ConsolePrint(Buffer);
-        ConsolePrint(u"\nCR2: 0x");
-        witoabuf(Buffer, cr2, 16);
-        ConsolePrint(Buffer);
-        ConsolePrint(u"\n");
-
         Slow();
 
         if (terminate)
