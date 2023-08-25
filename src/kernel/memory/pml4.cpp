@@ -3,19 +3,8 @@
 #include "kernel/init/long_mode.h"
 #include "kernel/console/console.h"
 #include "memory/memory.h"
+#include "kernel/memory/physical.h"
 #include "common/string.h"
-
-#define PAGE_SIZE 4096
-#define PAGE_MASK (~(PAGE_SIZE-1))
-#define PDPT_ENTRIES 512
-#define PD_ENTRIES 512
-#define PT_ENTRIES (512*512)
-
-#define PRESENT 1
-#define WRITABLE 2
-#define NOT_EXECUTABLE (1ULL << 63)
-
-#define INVALID_ADDRESS (~0ULL)
 
 struct SPagingStructurePage
 {
@@ -27,6 +16,17 @@ struct SPagingStructurePage
 
 }__attribute__((aligned(4096)));
 
+#define PDPT_ENTRIES 512
+#define PD_ENTRIES 512
+#define PT_ENTRIES (512*512)
+
+#define PRESENT 1
+#define WRITABLE 2
+#define NOT_EXECUTABLE (1ULL << 63)
+
+#define INVALID_ADDRESS (~0ULL)
+
+static_assert(1 << PAGE_BITS == PAGE_SIZE, "Page size and page bits not consistent.");
 static_assert(EFI_PAGE_SIZE == PAGE_SIZE, "Page sizes between kernel and EFI should match.");
 static_assert(sizeof(SPagingStructurePage) == PAGE_SIZE, "Paging structure should be 1 page in size.");
 
@@ -118,7 +118,7 @@ uint64_t GetPhysicalAddress(uint64_t virtualAddress)
     return physicalAddress;
 }
 
-void MapPages(uint64_t virtualAddress, uint64_t physicalAddress, uint64_t size, bool writable, bool executable, bool debug)
+void MapPages(uint64_t virtualAddress, uint64_t physicalAddress, uint64_t size, bool writable, bool executable, bool debug, EPhysicalState newState)
 {
     uint64_t originalVirtualAddress = virtualAddress;
     uint64_t originalPhysicalAddress = physicalAddress;
@@ -127,6 +127,12 @@ void MapPages(uint64_t virtualAddress, uint64_t physicalAddress, uint64_t size, 
 
     virtualAddress &= PAGE_MASK;
     physicalAddress &= PAGE_MASK;
+
+    uint64_t pageAlignedSize = (size + PAGE_SIZE) & PAGE_MASK;
+
+    uint64_t physicalAddressEnd = physicalAddress + pageAlignedSize;
+
+    TagPhysicalRange(nullptr, physicalAddress, physicalAddressEnd, newState);
 
     if (debug)
     {
@@ -235,19 +241,54 @@ void MapPages(uint64_t virtualAddress, uint64_t physicalAddress, uint64_t size, 
 
 void BuildPML4(const KernelBootData* bootData)
 {
-    PreparePML4FreeList();
+    char16_t Buffer[32];
 
     const KernelMemoryLayout& memoryLayout = bootData->MemoryLayout;
 
-    char16_t Buffer[32];
-    
+    uintptr_t HighestAddress = 0;
+    for (uint32_t entry = 0; entry < memoryLayout.Entries; entry++)
+    {
+        const EFI_MEMORY_DESCRIPTOR& Desc = *((EFI_MEMORY_DESCRIPTOR*)((UINT8*)memoryLayout.Map + (entry * memoryLayout.DescriptorSize)));
+
+        uintptr_t End = Desc.PhysicalStart + Desc.NumberOfPages * EFI_PAGE_SIZE;
+        if (End > HighestAddress)
+        {
+            HighestAddress = End;
+        }
+    }
+
+    uint64_t MemoryAvailable = HighestAddress / (1 * 1024 * 1024);
+    const char16_t* MemoryAvailableUnit = u"MB";
+
+    if (MemoryAvailable > 1024)
+    {
+        MemoryAvailableUnit = u"GB";
+        MemoryAvailable /= 1024;
+    }
+
+    if (MemoryAvailable > 1024)
+    {
+        MemoryAvailableUnit = u"TB";
+        MemoryAvailable /= 1024;
+    }
+
+    ConsolePrint(u"Memory available: ");
+    witoabuf(Buffer, MemoryAvailable, 10);
+    ConsolePrint(Buffer);
+    ConsolePrint(MemoryAvailableUnit);
+    ConsolePrint(u"\n");
+
+    PreparePhysicalFreeList(HighestAddress);
+
+    PreparePML4FreeList();
+ 
     const KernelMemoryLocation& stack = bootData->MemoryLayout.SpecialLocations[SpecialMemoryLocation_KernelStack];
     const KernelMemoryLocation& binary = bootData->MemoryLayout.SpecialLocations[SpecialMemoryLocation_KernelBinary];
     const KernelMemoryLocation& framebuffer = bootData->MemoryLayout.SpecialLocations[SpecialMemoryLocation_Framebuffer];
 
-    MapPages(stack.VirtualStart, stack.PhysicalStart, stack.ByteSize, true, true /*executable*/, false);
-    MapPages(framebuffer.VirtualStart, framebuffer.PhysicalStart, framebuffer.ByteSize, true, true /*executable*/, false);
-    MapPages(binary.VirtualStart, binary.PhysicalStart, binary.ByteSize, true, true /*executable*/, false);
+    MapPages(stack.VirtualStart, stack.PhysicalStart, stack.ByteSize, true, true /*executable*/, false, EPhysicalState::Used);
+    MapPages(framebuffer.VirtualStart, framebuffer.PhysicalStart, framebuffer.ByteSize, true, true /*executable*/, false, EPhysicalState::Used);
+    MapPages(binary.VirtualStart, binary.PhysicalStart, binary.ByteSize, true, true /*executable*/, false, EPhysicalState::Used);
 
     _ASSERTF((uint64_t)&PML4 > binary.VirtualStart && (uint64_t)&PML4 < binary.VirtualStart + binary.ByteSize, "PML4 is not inside the kernel virtual range");
 
@@ -304,7 +345,16 @@ void BuildPML4(const KernelBootData* bootData)
                 ConsolePrint(u"\n");
             }*/
 
-            MapPages(Desc.VirtualStart, Desc.PhysicalStart, Size, true, true /*executable*/, CareAboutPrintOut);
+            bool IsReserved = 
+                   Desc.Type == EfiACPIMemoryNVS
+                || Desc.Type == EfiBootServicesData
+                || Desc.Type == EfiBootServicesCode
+                || Desc.Type == EfiRuntimeServicesCode
+                || Desc.Type == EfiRuntimeServicesData
+                || Desc.Type == EfiACPIReclaimMemory
+                || Desc.Type == EfiReservedMemoryType;
+
+            MapPages(Desc.VirtualStart, Desc.PhysicalStart, Size, true, true /*executable*/, CareAboutPrintOut, IsReserved ? EPhysicalState::Reserved : EPhysicalState::Used);
         }
     }
 }
