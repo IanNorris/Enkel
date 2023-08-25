@@ -85,19 +85,28 @@ void __attribute__((__noreturn__)) ExitToKernel(EFI_BOOT_SERVICES* bootServices,
 
 	// We're about to allocate memory, which can fragment the memory map.
 	// So create some extra space for the number of entries we might need.
-	UINTN newMemoryMapSize = memoryMapSize + 2 * sizeof(EFI_MEMORY_DESCRIPTOR);
+	UINTN newMemoryMapSize = memoryMapSize + 5 * sizeof(EFI_MEMORY_DESCRIPTOR);
 	memoryMapSize = newMemoryMapSize;
 
 	EFI_MEMORY_DESCRIPTOR* memoryMap = nullptr;
 
 	ERROR_CHECK(bootServices->AllocatePool(EfiLoaderData, memoryMapSize, (void**)&memoryMap), u"Failed to allocate memory for memory map");
 
-	gmmResult = bootServices->GetMemoryMap(&memoryMapSize, memoryMap, &memoryMapKey, &descriptorSize, &descriptorVersion);
+	int retries = 5;
+	do
+	{
+		gmmResult = bootServices->GetMemoryMap(&memoryMapSize, memoryMap, &memoryMapKey, &descriptorSize, &descriptorVersion);
 
-	Print(u"Memory map entries (2): ");
-	witoabuf(tempBuffer, memoryMapSize / sizeof(EFI_MEMORY_DESCRIPTOR), 10);
-	Print(tempBuffer);
-	Print(u"\r\n");
+		Print(u"Memory map entries (2): ");
+		witoabuf(tempBuffer, memoryMapSize / sizeof(EFI_MEMORY_DESCRIPTOR), 10);
+		Print(tempBuffer);
+		Print(u"\r\n");
+
+		if (gmmResult == EFI_BUFFER_TOO_SMALL)
+		{
+			memoryMapSize += 5 * sizeof(EFI_MEMORY_DESCRIPTOR);
+		}
+	} while (gmmResult == EFI_BUFFER_TOO_SMALL && retries-- > 0);
 
 	if (gmmResult != EFI_SUCCESS)
 	{
