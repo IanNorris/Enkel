@@ -7,15 +7,7 @@
 #include "kernel/console/console.h"
 #include "kernel/utilities/slow.h"
 #include "kernel/init/gdt.h"
-
-struct interrupt_frame
-{
-    uint64_t ip;
-    uint64_t cs;
-    uint64_t flags;
-    uint64_t sp;
-    uint64_t ss;
-};
+#include "common/string.h"
 
 bool GIsDebuggerPresent = false;
 
@@ -39,11 +31,8 @@ bool IsDebuggerPresent()
 //GCC bug! If this is not tagged with noinline, if this function can be inlined it
 //this inlined function will be labelled as an ISR itself and it'll generate:
 // "error : interrupt service routine cannot be called directly" which is incorrect.
-void __attribute__((used,noinline)) InterruptDummy(const char16_t* Str, struct interrupt_frame* frame, bool terminate, bool hook)
+void __attribute__((used,noinline)) InterruptDummy(const char16_t* message, int64_t rip, uint64_t cr2, uint64_t errorCode, bool terminate, bool hook)
 {
-    (void)frame;
-    (void)Str;
-
     bool debuggerPresent = IsDebuggerPresent();
 
     if (hook)
@@ -57,7 +46,19 @@ void __attribute__((used,noinline)) InterruptDummy(const char16_t* Str, struct i
     }
     else
     {
-        ConsolePrint(Str);
+        char16_t Buffer[32];
+
+        ConsolePrint(message);
+        ConsolePrint(u"\nError code: 0x");
+        witoabuf(Buffer, errorCode, 16);
+        ConsolePrint(Buffer);
+        ConsolePrint(u"\nRIP: 0x");
+        witoabuf(Buffer, rip, 16);
+        ConsolePrint(Buffer);
+        ConsolePrint(u"\nCR2: 0x");
+        witoabuf(Buffer, cr2, 16);
+        ConsolePrint(Buffer);
+        ConsolePrint(u"\n");
 
         Slow();
 
@@ -68,37 +69,34 @@ void __attribute__((used,noinline)) InterruptDummy(const char16_t* Str, struct i
     }
 }
 
-#define PRINT_INTERRUPT(n) extern "C" void __attribute__((interrupt)) Interrupt_##n(struct interrupt_frame* frame) \
-{ InterruptDummy(u"Interrupt " #n, frame, false, false);}
+#define PRINT_INTERRUPT(n) extern "C" void __attribute__((naked)) ISR_Unused##n(void); extern "C" void KERNEL_API ISR_Int_Unused##n(uint64_t rip, uint64_t cr2, uint64_t errorCode){ InterruptDummy(u"Interrupt " #n, rip, cr2, errorCode, false, false); }
 
-#define PRINT_NAMED_INTERRUPT(functionName, string, hook) extern "C" void __attribute__((interrupt)) functionName(struct interrupt_frame* frame) {InterruptDummy(string u"\n", frame, false, hook);}
-#define PRINT_NAMED_INTERRUPT_HALT(functionName, string) extern "C" void __attribute__((interrupt)) functionName(struct interrupt_frame* frame) {InterruptDummy(string u"\n", frame, true, true);}
+#define PRINT_NAMED_INTERRUPT(functionName, message, hook) extern "C" void __attribute__((naked)) ISR_##functionName(void); extern "C" void KERNEL_API ISR_Int_##functionName(uint64_t rip, uint64_t cr2, uint64_t errorCode){ InterruptDummy(message, rip, cr2, errorCode, false, hook); }
+#define PRINT_NAMED_INTERRUPT_HALT(functionName, message) extern "C" void __attribute__((naked)) ISR_##functionName(void); extern "C" void KERNEL_API ISR_Int_##functionName(uint64_t rip, uint64_t cr2, uint64_t errorCode){ InterruptDummy(message, rip, cr2, errorCode, true, true); }
 
-PRINT_NAMED_INTERRUPT(Interrupt_Div0, u"Divide by 0", true) //0
-PRINT_NAMED_INTERRUPT_HALT(Interrupt_SingleStep, u"Single step") //1
-PRINT_NAMED_INTERRUPT_HALT(Interrupt_NonMaskableInterrupt, u"Non-maskable Interrupt") //2
-PRINT_NAMED_INTERRUPT(Interrupt_Breakpoint, u"Breakpoint", true) //3
-PRINT_NAMED_INTERRUPT_HALT(Interrupt_Overflow, u"Overflow") //4
-PRINT_NAMED_INTERRUPT_HALT(Interrupt_BoundRangeExceeded, u"Bound range exceeded") //5
-PRINT_NAMED_INTERRUPT_HALT(Interrupt_InvalidOpcode, u"Invalid opcode") //6
-PRINT_NAMED_INTERRUPT(Interrupt_CoprocessorUnavailable, u"Coprocessor unavailable", true) //7
-PRINT_NAMED_INTERRUPT_HALT(Interrupt_DoubleFault, u"Double fault") //8
-PRINT_NAMED_INTERRUPT(Interrupt_CoprocessorSegmentOverrun, u"Coprocessor segment overrun", true) //9
-PRINT_NAMED_INTERRUPT(Interrupt_InvalidTaskStateSegment, u"Invalid task state segment", true) //10
-PRINT_NAMED_INTERRUPT_HALT(Interrupt_SegmentNotPresent, u"Segment not present") //11
-PRINT_NAMED_INTERRUPT_HALT(Interrupt_StackSegmentFault, u"Stack segment fault") //12
-PRINT_NAMED_INTERRUPT_HALT(Interrupt_GeneralProtectionFault, u"General protection fault") //13
-PRINT_NAMED_INTERRUPT(Interrupt_PageFault, u"Page fault", false) //14
+PRINT_NAMED_INTERRUPT(DivideByZero, u"Divide by 0", true) //0
+PRINT_NAMED_INTERRUPT_HALT(SingleStep, u"Single step") //1
+PRINT_NAMED_INTERRUPT_HALT(NonMaskableInterrupt, u"Non-maskable Interrupt") //2
+PRINT_NAMED_INTERRUPT(Breakpoint, u"Breakpoint", true) //3
+PRINT_NAMED_INTERRUPT_HALT(Overflow, u"Overflow") //4
+PRINT_NAMED_INTERRUPT_HALT(BoundRangeExceeded, u"Bound range exceeded") //5
+PRINT_NAMED_INTERRUPT_HALT(InvalidOpcode, u"Invalid opcode") //6
+PRINT_NAMED_INTERRUPT(CoprocessorUnavailable, u"Coprocessor unavailable", true) //7
+PRINT_NAMED_INTERRUPT_HALT(DoubleFault, u"Double fault") //8
+// Coprocessor Segment Overrun is not used
+PRINT_NAMED_INTERRUPT(InvalidTaskStateSegment, u"Invalid task state segment", true) //10
+PRINT_NAMED_INTERRUPT_HALT(SegmentNotPresent, u"Segment not present") //11
+PRINT_NAMED_INTERRUPT_HALT(StackSegmentFault, u"Stack segment fault") //12
+PRINT_NAMED_INTERRUPT_HALT(GeneralProtectionFault, u"General protection fault") //13
+PRINT_NAMED_INTERRUPT(PageFault, u"Page fault", false) //14
 //15 is reserved
-PRINT_NAMED_INTERRUPT(Interrupt_x87FloatingPointException, u"x87 Floating point exception", true) //16
-PRINT_NAMED_INTERRUPT(Interrupt_AlignmentCheck, u"Alignment check", true) //17
-PRINT_NAMED_INTERRUPT(Interrupt_MachineCheck, u"Machine check", false) //18
-PRINT_NAMED_INTERRUPT(Interrupt_SIMDFloatingPointException, u"SIMD floating point exception", true) //19
-PRINT_NAMED_INTERRUPT(Interrupt_VirtualizationException, u"Virtualization exception", true) //20
-//21-29 are reserved
-
-PRINT_INTERRUPT(30)
-PRINT_INTERRUPT(31)
+PRINT_NAMED_INTERRUPT(x87FloatingPointException, u"x87 Floating point exception", true) //16
+PRINT_NAMED_INTERRUPT(AlignmentCheck, u"Alignment check", true) //17
+PRINT_NAMED_INTERRUPT(MachineCheck, u"Machine check", false) //18
+PRINT_NAMED_INTERRUPT(SIMDFloatingPointException, u"SIMD floating point exception", true) //19
+PRINT_NAMED_INTERRUPT(VirtualizationException, u"Virtualization exception", true) //20
+PRINT_NAMED_INTERRUPT(ControlProtectionException, u"Control protection exception", true) //21
+//22-31 are reserved
 PRINT_INTERRUPT(32)
 PRINT_INTERRUPT(33)
 PRINT_INTERRUPT(34)
@@ -142,7 +140,7 @@ PRINT_INTERRUPT(69)
 
 #define SET_INTERRUPT(num) \
 { \
-uint64_t ISRAddress = (uint64_t)&Interrupt_##num; \
+uint64_t ISRAddress = (uint64_t)&ISR_Unused##num; \
 IDT[num].OffsetLow = (uint16_t)(ISRAddress & 0xFFFF); \
 IDT[num].OffsetMid = (uint16_t)((ISRAddress >> 16) & 0xFFFF); \
 IDT[num].OffsetHigh = (uint32_t)((ISRAddress >> 32) & 0xFFFFFFFF); \
@@ -154,7 +152,7 @@ IDT[num].Reserved = 0; \
 
 #define SET_NAMED_INTERRUPT(num, functionName) \
 { \
-uint64_t ISRAddress = (uint64_t)&functionName; \
+uint64_t ISRAddress = (uint64_t)&ISR_##functionName; \
 IDT[num].OffsetLow = (uint16_t)(ISRAddress & 0xFFFF); \
 IDT[num].OffsetMid = (uint16_t)((ISRAddress >> 16) & 0xFFFF); \
 IDT[num].OffsetHigh = (uint32_t)((ISRAddress >> 32) & 0xFFFFFFFF); \
@@ -166,7 +164,7 @@ IDT[num].Reserved = 0; \
 
 #define SET_NAMED_TRAP(num, functionName) \
 { \
-uint64_t ISRAddress = (uint64_t)&functionName; \
+uint64_t ISRAddress = (uint64_t)&ISR_##functionName; \
 IDT[num].OffsetLow = (uint16_t)(ISRAddress & 0xFFFF); \
 IDT[num].OffsetMid = (uint16_t)((ISRAddress >> 16) & 0xFFFF); \
 IDT[num].OffsetHigh = (uint32_t)((ISRAddress >> 32) & 0xFFFFFFFF); \
@@ -194,32 +192,30 @@ void EnableInterrupts()
 
 void InitializeDefaultInterrupts()
 {
-    SET_NAMED_TRAP(0, Interrupt_Div0) //0
-    SET_NAMED_TRAP(1, Interrupt_SingleStep) //1
-    SET_NAMED_TRAP(2, Interrupt_NonMaskableInterrupt) //2
-    SET_NAMED_TRAP(3, Interrupt_Breakpoint) //3
-    SET_NAMED_TRAP(4, Interrupt_Overflow) //4
-    SET_NAMED_TRAP(5, Interrupt_BoundRangeExceeded) //5
-    SET_NAMED_TRAP(6, Interrupt_InvalidOpcode) //6
-    SET_NAMED_TRAP(7, Interrupt_CoprocessorUnavailable) //7
-    SET_NAMED_TRAP(8, Interrupt_DoubleFault) //8
-    SET_NAMED_TRAP(9, Interrupt_CoprocessorSegmentOverrun) //9
-    SET_NAMED_TRAP(10, Interrupt_InvalidTaskStateSegment) //10
-    SET_NAMED_TRAP(11, Interrupt_SegmentNotPresent) //11
-    SET_NAMED_TRAP(12, Interrupt_StackSegmentFault) //12
-    SET_NAMED_INTERRUPT(13, Interrupt_GeneralProtectionFault) //13
+    SET_NAMED_TRAP(0, DivideByZero) //0
+    SET_NAMED_TRAP(1, SingleStep) //1
+    SET_NAMED_TRAP(2, NonMaskableInterrupt) //2
+    SET_NAMED_TRAP(3, Breakpoint) //3
+    SET_NAMED_TRAP(4, Overflow) //4
+    SET_NAMED_TRAP(5, BoundRangeExceeded) //5
+    SET_NAMED_TRAP(6, InvalidOpcode) //6
+    SET_NAMED_TRAP(7, CoprocessorUnavailable) //7
+    SET_NAMED_TRAP(8, DoubleFault) //8
+    // Coprocessor Segment Overrun is not used
+    SET_NAMED_TRAP(10, InvalidTaskStateSegment) //10
+    SET_NAMED_TRAP(11, SegmentNotPresent) //11
+    SET_NAMED_TRAP(12, StackSegmentFault) //12
+    SET_NAMED_INTERRUPT(13, GeneralProtectionFault) //13
     //SET_NAMED_TRAP(13, ISRWrapper) //13
-    SET_NAMED_TRAP(14, Interrupt_PageFault) //14
+    SET_NAMED_TRAP(14, PageFault) //14
     // 15 is reserved
-    SET_NAMED_TRAP(16, Interrupt_x87FloatingPointException) //16
-    SET_NAMED_TRAP(17, Interrupt_AlignmentCheck) //17
-    SET_NAMED_TRAP(18, Interrupt_MachineCheck) //18
-    SET_NAMED_TRAP(19, Interrupt_SIMDFloatingPointException) //19
-    SET_NAMED_TRAP(20, Interrupt_VirtualizationException) //20
-    // 21-29 are reserved
-
-    SET_INTERRUPT(30)
-    SET_INTERRUPT(31)
+    SET_NAMED_TRAP(16, x87FloatingPointException) //16
+    SET_NAMED_TRAP(17, AlignmentCheck) //17
+    SET_NAMED_TRAP(18, MachineCheck) //18
+    SET_NAMED_TRAP(19, SIMDFloatingPointException) //19
+    SET_NAMED_TRAP(20, VirtualizationException) //20
+    SET_NAMED_TRAP(21, ControlProtectionException) //21
+    //22-31 are reserved
     SET_INTERRUPT(32)
     SET_INTERRUPT(33)
     SET_INTERRUPT(34)
