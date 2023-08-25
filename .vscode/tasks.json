@@ -6,7 +6,7 @@
         {
             "label": "buildDebug",
             "type": "shell",
-            "command": "sh ./build.sh",
+            "command": "make",
         },
         {
             "label": "runDebug",
