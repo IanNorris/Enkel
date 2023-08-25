@@ -1,0 +1,40 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "buildDebug",
+            "type": "shell",
+            "command": "sh ./build.sh",
+        },
+        {
+            "label": "runDebug",
+            "type": "shell",
+            "command": "sh ./run.sh",
+            "isBackground": true,
+
+            "problemMatcher": {
+                "pattern": {
+                    "regexp": "^(Starting qemu)",
+                    "line": 1,
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": "^(Starting qemu)",
+                    "endsPattern": "^(Starting qemu)"
+                }
+            }
+            
+        },
+        {
+            "label": "buildAndRunDebug",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "buildDebug",
+                "runDebug"
+            ],
+            "isBackground": false,
+        }
+    ]
+}

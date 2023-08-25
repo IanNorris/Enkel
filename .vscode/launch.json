@@ -6,13 +6,19 @@
     "configurations": [
         {
             "name": "(gdb) Debug QEmu",
-            "type": "gdb",
-            "request": "attach",
-            "target": "localhost:5000",
-            "remote": true,
-            "executable": "boot_iso/boot_part/kernel/enkel.elf",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "boot_iso/boot_part/kernel/enkel.elf",
+            "preLaunchTask": "buildAndRunDebug",
+            "miDebuggerServerAddress": "localhost:5000",
+            "linux": {
+                "MIMode": "gdb"
+            },
+            "postRemoteConnectCommands": [ 
+                { "description": "1", "ignoreFailures": false, "text": "source EnkelDebugging/qemu_gdb_commands.txt" },
+                { "description": "2", "ignoreFailures": false, "text": "source EnkelDebugging/qemu_gdb_onlaunch.py" }
+            ],
             "cwd": "${workspaceRoot}",
-            "autorun": [ "source EnkelDebugging/qemu_gdb_commands.txt", "source EnkelDebugging/qemu_gdb_onlaunch.py" ]
         }
     ]
 }
