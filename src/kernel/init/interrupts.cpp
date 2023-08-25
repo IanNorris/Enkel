@@ -14,13 +14,13 @@ bool GIsDebuggerPresent = false;
 void __attribute__((used, noinline)) OnKernelMainHook()
 {
     //Need some instructions to insert an interrupt into
-    asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
+    asm volatile("nop;nop;nop;nop;");
 }
 
 void __attribute__((used,noinline)) DebuggerHook()
 {
     //Need some instructions to insert an interrupt into
-    asm volatile("nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;nop;");
+    asm volatile("nop;nop;nop;nop;");
 }
 
 bool IsDebuggerPresent()
