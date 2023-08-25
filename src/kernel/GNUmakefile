@@ -3,7 +3,7 @@ override MAKEFLAGS += -rR
 
 # This is the name that our final kernel executable will have.
 # Change as needed.
-override KERNEL := enkel_boot.elf
+override KERNEL := enkel.elf
 
 override DEBUG_FLAGS := -g3 -O0
 #override DEBUG_FLAGS := -O3
@@ -118,11 +118,14 @@ override HEADER_DEPS := $(CPPFILES:.cpp=.cpp.d) $(ASFILES:.S=.S.d)
 
 # Default target.
 .PHONY: force all
-all: $(KERNEL) $(FONT_CPP_FILES) $(FONT_H_FILES) $(NASMFILES)
+all: $(KERNEL) $(FONT_CPP_FILES) kernel_build.cpp $(FONT_H_FILES) $(NASMFILES)
 
 $(FONT_CPP_FILES) $(FONT_H_FILES): fonts
 
-kernel_build.cpp: force
+uefi-headers:
+	make -C $(VENDOR_ROOT)
+
+kernel_build.cpp:
 	rm -f kernel_build.cpp
 	echo "const char16_t* KernelBuildId = u\"$(shell git rev-parse HEAD | cut -c 1-8) $(shell date '+%FT %T')\";\n" > kernel_build.cpp
 
@@ -130,7 +133,7 @@ fonts:
 	$(MAKE) -C ../../fonts
 
 # Link rules for the final kernel executable.
-$(KERNEL): $(OBJ) $(CPPFILES) $(LDTEMPLATE) $(NASMFILES)
+$(KERNEL): $(OBJ) $(CPPFILES) $(LDTEMPLATE) $(NASMFILES) uefi-headers kernel_build.cpp.o
 	$(LD) $(OBJ) $(LDFLAGS) -o $@
 
 # Include header dependencies.
