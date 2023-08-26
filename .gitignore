@@ -380,3 +380,4 @@ src/bootloader/bootloader
 
 src/bootloader/bootloader_build.h
 src/kernel/kernel_build.cpp
+src/bootloader/bootloader.img

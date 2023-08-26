@@ -1,6 +1,6 @@
 VENDOR_ROOT=../../vendor
 
-OUTPUT_NAME=bootloader
+OUTPUT_NAME=bootloader.img
 
 # Default target.
 .PHONY: force all
