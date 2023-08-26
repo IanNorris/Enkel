@@ -16,7 +16,9 @@
 #undef __APPLE__
 
 void __attribute__((__noreturn__)) ExitToKernel(EFI_BOOT_SERVICES* bootServices, EFI_RUNTIME_SERVICES* runtimeServices, EFI_HANDLE imageHandle, KernelBootData& bootData, KernelStartFunction kernelStart);
+bool SetResolution(EFI_BOOT_SERVICES* bootServices, KernelBootData& bootData, int desiredX, int desiredY);
 void SetResolution(EFI_BOOT_SERVICES* bootServices, KernelBootData& bootData);
+void DrawDot(KernelBootData& bootData);
 
 EFI_STATUS __attribute__((__noreturn__)) efi_main(EFI_HANDLE imageHandle, EFI_SYSTEM_TABLE* systemTable)
 {
@@ -158,6 +160,8 @@ void __attribute__((__noreturn__)) ExitToKernel(EFI_BOOT_SERVICES* bootServices,
 
 	SetResolution(bootServices, bootData);
 
+	DrawDot(bootData); //1
+
 	//We do one last memory map before we call exit boot services, as the map is changing...
 	memoryMapSize = newMemoryMapSize;
 	gmmResult = bootServices->GetMemoryMap(&memoryMapSize, memoryMap, &memoryMapKey, &descriptorSize, &descriptorVersion);
@@ -165,6 +169,8 @@ void __attribute__((__noreturn__)) ExitToKernel(EFI_BOOT_SERVICES* bootServices,
 	{
 		Halt(gmmResult, u"Failed to get memory map (pre-exit)");
 	}
+
+	DrawDot(bootData); //2
 
 	bootData.MemoryLayout.Map = memoryMap;
 	bootData.MemoryLayout.Entries = memoryMapEntries;
@@ -177,13 +183,20 @@ void __attribute__((__noreturn__)) ExitToKernel(EFI_BOOT_SERVICES* bootServices,
 	framebufferLocation.VirtualStart = (uint64_t)bootData.Framebuffer.Base; //It seems to need an implicit memory map entry
 	framebufferLocation.ByteSize = bootData.Framebuffer.Pitch * bootData.Framebuffer.Height;
 
+	DrawDot(bootData); //3
+
 	ERROR_CHECK(bootServices->ExitBootServices(imageHandle, memoryMapKey), u"Error exiting boot services");
 
-	bootData.RuntimeServices = runtimeServices;
-	ERROR_CHECK(runtimeServices->SetVirtualAddressMap(memoryMapSize, descriptorSize, descriptorVersion, memoryMap), u"Failed to transition to virtual address mode");
+	DrawDot(bootData); //4
 
-	//kernelStart(&bootData);
+	bootData.RuntimeServices = runtimeServices;
+	//ERROR_CHECK(runtimeServices->SetVirtualAddressMap(memoryMapSize, descriptorSize, descriptorVersion, memoryMap), u"Failed to transition to virtual address mode");
+
+	DrawDot(bootData); //5
+
 	EnterKernel(&bootData, kernelStart, stackHigh);
+
+	DrawDot(bootData); //6
 
 	while (1)
 	{
@@ -201,11 +214,34 @@ void PrintStat(const char16_t* message, int value)
 	Print(u"\r\n");
 }
 
+int resolutions[] = 
+{
+	1920, 1200,
+	1920, 1080,
+	1920, -1,
+	1280, 800,
+	1280, 720,
+	128, -1,
+	800, 600,
+	640, 480
+};
+
 void SetResolution(EFI_BOOT_SERVICES* bootServices, KernelBootData& bootData)
 {
-	int desiredResolutionX = 1920;
-	int desiredResolutionY = 1080;
+	int resolutionPairs = (sizeof(resolutions) / sizeof(int));
+	for(int res = 0; res < resolutionPairs; res += 2)
+	{
+		if(SetResolution(bootServices, bootData, resolutions[res], resolutions[res+1]))
+		{
+			return;
+		}
+	}
 
+	Halt(0, u"No suitable screen resolution available");
+}
+
+bool SetResolution(EFI_BOOT_SERVICES* bootServices, KernelBootData& bootData, int desiredX, int desiredY)
+{
 	char16_t tempBuffer[16];
 
 	EFI_GRAPHICS_OUTPUT_PROTOCOL* GraphicsOutput;
@@ -219,23 +255,23 @@ void SetResolution(EFI_BOOT_SERVICES* bootServices, KernelBootData& bootData)
 
 	int mode = 0;
 	int selectedMode = -1;
-	int currentResolutionX = 0;
+	int currentResolutionY = 0;
 	EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE* Mode = GraphicsOutput->Mode;
 	while (mode < Mode->MaxMode)
 	{
 		UEFI_CALL(GraphicsOutput, QueryMode, mode, &InfoSize, &Info);
 
-		if (Info->HorizontalResolution <= desiredResolutionX && Info->VerticalResolution <= desiredResolutionY && Info->HorizontalResolution >= currentResolutionX)
+		if (Info->HorizontalResolution == desiredX && (Info->VerticalResolution == desiredY || desiredY == -1) && Info->VerticalResolution >= currentResolutionY)
 		{
 			selectedMode = mode;
-			currentResolutionX = Info->HorizontalResolution;
+			currentResolutionY = Info->HorizontalResolution;
 		}
 		mode++;
 	}
 
 	if (selectedMode == -1)
 	{
-		Halt(10, u"Failed to find a suitable graphics mode");
+		return false;
 	}
 
 	// Get the mode information
@@ -249,4 +285,29 @@ void SetResolution(EFI_BOOT_SERVICES* bootServices, KernelBootData& bootData)
 	bootData.Framebuffer.Width = GraphicsOutput->Mode[0].Info->HorizontalResolution;
 	bootData.Framebuffer.Height = GraphicsOutput->Mode[0].Info->VerticalResolution;
 	bootData.Framebuffer.Pitch = GraphicsOutput->Mode[0].Info->PixelsPerScanLine * 4;
+
+	return true;
+}
+
+int dotIndex = 0;
+
+void DrawDot(KernelBootData& bootData)
+{
+	uint32_t* base = bootData.Framebuffer.Base;
+	uint32_t pitchPixels = bootData.Framebuffer.Pitch / 4;
+
+	int dotSize = 5;
+
+	int leftOffset = 100 + (dotIndex * 2) * dotSize;
+	int startY = 100;
+	for(int x = 0; x < dotSize; x++)
+	{
+		for(int y = 0; y < dotSize; y++)
+		{
+			uint32_t outputPos = ((y + startY) * pitchPixels) + x + leftOffset;
+			base[outputPos] = 0x0000FF00;
+		}
+	}
+
+	dotIndex++;
 }
