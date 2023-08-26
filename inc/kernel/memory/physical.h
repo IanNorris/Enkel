@@ -20,7 +20,7 @@ struct SPhysicalAddressMask
     EPhysicalState State : 2;
     uintptr_t Unused : 10;
     uintptr_t Address : 52;
-};
+} __attribute__((packed));
 
 struct SPhysicalState
 {
@@ -38,8 +38,7 @@ struct SPhysicalState
     {
         return Address & PAGE_MASK;
     }
-
-};
+} __attribute__((packed));
 
 struct SPhysicalStateBranch : SPhysicalState
 {
@@ -55,7 +54,7 @@ struct SPhysicalStateBranch : SPhysicalState
         return Address & PAGE_MASK;
     }
 
-};
+} __attribute__((packed));
 
 void PreparePhysicalFreeList(const uintptr_t HighestAddress);
 void TagPhysicalRange(SPhysicalState** CurrentStateInOut, const uintptr_t LowAddress, const uintptr_t HighAddress, const EPhysicalState State, const uintptr_t OuterLowAddress = 0ULL, const uintptr_t OuterHighAddress = ~0ULL);

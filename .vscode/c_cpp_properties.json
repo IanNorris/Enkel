@@ -9,16 +9,20 @@
                 "${workspaceFolder}/fonts"
             ],
             "defines": [],
-            "compilerPath": "/usr/bin/g++",
+            "compilerPath": "/usr/bin/g++-11",
             "cStandard": "c17",
             "cppStandard": "c++20",
             "intelliSenseMode": "linux-gcc-x64",
             "compilerArgs": [
+                "-g3",
+                "-O0",
                 "-m64",
                 "-Wall",
-                "-Wextra ",
+                "-Wextra",
                 "-march=x86-64",
-                "-mabi=sysv"
+                "-mabi=sysv",
+                "-MMD",
+                "-MP"
             ]
         }
     ],

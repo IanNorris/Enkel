@@ -19,6 +19,25 @@ SPhysicalStateBranch InitialPhysicalBranchEntries[INITIAL_PHYSICAL_BRANCH_ENTRIE
 static_assert(sizeof(SPhysicalState) == 8, "Physical state not expected size");
 static_assert(sizeof(SPhysicalStateBranch) == 24, "Physical state branch not expected size");
 
+//Summary of the system
+//---------------------
+// We track physical memory with a tree structure. This tree structure is made
+// up of two types of nodes - branches and leaves. Branches extend leaves
+// with Left and Right pointers. To allocate a specific block of memory
+// you need to walk the tree structure. This is achieved by first checking the
+// node type.
+//
+// If you encounter a branch node, the Address pointer contains the address that
+// divides the Left and Right branches. The Left branch will contain the range from
+// the parent lower bound to Address (not inclusive, but we only track pages so we 
+// don't care), and the Right node will contain from Address to the parent upper bound.
+// Therefore you need to pick the branch that contains the range you need.
+//
+// If you encounter a leaf node (ie anything except a branch), the Address pointer
+// now contains the upper bound of the allocation from the parent's lower bound.
+
+extern SPhysicalStateBranch* GetFreePhysicalStateBranch();
+
 void PreparePhysicalFreeList(const uintptr_t HighestAddress)
 {
     memset(InitialPhysicalEntries, 0, sizeof(InitialPhysicalEntries));
@@ -41,7 +60,7 @@ void PreparePhysicalFreeList(const uintptr_t HighestAddress)
     }
 
     // Set the root to the first entry
-    PhysicalStateRoot = &InitialPhysicalEntries[0];
+    PhysicalStateRoot = GetFreePhysicalStateBranch();
     PhysicalStateRoot->SetAddress(HighestAddress);
     PhysicalStateRoot->State.State = EPhysicalState::Free;
 }
@@ -94,7 +113,7 @@ void TagPhysicalRange(SPhysicalState** CurrentStateInOut, const uintptr_t LowAdd
     {
         uintptr_t Address = CurrentState->GetAddress();
 
-        _ASSERTF(OuterLowAddress > Address, "Requested address is out of range");
+        _ASSERTF(OuterLowAddress <= Address, "Requested address is out of range");
         _ASSERTF(Address < OuterHighAddress, "Requested address is out of range");
 
         if (LowAddress < Address && HighAddress <= Address)
@@ -123,7 +142,7 @@ void TagPhysicalRange(SPhysicalState** CurrentStateInOut, const uintptr_t LowAdd
         {
             //If our lower bound doesn't touch the outer lower bound, then we treat the new low address as the mid point.
             //However if that's not true then our high address is the mid point
-            uint64_t MidPoint = LowAddress == OuterLowAddress ? LowAddress : HighAddress;
+            uint64_t MidPoint = LowAddress == OuterLowAddress ? HighAddress : LowAddress;
 
             // Split the node into a branch with two children
             SPhysicalStateBranch* NewBranch = GetFreePhysicalStateBranch();

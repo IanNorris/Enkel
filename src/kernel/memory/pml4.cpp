@@ -128,7 +128,7 @@ void MapPages(uint64_t virtualAddress, uint64_t physicalAddress, uint64_t size, 
     virtualAddress &= PAGE_MASK;
     physicalAddress &= PAGE_MASK;
 
-    uint64_t pageAlignedSize = (size + PAGE_SIZE) & PAGE_MASK;
+    uint64_t pageAlignedSize = (size + (PAGE_SIZE-1)) & PAGE_MASK;
 
     uint64_t physicalAddressEnd = physicalAddress + pageAlignedSize;
 
@@ -278,13 +278,30 @@ void BuildPML4(const KernelBootData* bootData)
     ConsolePrint(MemoryAvailableUnit);
     ConsolePrint(u"\n");
 
+    const KernelMemoryLocation& stack = bootData->MemoryLayout.SpecialLocations[SpecialMemoryLocation_KernelStack];
+    const KernelMemoryLocation& binary = bootData->MemoryLayout.SpecialLocations[SpecialMemoryLocation_KernelBinary];
+    const KernelMemoryLocation& framebuffer = bootData->MemoryLayout.SpecialLocations[SpecialMemoryLocation_Framebuffer];
+
+    if(stack.PhysicalStart + stack.ByteSize > HighestAddress)
+    {
+        HighestAddress = ((stack.PhysicalStart + stack.ByteSize + (PAGE_SIZE-1))) & PAGE_MASK;
+    }
+
+    if(binary.PhysicalStart + binary.ByteSize > HighestAddress)
+    {
+        HighestAddress = ((binary.PhysicalStart + binary.ByteSize + (PAGE_SIZE-1))) & PAGE_MASK;
+    }
+
+    if(framebuffer.PhysicalStart + framebuffer.ByteSize > HighestAddress)
+    {
+        HighestAddress = ((framebuffer.PhysicalStart + framebuffer.ByteSize + (PAGE_SIZE-1))) & PAGE_MASK;
+    }
+
     PreparePhysicalFreeList(HighestAddress);
 
     PreparePML4FreeList();
  
-    const KernelMemoryLocation& stack = bootData->MemoryLayout.SpecialLocations[SpecialMemoryLocation_KernelStack];
-    const KernelMemoryLocation& binary = bootData->MemoryLayout.SpecialLocations[SpecialMemoryLocation_KernelBinary];
-    const KernelMemoryLocation& framebuffer = bootData->MemoryLayout.SpecialLocations[SpecialMemoryLocation_Framebuffer];
+    
 
     MapPages(stack.VirtualStart, stack.PhysicalStart, stack.ByteSize, true, true /*executable*/, false, EPhysicalState::Used);
     MapPages(framebuffer.VirtualStart, framebuffer.PhysicalStart, framebuffer.ByteSize, true, true /*executable*/, false, EPhysicalState::Used);
