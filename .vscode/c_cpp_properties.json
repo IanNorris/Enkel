@@ -1,0 +1,19 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/inc",
+                "${workspaceFolder}/vendor/uefi-headers/Include",
+                "${workspaceFolder}/vendor/uefi-headers/Include/X64",
+                "${workspaceFolder}/fonts"
+            ],
+            "defines": [],
+            "compilerPath": "/usr/bin/g++",
+            "cStandard": "c17",
+            "cppStandard": "c++20",
+            "intelliSenseMode": "linux-gcc-x64"
+        }
+    ],
+    "version": 4
+}
