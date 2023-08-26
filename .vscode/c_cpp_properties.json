@@ -12,7 +12,14 @@
             "compilerPath": "/usr/bin/g++",
             "cStandard": "c17",
             "cppStandard": "c++20",
-            "intelliSenseMode": "linux-gcc-x64"
+            "intelliSenseMode": "linux-gcc-x64",
+            "compilerArgs": [
+                "-m64",
+                "-Wall",
+                "-Wextra ",
+                "-march=x86-64",
+                "-mabi=sysv"
+            ]
         }
     ],
     "version": 4
