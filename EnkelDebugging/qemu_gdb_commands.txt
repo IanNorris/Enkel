@@ -1,2 +1,0 @@
-add-symbol-file ~/Enkel/boot_iso/boot_part/kernel/enkel.elf
-set output-radix 16

@@ -14,9 +14,8 @@
             "linux": {
                 "MIMode": "gdb"
             },
-            "postRemoteConnectCommands": [ 
-                { "description": "1", "ignoreFailures": false, "text": "source EnkelDebugging/qemu_gdb_commands.txt" },
-                { "description": "2", "ignoreFailures": false, "text": "source EnkelDebugging/qemu_gdb_onlaunch.py" }
+            "postRemoteConnectCommands": [
+                { "description": "1", "ignoreFailures": false, "text": "source EnkelDebugging/qemu_gdb_onlaunch.py" }
             ],
             "cwd": "${workspaceRoot}",
         }
