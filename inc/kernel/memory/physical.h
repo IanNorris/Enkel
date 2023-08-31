@@ -20,7 +20,7 @@ struct SPhysicalAddressMask
     EPhysicalState State : 2;
     uintptr_t Unused : 10;
     uintptr_t Address : 52;
-} __attribute__((packed));
+};
 
 struct SPhysicalState
 {
@@ -38,12 +38,14 @@ struct SPhysicalState
     {
         return Address & PAGE_MASK;
     }
-} __attribute__((packed));
+};
 
 struct SPhysicalStateBranch : SPhysicalState
 {
     SPhysicalState* Left;
     SPhysicalState* Right;
+	uint64_t 		Remaining;
+	uint64_t 		Largest;
 
     void SetAddress(const uintptr_t AddressIn)
     {

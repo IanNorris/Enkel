@@ -17,7 +17,7 @@ SPhysicalState InitialPhysicalEntries[INITIAL_PHYSICAL_ENTRIES];
 SPhysicalStateBranch InitialPhysicalBranchEntries[INITIAL_PHYSICAL_BRANCH_ENTRIES];
 
 static_assert(sizeof(SPhysicalState) == 8, "Physical state not expected size");
-static_assert(sizeof(SPhysicalStateBranch) == 24, "Physical state branch not expected size");
+static_assert(sizeof(SPhysicalStateBranch) == 40, "Physical state branch not expected size");
 
 //Summary of the system
 //---------------------
@@ -97,8 +97,62 @@ void FreePhysicalState(SPhysicalState* State)
     PhysicalStateFreeHead = State;
 }
 
+uint64_t GetRemaining(SPhysicalState* Node, const uintptr_t OuterLowAddress, const uintptr_t OuterHighAddress)
+{
+	if (Node->State.State == EPhysicalState::Branch)
+    {
+		SPhysicalStateBranch* BranchNode = (SPhysicalStateBranch*)Node;
+		return BranchNode->Remaining;
+	}
+	else if(Node->State.State == EPhysicalState::Free)
+	{
+		_ASSERTF(OuterHighAddress - OuterLowAddress > 0, "Found empty node");
+		return OuterHighAddress - OuterLowAddress;
+	}
+	else
+	{
+		return 0;
+	}
+}
+
+uint64_t GetLargestFree(SPhysicalState* Node, const uintptr_t OuterLowAddress, const uintptr_t OuterHighAddress)
+{
+	if (Node->State.State == EPhysicalState::Branch)
+    {
+		SPhysicalStateBranch* BranchNode = (SPhysicalStateBranch*)Node;
+		return BranchNode->Largest;
+	}
+	else if(Node->State.State == EPhysicalState::Free)
+	{
+		_ASSERTF(OuterHighAddress - OuterLowAddress > 0, "Found empty node");
+		return OuterHighAddress - OuterLowAddress;
+	}
+	else
+	{
+		return 0;
+	}
+}
+
+//We call this after tagging a block in a descendant to update the current state of this node based on the new descendants.
+void UpdateNode(SPhysicalStateBranch* BranchState, const uintptr_t OuterLowAddress, const uintptr_t OuterHighAddress)
+{
+	uintptr_t Mid = BranchState->GetAddress();
+	uint64_t LargestLeft = GetLargestFree(BranchState->Left, OuterLowAddress, Mid);
+	uint64_t LargestRight = GetLargestFree(BranchState->Right, Mid, OuterHighAddress);
+
+	_ASSERTF(OuterHighAddress - OuterLowAddress > 0, "About to create an empty block");
+
+	uint64_t RemainingLeft = GetRemaining(BranchState->Left, OuterLowAddress, Mid);
+	uint64_t RemainingRight = GetRemaining(BranchState->Right, Mid, OuterHighAddress);
+
+	BranchState->Largest = LargestLeft > LargestRight ? LargestLeft : LargestRight;
+	BranchState->Remaining = RemainingLeft + RemainingRight;
+}
+
 void TagPhysicalRange(SPhysicalState** CurrentStateInOut, const uintptr_t LowAddress, const uintptr_t HighAddress, const EPhysicalState State, const uintptr_t OuterLowAddress, const uintptr_t OuterHighAddress)
 {
+	_ASSERTF(OuterHighAddress - OuterLowAddress > 0, "About to create an empty block");
+
     if (CurrentStateInOut == nullptr)
     {
         CurrentStateInOut = &PhysicalStateRoot;
@@ -108,10 +162,12 @@ void TagPhysicalRange(SPhysicalState** CurrentStateInOut, const uintptr_t LowAdd
 
     _ASSERTF(OuterLowAddress <= LowAddress, "Requested address is out of range");
     _ASSERTF(HighAddress <= OuterHighAddress, "Requested address is out of range");
-    
+
+	uintptr_t Address = CurrentState->GetAddress();
+
     if (CurrentState->State.State == EPhysicalState::Branch)
     {
-        uintptr_t Address = CurrentState->GetAddress();
+		SPhysicalStateBranch* BranchState = (SPhysicalStateBranch*)CurrentState;
 
         _ASSERTF(OuterLowAddress <= Address, "Requested address is out of range");
         _ASSERTF(Address < OuterHighAddress, "Requested address is out of range");
@@ -119,26 +175,26 @@ void TagPhysicalRange(SPhysicalState** CurrentStateInOut, const uintptr_t LowAdd
         if (LowAddress < Address && HighAddress <= Address)
         {
             //Take the left branch
-            TagPhysicalRange(&((SPhysicalStateBranch*)CurrentState)->Left, LowAddress, HighAddress, State, OuterLowAddress, Address);
+            TagPhysicalRange(&BranchState->Left, LowAddress, HighAddress, State, OuterLowAddress, Address);
         }
         else if (LowAddress >= Address)
         {
             //Take the right branch
-            TagPhysicalRange(&((SPhysicalStateBranch*)CurrentState)->Right, LowAddress, HighAddress, State, Address, OuterHighAddress);
+            TagPhysicalRange(&BranchState->Right, LowAddress, HighAddress, State, Address, OuterHighAddress);
         }
         else
         {
             //Do both
-            TagPhysicalRange(&((SPhysicalStateBranch*)CurrentState)->Left, LowAddress, Address, State, OuterLowAddress, Address);
-            TagPhysicalRange(&((SPhysicalStateBranch*)CurrentState)->Right, Address, HighAddress, State, Address, OuterHighAddress);
+            TagPhysicalRange(&BranchState->Left, LowAddress, Address, State, OuterLowAddress, Address);
+            TagPhysicalRange(&BranchState->Right, Address, HighAddress, State, Address, OuterHighAddress);
         }
+
+		UpdateNode(BranchState, OuterLowAddress, OuterHighAddress);
     }
     else
     {
-        uintptr_t NewOuterHighAddress = CurrentState->GetAddress();
-
         // We're on a leaf node. Check if we need to split it.
-        if (!(LowAddress == OuterLowAddress && HighAddress == NewOuterHighAddress))
+        if (!(LowAddress == OuterLowAddress && HighAddress == Address))
         {
             //If our lower bound doesn't touch the outer lower bound, then we treat the new low address as the mid point.
             //However if that's not true then our high address is the mid point
@@ -154,7 +210,7 @@ void TagPhysicalRange(SPhysicalState** CurrentStateInOut, const uintptr_t LowAdd
             NewBranch->Left->State.State = CurrentState->State.State;
 
             NewBranch->Right = GetFreePhysicalState();
-            NewBranch->Right->SetAddress(NewOuterHighAddress);
+            NewBranch->Right->SetAddress(Address);
             NewBranch->Right->State.State = CurrentState->State.State;
 
             // Replace the current state with the new branch
@@ -163,16 +219,20 @@ void TagPhysicalRange(SPhysicalState** CurrentStateInOut, const uintptr_t LowAdd
             // Now that the node is split, recurse on the appropriate child node
             if (LowAddress < MidPoint && HighAddress <= MidPoint)
             {
+				_ASSERTF(OuterLowAddress < MidPoint, "About to create zero block");
                 TagPhysicalRange(&NewBranch->Left, LowAddress, HighAddress, State, OuterLowAddress, MidPoint);
             }
             else if (LowAddress >= MidPoint && HighAddress > MidPoint)
             {
-                TagPhysicalRange(&NewBranch->Right, LowAddress, HighAddress, State, MidPoint, NewOuterHighAddress);
+				_ASSERTF(MidPoint < Address, "About to create zero block");
+                TagPhysicalRange(&NewBranch->Right, LowAddress, HighAddress, State, MidPoint, Address);
             }
             else
             {
                 _ASSERTF(false, "Incorrect branch state");
             }
+
+			UpdateNode(NewBranch, OuterLowAddress, OuterHighAddress);
         }
         else
         {
