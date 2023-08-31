@@ -69,10 +69,10 @@ void __attribute__((used,noinline)) InterruptDummy(const char16_t* message, int6
     }
 }
 
-#define PRINT_INTERRUPT(n) extern "C" void __attribute__((naked)) ISR_Unused##n(void); extern "C" void KERNEL_API ISR_Int_Unused##n(uint64_t rip, uint64_t cr2, uint64_t errorCode){ InterruptDummy(u"Interrupt " #n, rip, cr2, errorCode, false, false); }
+#define PRINT_INTERRUPT(n) extern "C" void __attribute__((naked)) ISR_Unused##n(void); extern "C" void KERNEL_API __attribute__((sysvi_abi,used,noinline)) ISR_Int_Unused##n(uint64_t rip, uint64_t cr2, uint64_t errorCode){ InterruptDummy(u"Interrupt " #n, rip, cr2, errorCode, false, false); }
 
-#define PRINT_NAMED_INTERRUPT(functionName, message, hook) extern "C" void __attribute__((naked)) ISR_##functionName(void); extern "C" void KERNEL_API ISR_Int_##functionName(uint64_t rip, uint64_t cr2, uint64_t errorCode){ InterruptDummy(message, rip, cr2, errorCode, false, hook); }
-#define PRINT_NAMED_INTERRUPT_HALT(functionName, message) extern "C" void __attribute__((naked)) ISR_##functionName(void); extern "C" void KERNEL_API ISR_Int_##functionName(uint64_t rip, uint64_t cr2, uint64_t errorCode){ InterruptDummy(message, rip, cr2, errorCode, true, true); }
+#define PRINT_NAMED_INTERRUPT(functionName, message, hook) extern "C" void __attribute__((naked)) ISR_##functionName(void); extern "C" void KERNEL_API __attribute__((used,noinline)) ISR_Int_##functionName(uint64_t rip, uint64_t cr2, uint64_t errorCode){ InterruptDummy(message, rip, cr2, errorCode, false, hook); }
+#define PRINT_NAMED_INTERRUPT_HALT(functionName, message) extern "C" void __attribute__((naked)) ISR_##functionName(void); extern "C" void KERNEL_API __attribute__((used,noinline)) ISR_Int_##functionName(uint64_t rip, uint64_t cr2, uint64_t errorCode){ InterruptDummy(message, rip, cr2, errorCode, true, true); }
 
 PRINT_NAMED_INTERRUPT(DivideByZero, u"Divide by 0", true) //0
 PRINT_NAMED_INTERRUPT_HALT(SingleStep, u"Single step") //1

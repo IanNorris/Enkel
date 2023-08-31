@@ -9,7 +9,7 @@ void Halt(void)
     asm("hlt");
 }
 
-void KERNEL_NORETURN HaltPermanently(void)
+void __attribute__((used, noinline, noreturn)) HaltPermanently(void)
 {
     //Stop interrupts
     asm("cli");
