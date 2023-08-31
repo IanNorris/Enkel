@@ -118,23 +118,26 @@ override HEADER_DEPS := $(CPPFILES:.cpp=.cpp.d) $(ASFILES:.S=.S.d)
 
 # Default target.
 .PHONY: force all
-all: $(KERNEL) $(FONT_CPP_FILES) kernel_build.cpp $(FONT_H_FILES) $(NASMFILES)
+all: $(KERNEL) $(FONT_CPP_FILES) kernel_build.cpptemp.o $(FONT_H_FILES) $(NASMFILES)
 
 $(FONT_CPP_FILES) $(FONT_H_FILES): fonts
 
 uefi-headers:
 	make -C $(VENDOR_ROOT)
 
-kernel_build.cpp:
-	rm -f kernel_build.cpp
-	echo "const char16_t* KernelBuildId = u\"$(shell git rev-parse HEAD | cut -c 1-8) $(shell date '+%FT %T')\";\n" > kernel_build.cpp
+kernel_build.cpptemp.o:
+	rm -f kernel_build.cpptemp
+	echo "const char16_t* KernelBuildId = u\"$(shell git rev-parse HEAD | cut -c 1-8) $(shell date '+%FT %T')\";\n" > kernel_build.cpptemp
+	$(CC) -x c++ $(CFLAGS) $(CPPFLAGS) -c kernel_build.cpptemp -o kernel_build.cpptemp.o
 
 fonts: 
 	$(MAKE) -C ../../fonts
 
 # Link rules for the final kernel executable.
-$(KERNEL): $(OBJ) $(CPPFILES) $(LDTEMPLATE) $(NASMFILES) uefi-headers kernel_build.cpp.o
-	$(LD) $(OBJ) $(LDFLAGS) -o $@
+$(KERNEL): $(OBJ) $(CPPFILES) $(LDTEMPLATE) $(NASMFILES) uefi-headers kernel_build.cpptemp.o
+	$(LD) $(OBJ) kernel_build.cpptemp.o $(LDFLAGS) -o $@
+	rm -f kernel_build.cpptemp
+	rm -f kernel_build.cpptemp.o
 
 # Include header dependencies.
 -include $(HEADER_DEPS)
