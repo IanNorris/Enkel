@@ -3,6 +3,8 @@
 #include "kernel/init/bootload.h"
 #include "kernel/init/init.h"
 #include "kernel/init/interrupts.h"
+#include "memory/memory.h"
+#include "memory/virtual.h"
 
 KernelBootData GBootData;
 
@@ -13,20 +15,20 @@ extern const char16_t* KernelBuildId;
 
 const char16_t* Song[] =
 {
-	uR"(Nuapurista kuulu se polokan tahti jalakani pohjii kutkutti, Ievan äiti se tyttöösä vahti vaan kyllähän Ieva sen jutkutti, Sillä ei meitä silloin kiellot haittaa, Kun myö tanssimme laiasta laitaan)",
+	uR"(Nuapurista kuulu se polokan tahti jalakani pohjii kutkutti, Ievan ï¿½iti se tyttï¿½ï¿½sï¿½ vahti vaan kyllï¿½hï¿½n Ieva sen jutkutti, Sillï¿½ ei meitï¿½ silloin kiellot haittaa, Kun myï¿½ tanssimme laiasta laitaan)",
 
-	uR"(Salivili hipput tupput täppyt äppyt tipput hilijalleen)",
+	uR"(Salivili hipput tupput tï¿½ppyt ï¿½ppyt tipput hilijalleen)",
 
-	uR"(Ievan suu oli vehnäsellä ko immeiset onnee toevotti
-Peä oli märkänä jokaisella ja viulu se vinku ja voevotti
-Ei tätä poikoo märkyys haittaa
+	uR"(Ievan suu oli vehnï¿½sellï¿½ ko immeiset onnee toevotti
+Peï¿½ oli mï¿½rkï¿½nï¿½ jokaisella ja viulu se vinku ja voevotti
+Ei tï¿½tï¿½ poikoo mï¿½rkyys haittaa
 Sillon ko laskoo laiasta laitaan)",
 
-	uR"(Salivili hipput tupput täppyt äppyt tipput hilijalleen)",
+	uR"(Salivili hipput tupput tï¿½ppyt ï¿½ppyt tipput hilijalleen)",
 
-	uR"(Ievan äiti se kammarissa virsiä veisata huijjuutti, Kun tämä poika naapurissa ämmän tyttöä nuijjuutti, Eikä tätä poikoo ämmät haittaa, Sillon ko laskoo laiasta laitaan)",
+	uR"(Ievan ï¿½iti se kammarissa virsiï¿½ veisata huijjuutti, Kun tï¿½mï¿½ poika naapurissa ï¿½mmï¿½n tyttï¿½ï¿½ nuijjuutti, Eikï¿½ tï¿½tï¿½ poikoo ï¿½mmï¿½t haittaa, Sillon ko laskoo laiasta laitaan)",
 
-	uR"(Salivili hipput tupput täppyt äppyt tipput hilijalleen)",
+	uR"(Salivili hipput tupput tï¿½ppyt ï¿½ppyt tipput hilijalleen)",
 
 	uR"(trololololololololoolololololololololoolololololololololoolololololololololoolololololololololoololololololololololololololololololoolololololololololoolololololololololoolololololololololoolololololololololololoolololololololololoolololololololololoolololololololololoolololololololololoolololololololololoolololololololololooloolololololololololoolololololololololoolololololololololoolololololololololoolololololololololoolololololololololoolololololololololooloolololololololololoolololololololololoolololololololololoolololololololololoolololololololololoolololololololololoolololololololololooloolololololololololoolololololololololoolololololololololoolololololololololoolololololololololoolololololololololoolololololololololooloolololololololoolololololololololoolololololololololoolololololololololoolololololololololoolololololololololoolololololololololoolol)",
 
@@ -53,25 +55,35 @@ Barillas dilla deiaduu badaba daga daga daga daga dujaduu
 Badu dubi dubi dubi dejaduu
 Badaba dillas dillan dejaduu)",
 
-	uR"(Siellä oli lystiä soiton jäläkeen sain minä kerran sytkyyttee
-Kottiin ko mäntii ni ämmä se riitelj ja Ieva jo alako nyyhkyytteek
-Minä sanon Ievalle mitäpä se haittaa
-Laskemma vielähi laiasta laitaa)",
+	uR"(Siellï¿½ oli lystiï¿½ soiton jï¿½lï¿½keen sain minï¿½ kerran sytkyyttee
+Kottiin ko mï¿½ntii ni ï¿½mmï¿½ se riitelj ja Ieva jo alako nyyhkyytteek
+Minï¿½ sanon Ievalle mitï¿½pï¿½ se haittaa
+Laskemma vielï¿½hi laiasta laitaa)",
 
-	uR"(Salivili hipput tupput täppyt äppyt tipput hilijalleen)",
+	uR"(Salivili hipput tupput tï¿½ppyt ï¿½ppyt tipput hilijalleen)",
 
-	uR"(Muorille sanon jotta tukkee suusi en ruppee sun terveyttäs takkoomaa
-Terveenä peäset ku korjoot luusi ja määt siitä murjuus makkoomaa
-Ei tätä poikoo hellyys haittaa
+	uR"(Muorille sanon jotta tukkee suusi en ruppee sun terveyttï¿½s takkoomaa
+Terveenï¿½ peï¿½set ku korjoot luusi ja mï¿½ï¿½t siitï¿½ murjuus makkoomaa
+Ei tï¿½tï¿½ poikoo hellyys haittaa
 Ko akkoja huhkii laiasta laitaan)",
 
-	uR"(Salivili hipput tupput täppyt äppyt tipput hilijalleen)",
+	uR"(Salivili hipput tupput tï¿½ppyt ï¿½ppyt tipput hilijalleen)",
 
-	uR"(Sen minä sanon jotta purra pittää ei mua niin voan nielasta
-Suat männä ite vaikka lännestä ittään vaan minä en luovu Ievasta
-Sillä ei tätä poikoo kainous haittaa
+	uR"(Sen minï¿½ sanon jotta purra pittï¿½ï¿½ ei mua niin voan nielasta
+Suat mï¿½nnï¿½ ite vaikka lï¿½nnestï¿½ ittï¿½ï¿½n vaan minï¿½ en luovu Ievasta
+Sillï¿½ ei tï¿½tï¿½ poikoo kainous haittaa
 Sillon ko tanssii laiasta laitaan)"
 };
+
+void WriteToMemoryWeOwn(void* Address, uint64_t Size, int Pattern)
+{
+	memset(Address, Pattern, Size);
+}
+
+void WriteToMemoryWeDontOwn(void* Address, uint64_t Size, int Pattern)
+{
+	memset(Address, Pattern, Size);
+}
 
 extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootData * BootData)
 {
@@ -91,6 +103,14 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 	}
 
 	EnterLongMode(&GBootData);
+	
+	const int Size = 16 * 1024 * 1024;
+	void* MyMemory = VirtualAlloc(Size);
+	WriteToMemoryWeOwn(MyMemory, Size, 0xFE);
+	VirtualFree(MyMemory, Size);
+
+	//Should crash here
+	WriteToMemoryWeDontOwn(MyMemory, Size, 0xDE);
 
 	//while (true)
 	{

@@ -39,6 +39,7 @@ SPagingStructurePage* PagingFreePageHead = nullptr;
 // Reserve space for the page tables
 SPagingStructurePage PML4 __attribute__((aligned(4096)));
 SPagingStructurePage InitialPageTableEntries[STATIC_PAGE_ENTRIES] __attribute__((aligned(4096)));
+bool PML4Set = false;
 
 void PreparePML4FreeList()
 {
@@ -204,34 +205,33 @@ void MapPages(uint64_t virtualAddress, uint64_t physicalAddress, uint64_t size, 
 			PT = GetPML4FreePage();
 			PD->Entries[pdIndex] = ((uint64_t)PT) | PRESENT | WRITABLE;
 		}
-
-		// Set up PT
-        if( PT->Entries[ptIndex] & PRESENT)
-		{
-            ConsolePrint(u"Existing PT entry for virt 0x");
-            char16_t Buffer[32];
-            witoabuf(Buffer, (uint64_t)virtualAddress, 16);
-            ConsolePrint(Buffer);
-
-            ConsolePrint(u" points to phys 0x");
-            witoabuf(Buffer, PT->Entries[ptIndex] & PML4AddressMask, 16);
-            ConsolePrint(Buffer);
-
-            _ASSERTF(false, "PT already present.");
-		}
-
-        PT->Entries[ptIndex] = (physicalAddress & PAGE_MASK) | PRESENT;
-		if (writable)
+        
+        if(newState == EPhysicalState::Free)
         {
-            PT->Entries[ptIndex] |= WRITABLE;
-		}
-		if (!executable)
+            PT->Entries[ptIndex] = (physicalAddress & PAGE_MASK);
+        }
+        else
         {
-            PT->Entries[ptIndex] |= NOT_EXECUTABLE;
-		}
+            PT->Entries[ptIndex] = (physicalAddress & PAGE_MASK) | PRESENT;
+            if (writable)
+            {
+                PT->Entries[ptIndex] |= WRITABLE;
+            }
+            if (!executable)
+            {
+                PT->Entries[ptIndex] |= NOT_EXECUTABLE;
+            }
 
-        uint64_t newPhysicalAddress = GetPhysicalAddress(virtualAddress);
-        _ASSERTF(physicalAddress == newPhysicalAddress, "Physical address mismatch.");
+            uint64_t newPhysicalAddress = GetPhysicalAddress(virtualAddress);
+            _ASSERTF(physicalAddress == newPhysicalAddress, "Physical address mismatch.");
+        }
+
+        //Tell the CPU we've just invalidated that address.
+        //TODO: Revisit this once we're looking at running user code.
+        if(PML4Set)
+        {
+            asm volatile("invlpg (%0)" ::"r"(virtualAddress) : "memory");
+        }
 
 		// Move to the next page
 		virtualAddress += PAGE_SIZE;
@@ -378,10 +378,12 @@ void BuildPML4(const KernelBootData* bootData)
 
 void BuildAndLoadPML4(const KernelBootData* bootData)
 {
+    PML4Set = false;
     BuildPML4(bootData);
 
     ConsolePrint(u"Loading PML4...\n");
     LoadPageMapLevel4((uint64_t)&PML4);
+    PML4Set = true;
 
     ConsolePrint(u"Now in long mode!...\n");
 }
