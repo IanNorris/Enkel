@@ -57,6 +57,7 @@ def MainScript():
     print("Setting hooks")
     AsmBreakpointWithError("ISR_GeneralProtectionFault")
     AsmBreakpoint("ISR_InvalidOpcode")
+    AsmBreakpoint("ISR_Breakpoint")
 
     # Any page fault right now is bad news because we can't handle them
     print("Setting ISR PF hook")
