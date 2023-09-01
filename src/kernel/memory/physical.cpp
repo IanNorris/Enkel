@@ -153,11 +153,6 @@ void TagPhysicalRange(SPhysicalState** CurrentStateInOut, const uintptr_t LowAdd
 {
 	_ASSERTF(OuterHighAddress - OuterLowAddress > 0, "About to create an empty block");
 
-    if (CurrentStateInOut == nullptr)
-    {
-        CurrentStateInOut = &PhysicalStateRoot;
-    }
-
     SPhysicalState* CurrentState = *CurrentStateInOut;
 
     _ASSERTF(OuterLowAddress <= LowAddress, "Requested address is out of range");
@@ -241,5 +236,51 @@ void TagPhysicalRange(SPhysicalState** CurrentStateInOut, const uintptr_t LowAdd
 
             CurrentState->State.State = State;
         }
+    }
+}
+
+uintptr_t FindMinimumSizeFreeBlock(SPhysicalState* CurrentState, uint64_t MinSize, const uintptr_t OuterLowAddress, const uintptr_t OuterHighAddress)
+{
+	uintptr_t Address = CurrentState->GetAddress();
+
+    if (CurrentState->State.State == EPhysicalState::Branch)
+    {
+		SPhysicalStateBranch* BranchState = (SPhysicalStateBranch*)CurrentState;
+
+		uintptr_t Mid = BranchState->GetAddress();
+		uint64_t LargestLeft = GetLargestFree(BranchState->Left, OuterLowAddress, Mid);
+		uint64_t LargestRight = GetLargestFree(BranchState->Right, Mid, OuterHighAddress);
+
+		if(LargestLeft >= MinSize)
+		{
+			uintptr_t Candidate = FindMinimumSizeFreeBlock(BranchState->Left, MinSize, OuterLowAddress, Mid);
+			if(Candidate != 0)
+			{
+				return Candidate;
+			}
+		}
+
+		if(LargestRight >= MinSize)
+		{
+			uintptr_t Candidate = FindMinimumSizeFreeBlock(BranchState->Right, MinSize, Mid, OuterHighAddress);
+			if(Candidate != 0)
+			{
+				return Candidate;
+			}
+		}
+
+		return 0;
+    }
+	else if (CurrentState->State.State == EPhysicalState::Free)
+    {
+		uint64_t Largest = GetLargestFree(CurrentState, OuterLowAddress, Address);
+		if(Largest >= MinSize)
+		{
+			return OuterLowAddress;
+		}
+	}
+    else
+    {
+        return 0;
     }
 }

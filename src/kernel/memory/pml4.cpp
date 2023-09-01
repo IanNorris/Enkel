@@ -41,6 +41,8 @@ SPagingStructurePage PML4 __attribute__((aligned(4096)));
 SPagingStructurePage InitialPageTableEntries[STATIC_PAGE_ENTRIES] __attribute__((aligned(4096)));
 bool PML4Set = false;
 
+extern SPhysicalState* PhysicalStateRoot;
+
 void PreparePML4FreeList()
 {
     memset(&PML4, 0, sizeof(PML4));
@@ -133,7 +135,7 @@ void MapPages(uint64_t virtualAddress, uint64_t physicalAddress, uint64_t size, 
 
     uint64_t physicalAddressEnd = physicalAddress + pageAlignedSize;
 
-    TagPhysicalRange(nullptr, physicalAddress, physicalAddressEnd, newState);
+    TagPhysicalRange(&PhysicalStateRoot, physicalAddress, physicalAddressEnd, newState);
 
     if (debug)
     {

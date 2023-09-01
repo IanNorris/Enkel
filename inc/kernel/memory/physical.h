@@ -60,3 +60,4 @@ struct SPhysicalStateBranch : SPhysicalState
 
 void PreparePhysicalFreeList(const uintptr_t HighestAddress);
 void TagPhysicalRange(SPhysicalState** CurrentStateInOut, const uintptr_t LowAddress, const uintptr_t HighAddress, const EPhysicalState State, const uintptr_t OuterLowAddress = 0ULL, const uintptr_t OuterHighAddress = ~0ULL);
+uintptr_t FindMinimumSizeFreeBlock(SPhysicalState* CurrentState, uint64_t MinSize, const uintptr_t OuterLowAddress = 0ULL, const uintptr_t OuterHighAddress = ~0ULL);
