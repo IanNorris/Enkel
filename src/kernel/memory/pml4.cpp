@@ -3,7 +3,7 @@
 #include "kernel/init/long_mode.h"
 #include "kernel/console/console.h"
 #include "memory/memory.h"
-#include "kernel/memory/physical.h"
+#include "kernel/memory/state.h"
 #include "common/string.h"
 
 struct SPagingStructurePage
@@ -41,7 +41,8 @@ SPagingStructurePage PML4 __attribute__((aligned(4096)));
 SPagingStructurePage InitialPageTableEntries[STATIC_PAGE_ENTRIES] __attribute__((aligned(4096)));
 bool PML4Set = false;
 
-extern SPhysicalState* PhysicalStateRoot;
+extern MemoryState PhysicalMemoryState;
+extern MemoryState VirtualMemoryState;
 
 void PreparePML4FreeList()
 {
@@ -121,7 +122,7 @@ uint64_t GetPhysicalAddress(uint64_t virtualAddress)
     return physicalAddress;
 }
 
-void MapPages(uint64_t virtualAddress, uint64_t physicalAddress, uint64_t size, bool writable, bool executable, bool debug, EPhysicalState newState)
+void MapPages(uint64_t virtualAddress, uint64_t physicalAddress, uint64_t size, bool writable, bool executable, bool debug, MemoryState::RangeState newState)
 {
     uint64_t originalVirtualAddress = virtualAddress;
     uint64_t originalPhysicalAddress = physicalAddress;
@@ -135,7 +136,8 @@ void MapPages(uint64_t virtualAddress, uint64_t physicalAddress, uint64_t size, 
 
     uint64_t physicalAddressEnd = physicalAddress + pageAlignedSize;
 
-    TagPhysicalRange(&PhysicalStateRoot, physicalAddress, physicalAddressEnd, newState);
+    PhysicalMemoryState.TagRange(physicalAddress, physicalAddressEnd, newState);
+	VirtualMemoryState.TagRange(virtualAddress, endVirtualAddress, newState);
 
     if (debug)
     {
@@ -208,7 +210,7 @@ void MapPages(uint64_t virtualAddress, uint64_t physicalAddress, uint64_t size, 
 			PD->Entries[pdIndex] = ((uint64_t)PT) | PRESENT | WRITABLE;
 		}
         
-        if(newState == EPhysicalState::Free)
+        if(newState == MemoryState::RangeState::Free)
         {
             PT->Entries[ptIndex] = (physicalAddress & PAGE_MASK);
         }
@@ -299,15 +301,14 @@ void BuildPML4(const KernelBootData* bootData)
         HighestAddress = ((framebuffer.PhysicalStart + framebuffer.ByteSize + (PAGE_SIZE-1))) & PAGE_MASK;
     }
 
-    PreparePhysicalFreeList(HighestAddress);
+	PhysicalMemoryState.Init(HighestAddress);
+	VirtualMemoryState.Init(2ULL << 48); //Limit set by x86-64 architecture.
 
     PreparePML4FreeList();
  
-    
-
-    MapPages(stack.VirtualStart, stack.PhysicalStart, stack.ByteSize, true, true /*executable*/, false, EPhysicalState::Used);
-    MapPages(framebuffer.VirtualStart, framebuffer.PhysicalStart, framebuffer.ByteSize, true, true /*executable*/, false, EPhysicalState::Used);
-    MapPages(binary.VirtualStart, binary.PhysicalStart, binary.ByteSize, true, true /*executable*/, false, EPhysicalState::Used);
+    MapPages(stack.VirtualStart, stack.PhysicalStart, stack.ByteSize, true, true /*executable*/, false, MemoryState::RangeState::Used);
+    MapPages(framebuffer.VirtualStart, framebuffer.PhysicalStart, framebuffer.ByteSize, true, true /*executable*/, false, MemoryState::RangeState::Used);
+    MapPages(binary.VirtualStart, binary.PhysicalStart, binary.ByteSize, true, true /*executable*/, false, MemoryState::RangeState::Used);
 
     _ASSERTF((uint64_t)&PML4 > binary.VirtualStart && (uint64_t)&PML4 < binary.VirtualStart + binary.ByteSize, "PML4 is not inside the kernel virtual range");
 
@@ -373,7 +374,7 @@ void BuildPML4(const KernelBootData* bootData)
                 || Desc.Type == EfiACPIReclaimMemory
                 || Desc.Type == EfiReservedMemoryType;
 
-            MapPages(Desc.VirtualStart, Desc.PhysicalStart, Size, true, true /*executable*/, CareAboutPrintOut, IsReserved ? EPhysicalState::Reserved : EPhysicalState::Used);
+            MapPages(Desc.VirtualStart, Desc.PhysicalStart, Size, true, true /*executable*/, CareAboutPrintOut, IsReserved ? MemoryState::RangeState::Reserved : MemoryState::RangeState::Used);
         }
     }
 }

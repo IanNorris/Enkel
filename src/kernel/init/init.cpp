@@ -3,7 +3,6 @@
 #include "kernel/init/interrupts.h"
 #include "kernel/init/long_mode.h"
 #include "kernel/memory/pml4.h"
-#include "kernel/memory/physical.h"
 #include "kernel/console/console.h"
 #include "kernel/utilities/slow.h"
 #include "common/string.h"
