@@ -21,17 +21,6 @@ void EnterLongMode(const KernelBootData* bootData)
     //We can now re-enable interrupts.
     EnableInterrupts();
 
-    /* If we set this page to be allocated but not present, 
-    int* Target = (int*)0xFFACFF0000000000ULL;
-    int Result = *Target;
-
-    char16_t Buffer[32];
-    witoabuf(Buffer, Result, 16);
-    ConsolePrint(Buffer);
-    ConsolePrint(u"\n");
-    Slow(Blip);
-    */
-
     _ASSERTF(CheckProtectedMode(), "In UEFI mode we should already be in protected mode!");
 
     //We don't need to disable paging or set PAE mode because we're already in long mode
