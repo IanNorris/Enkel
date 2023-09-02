@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-enum class EMemoryProtection
+enum class MemoryProtection
 {
     ReadOnly,
     ReadWrite,
@@ -12,4 +12,4 @@ enum class EMemoryProtection
 
 void* VirtualAlloc(uint64_t ByteSize);
 void VirtualFree(void* Address, uint64_t ByteSize);
-void VirtualProtect(void* Address, uint64_t ByteSize, EMemoryProtection ProtectFlags);
+void VirtualProtect(void* Address, uint64_t ByteSize, MemoryProtection ProtectFlags);
