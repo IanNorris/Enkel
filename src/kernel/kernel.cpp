@@ -107,10 +107,6 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 	const int Size = 16 * 1024 * 1024;
 	void* MyMemory = VirtualAlloc(Size);
 	WriteToMemoryWeOwn(MyMemory, Size, 0xFE);
-
-	VirtualProtect(MyMemory, Size, MemoryProtection::ReadOnly);
-	WriteToMemoryWeOwn(MyMemory, Size, 0xCC);
-
 	VirtualFree(MyMemory, Size);
 
 	//Should crash here

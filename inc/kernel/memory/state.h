@@ -67,7 +67,7 @@ public:
 
 	void TagRange(const uintptr_t LowAddress, const uintptr_t HighAddress, const RangeState State)
 	{
-		TagRangeInternal(&StateRoot, LowAddress, HighAddress, State, 0ULL, ~0ULL);
+		StateRoot = TagRangeInternal(StateRoot, LowAddress, HighAddress, State, 0ULL, ~0ULL);
 	}
 
 	uintptr_t FindMinimumSizeFreeBlock(uint64_t MinSize)
@@ -77,7 +77,7 @@ public:
 
 private:
 
-	void TagRangeInternal(StateNode** CurrentStateInOut, const uintptr_t LowAddress, const uintptr_t HighAddress, const RangeState State, const uintptr_t OuterLowAddress, const uintptr_t OuterHighAddress);
+	StateNode* TagRangeInternal(StateNode* CurrentState, const uintptr_t LowAddress, const uintptr_t HighAddress, const RangeState State, const uintptr_t OuterLowAddress, const uintptr_t OuterHighAddress);
 	uintptr_t FindMinimumSizeFreeBlockInternal(StateNode* CurrentState, uint64_t MinSize, const uintptr_t OuterLowAddress, const uintptr_t OuterHighAddress);
 
 	BranchStateNode* GetFreeBranchState()
@@ -149,19 +149,32 @@ private:
 	}
 
 	//We call this after tagging a block in a descendant to update the current state of this node based on the new descendants.
-	void UpdateNode(BranchStateNode* BranchState, const uintptr_t OuterLowAddress, const uintptr_t OuterHighAddress)
+	StateNode* UpdateNode(BranchStateNode* BranchState, const uintptr_t OuterLowAddress, const uintptr_t OuterHighAddress)
 	{
+		if(BranchState->Right->State.State != RangeState::Branch && BranchState->Left->State.State == BranchState->Right->State.State)
+		{
+			StateNode* NewNode = GetFreeLeafState();
+			NewNode->SetAddress(OuterHighAddress);
+			NewNode->State.State = BranchState->Left->State.State;
+
+			FreeStateBranch(BranchState);
+
+			return NewNode;
+		}
+
 		uintptr_t Mid = BranchState->GetAddress();
 		uint64_t LargestLeft = GetLargestFree(BranchState->Left, OuterLowAddress, Mid);
 		uint64_t LargestRight = GetLargestFree(BranchState->Right, Mid, OuterHighAddress);
 
-		_ASSERTF(OuterHighAddress - OuterLowAddress > 0, "About to create an empty block");
+		_ASSERTF(OuterHighAddress - OuterLowAddress > 0, "Encountered empty block");
 
 		uint64_t RemainingLeft = GetRemaining(BranchState->Left, OuterLowAddress, Mid);
 		uint64_t RemainingRight = GetRemaining(BranchState->Right, Mid, OuterHighAddress);
 
 		BranchState->Largest = LargestLeft > LargestRight ? LargestLeft : LargestRight;
 		BranchState->Remaining = RemainingLeft + RemainingRight;
+
+		return BranchState;
 	}
 
 	const static int InitialLeafTableEntries = 4096;

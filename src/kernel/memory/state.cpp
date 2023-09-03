@@ -56,11 +56,9 @@ void MemoryState::Init(const uint64_t HighestAddress)
     StateRoot->State.State = RangeState::Free;
 }
 
-void MemoryState::TagRangeInternal(StateNode** CurrentStateInOut, const uintptr_t LowAddress, const uintptr_t HighAddress, const RangeState State, const uintptr_t OuterLowAddress, const uintptr_t OuterHighAddress)
+MemoryState::StateNode* MemoryState::TagRangeInternal(StateNode* CurrentState, const uintptr_t LowAddress, const uintptr_t HighAddress, const RangeState State, const uintptr_t OuterLowAddress, const uintptr_t OuterHighAddress)
 {
 	_ASSERTF(OuterHighAddress - OuterLowAddress > 0, "About to create an empty block");
-
-    StateNode* CurrentState = *CurrentStateInOut;
 
     _ASSERTF(OuterLowAddress <= LowAddress, "Requested address is out of range");
     _ASSERTF(HighAddress <= OuterHighAddress, "Requested address is out of range");
@@ -77,21 +75,29 @@ void MemoryState::TagRangeInternal(StateNode** CurrentStateInOut, const uintptr_
         if (LowAddress < Address && HighAddress <= Address)
         {
             //Take the left branch
-            TagRangeInternal(&BranchState->Left, LowAddress, HighAddress, State, OuterLowAddress, Address);
+            BranchState->Left = TagRangeInternal(BranchState->Left, LowAddress, HighAddress, State, OuterLowAddress, Address);
         }
         else if (LowAddress >= Address)
         {
             //Take the right branch
-            TagRangeInternal(&BranchState->Right, LowAddress, HighAddress, State, Address, OuterHighAddress);
+            BranchState->Right = TagRangeInternal(BranchState->Right, LowAddress, HighAddress, State, Address, OuterHighAddress);
         }
         else
         {
             //Do both
-            TagRangeInternal(&BranchState->Left, LowAddress, Address, State, OuterLowAddress, Address);
-            TagRangeInternal(&BranchState->Right, Address, HighAddress, State, Address, OuterHighAddress);
+            BranchState->Left = TagRangeInternal(BranchState->Left, LowAddress, Address, State, OuterLowAddress, Address);
+            BranchState->Right = TagRangeInternal(BranchState->Right, Address, HighAddress, State, Address, OuterHighAddress);
         }
 
-		UpdateNode(BranchState, OuterLowAddress, OuterHighAddress);
+		//We may no longer actually be a branch state now if one of the nodes above merged back to a leaf
+		if (CurrentState->State.State == RangeState::Branch)
+    	{
+			StateNode* NewNode = UpdateNode(BranchState, OuterLowAddress, OuterHighAddress);
+			if(CurrentState != NewNode)
+			{
+				CurrentState = NewNode;
+			}
+		}
     }
     else
     {
@@ -107,34 +113,46 @@ void MemoryState::TagRangeInternal(StateNode** CurrentStateInOut, const uintptr_
             NewBranch->SetAddress(MidPoint); //Address in this scenario is the mid point
             NewBranch->State.State = RangeState::Branch;
 
-            NewBranch->Left = GetFreeLeafState();
-            NewBranch->Left->SetAddress(MidPoint);
-            NewBranch->Left->State.State = CurrentState->State.State;
+			_ASSERTF(OuterLowAddress < MidPoint, "About to create zero block");
+			StateNode* NewLeft = GetFreeLeafState();
+            NewBranch->Left = NewLeft;
+            NewLeft->SetAddress(MidPoint);
+            NewLeft->State.State = CurrentState->State.State;
 
-            NewBranch->Right = GetFreeLeafState();
-            NewBranch->Right->SetAddress(Address);
-            NewBranch->Right->State.State = CurrentState->State.State;
+			_ASSERTF(MidPoint == NewLeft->GetAddress(), "Mismatch on expected block bounds");
 
-            // Replace the current state with the new branch
-            *CurrentStateInOut = NewBranch;
+			_ASSERTF(Address == OuterHighAddress || (OuterHighAddress & PAGE_MASK) == (~0ULL & PAGE_MASK), "Right block should touch the outer bound");
+			StateNode* NewRight = GetFreeLeafState();
+            NewBranch->Right = NewRight;
+            NewRight->SetAddress(Address);
+            NewRight->State.State = CurrentState->State.State;
+
+			//Free the old node
+			FreeLeafState(CurrentState);
+
+			CurrentState = NewBranch;
+
+			_ASSERTF(MidPoint == NewBranch->Left->GetAddress(), "Mismatch on expected block bounds");
 
             // Now that the node is split, recurse on the appropriate child node
             if (LowAddress < MidPoint && HighAddress <= MidPoint)
             {
 				_ASSERTF(OuterLowAddress < MidPoint, "About to create zero block");
-                TagRangeInternal(&NewBranch->Left, LowAddress, HighAddress, State, OuterLowAddress, MidPoint);
+				_ASSERTF(MidPoint == NewBranch->Left->GetAddress(), "Mismatch on expected block bounds");
+                NewBranch->Left = TagRangeInternal(NewBranch->Left, LowAddress, HighAddress, State, OuterLowAddress, MidPoint);
             }
             else if (LowAddress >= MidPoint && HighAddress > MidPoint)
             {
 				_ASSERTF(MidPoint < Address, "About to create zero block");
-                TagRangeInternal(&NewBranch->Right, LowAddress, HighAddress, State, MidPoint, Address);
+                NewBranch->Right = TagRangeInternal(NewBranch->Right, LowAddress, HighAddress, State, MidPoint, Address);
             }
             else
             {
                 _ASSERTF(false, "Incorrect branch state");
             }
 
-			UpdateNode(NewBranch, OuterLowAddress, OuterHighAddress);
+			StateNode* NewNode = UpdateNode(NewBranch, OuterLowAddress, OuterHighAddress);
+			_ASSERTF(NewNode == NewBranch, "Unexpected node merge");
         }
         else
         {
@@ -144,6 +162,8 @@ void MemoryState::TagRangeInternal(StateNode** CurrentStateInOut, const uintptr_
             CurrentState->State.State = State;
         }
     }
+
+	return CurrentState;
 }
 
 uintptr_t MemoryState::FindMinimumSizeFreeBlockInternal(StateNode* CurrentState, uint64_t MinSize, const uintptr_t OuterLowAddress, const uintptr_t OuterHighAddress)
