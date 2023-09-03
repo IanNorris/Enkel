@@ -38,7 +38,10 @@ section .data
 %macro ISR_NO_ERROR 1
     extern ISR_Int_%1
     global ISR_%1
+	global DebugHook_ISR_%1
 ISR_%1:
+	nop
+DebugHook_ISR_%1
     PushGeneralPurposeRegisters
 
     ; Get the value of CR2 (where the faulting instruction accessed)
@@ -60,7 +63,13 @@ ISR_%1:
 %macro ISR_WITH_ERROR 1
     extern ISR_Int_%1
     global ISR_%1
+	global DebugHook_ISR_%1
 ISR_%1:
+	; Bodge to get GDB to see the callstack correctly
+	add rsp, 8 
+DebugHook_ISR_%1:
+	sub rsp, 8
+
     PushGeneralPurposeRegisters
 
     mov rdi, [rsp + 15*8] ; RIP from EIP
