@@ -122,7 +122,7 @@ uint64_t GetPhysicalAddress(uint64_t virtualAddress)
     return physicalAddress;
 }
 
-void MapPages(uint64_t virtualAddress, uint64_t physicalAddress, uint64_t size, bool writable, bool executable, bool debug, MemoryState::RangeState newState)
+void MapPages(uint64_t virtualAddress, uint64_t physicalAddress, uint64_t size, bool writable, bool executable, MemoryState::RangeState newState)
 {
     uint64_t originalVirtualAddress = virtualAddress;
     uint64_t originalPhysicalAddress = physicalAddress;
@@ -138,32 +138,6 @@ void MapPages(uint64_t virtualAddress, uint64_t physicalAddress, uint64_t size, 
 
     PhysicalMemoryState.TagRange(physicalAddress, physicalAddressEnd, newState);
 	VirtualMemoryState.TagRange(virtualAddress, endVirtualAddress, newState);
-
-    if (debug)
-    {
-        ConsolePrint(u"Mapping virt 0x");
-        char16_t Buffer[32];
-        witoabuf(Buffer, (uint64_t)originalVirtualAddress, 16);
-        ConsolePrint(Buffer);
-
-        ConsolePrint(u"-0x");
-        witoabuf(Buffer, endVirtualAddress, 16);
-        ConsolePrint(Buffer);
-
-        ConsolePrint(u" to phys 0x");
-        witoabuf(Buffer, originalPhysicalAddress, 16);
-        ConsolePrint(Buffer);
-
-        ConsolePrint(u"-0x");
-        witoabuf(Buffer, originalPhysicalAddress + size, 16);
-        ConsolePrint(Buffer);
-
-        ConsolePrint(u" size 0x");
-        witoabuf(Buffer, size, 16);
-        ConsolePrint(Buffer);
-
-        ConsolePrint(u"\n");
-    }
 
 	while (virtualAddress < endVirtualAddress)
     {
@@ -306,9 +280,9 @@ void BuildPML4(const KernelBootData* bootData)
 
     PreparePML4FreeList();
  
-    MapPages(stack.VirtualStart, stack.PhysicalStart, stack.ByteSize, true, true /*executable*/, false, MemoryState::RangeState::Used);
-    MapPages(framebuffer.VirtualStart, framebuffer.PhysicalStart, framebuffer.ByteSize, true, true /*executable*/, false, MemoryState::RangeState::Used);
-    MapPages(binary.VirtualStart, binary.PhysicalStart, binary.ByteSize, true, true /*executable*/, false, MemoryState::RangeState::Used);
+    MapPages(stack.VirtualStart, stack.PhysicalStart, stack.ByteSize, true, true /*executable*/, MemoryState::RangeState::Used);
+    MapPages(framebuffer.VirtualStart, framebuffer.PhysicalStart, framebuffer.ByteSize, true, true /*executable*/, MemoryState::RangeState::Used);
+    MapPages(binary.VirtualStart, binary.PhysicalStart, binary.ByteSize, true, true /*executable*/, MemoryState::RangeState::Used);
 
     _ASSERTF((uint64_t)&PML4 > binary.VirtualStart && (uint64_t)&PML4 < binary.VirtualStart + binary.ByteSize, "PML4 is not inside the kernel virtual range");
 
@@ -330,41 +304,6 @@ void BuildPML4(const KernelBootData* bootData)
 
             uint64_t Size = Desc.NumberOfPages * EFI_PAGE_SIZE;
 
-            bool CareAboutPrintOut = false;
-            /*if (
-                    Desc.Type != EfiACPIMemoryNVS
-                &&  Desc.Type != EfiBootServicesData 
-                &&  Desc.Type != EfiBootServicesCode
-                &&  Desc.Type != EfiRuntimeServicesCode
-                &&  Desc.Type != EfiRuntimeServicesData
-                &&  Desc.Type != EfiACPIReclaimMemory
-                &&  Desc.Type != EfiReservedMemoryType)
-            {
-                CareAboutPrintOut = true;
-
-                ConsolePrint(u"Allocated virt 0x");
-                witoabuf(Buffer, VirtualStart, 16);
-                ConsolePrint(Buffer);
-                ConsolePrint(u"-0x");
-                witoabuf(Buffer, VirtualEnd, 16);
-                ConsolePrint(Buffer);
-
-                ConsolePrint(u" to phys 0x");
-                witoabuf(Buffer, Start, 16);
-                ConsolePrint(Buffer);
-                ConsolePrint(u"-0x");
-                witoabuf(Buffer, End, 16);
-                ConsolePrint(Buffer);
-
-                witoabuf(Buffer, (uint64_t)(Desc.NumberOfPages * EFI_PAGE_SIZE), 16);
-                ConsolePrint(u" size 0x");
-                ConsolePrint(Buffer);
-                witoabuf(Buffer, (int)Desc.Type, 10);
-                ConsolePrint(u" type ");
-                ConsolePrint(Buffer);
-                ConsolePrint(u"\n");
-            }*/
-
             bool IsReserved = 
                    Desc.Type == EfiACPIMemoryNVS
                 || Desc.Type == EfiBootServicesData
@@ -374,7 +313,10 @@ void BuildPML4(const KernelBootData* bootData)
                 || Desc.Type == EfiACPIReclaimMemory
                 || Desc.Type == EfiReservedMemoryType;
 
-            MapPages(Desc.VirtualStart, Desc.PhysicalStart, Size, true, true /*executable*/, CareAboutPrintOut, IsReserved ? MemoryState::RangeState::Reserved : MemoryState::RangeState::Used);
+			bool IsReadOnly = Desc.Type == EfiACPIReclaimMemory || Desc.Type == EfiACPIMemoryNVS;
+			bool IsExecutable = Desc.Type == EfiBootServicesCode || Desc.Type == EfiRuntimeServicesCode;
+
+            MapPages(Desc.VirtualStart, Desc.PhysicalStart, Size, !IsReadOnly, IsExecutable, IsReserved ? MemoryState::RangeState::Reserved : MemoryState::RangeState::Used);
         }
     }
 }

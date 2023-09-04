@@ -6,7 +6,7 @@
 extern MemoryState PhysicalMemoryState;
 extern MemoryState VirtualMemoryState;
 
-extern void MapPages(uint64_t virtualAddress, uint64_t physicalAddress, uint64_t size, bool writable, bool executable, bool debug, MemoryState::RangeState newState);
+extern void MapPages(uint64_t virtualAddress, uint64_t physicalAddress, uint64_t size, bool writable, bool executable, MemoryState::RangeState newState);
 
 void* VirtualAlloc(uint64_t ByteSize)
 {
@@ -21,7 +21,7 @@ void* VirtualAlloc(uint64_t ByteSize)
 
     uint64_t VirtualAddress = VirtualMemoryState.FindMinimumSizeFreeBlock(ByteSize);
 
-    MapPages(VirtualAddress, PhysicalAddress, ByteSize, true, false, false, MemoryState::RangeState::Used);
+    MapPages(VirtualAddress, PhysicalAddress, ByteSize, true, false, MemoryState::RangeState::Used);
 
     return (void*)VirtualAddress;
 }
@@ -31,7 +31,7 @@ void VirtualFree(void* Address, uint64_t ByteSize)
     uint64_t PhysicalAddress = GetPhysicalAddress((uint64_t)Address);
     uint64_t VirtualAddress = (uint64_t)Address;
 
-    MapPages(VirtualAddress, PhysicalAddress, ByteSize, false, false, false, MemoryState::RangeState::Free);
+    MapPages(VirtualAddress, PhysicalAddress, ByteSize, false, false, MemoryState::RangeState::Free);
 }
 
 void VirtualProtect(void* Address, uint64_t ByteSize, MemoryProtection ProtectFlags)
@@ -55,5 +55,5 @@ void VirtualProtect(void* Address, uint64_t ByteSize, MemoryProtection ProtectFl
 			executable = true;
 	}
 
-    MapPages(VirtualAddress, PhysicalAddress, ByteSize, writable, executable, false, MemoryState::RangeState::Used);
+    MapPages(VirtualAddress, PhysicalAddress, ByteSize, writable, executable, MemoryState::RangeState::Used);
 }
