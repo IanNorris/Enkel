@@ -104,6 +104,13 @@ MemoryState::StateNode* MemoryState::TagRangeInternal(StateNode* CurrentState, c
         // We're on a leaf node. Check if we need to split it.
         if (!(LowAddress == OuterLowAddress && HighAddress == Address))
         {
+			//If the range we want is the same as what's already tagged
+			// and is wholly contained in our current block, we can just do nothing.
+			if(LowAddress >= OuterLowAddress && HighAddress <= Address && CurrentState->State.State == State)
+			{
+				return CurrentState;
+			}
+
             //If our lower bound doesn't touch the outer lower bound, then we treat the new low address as the mid point.
             //However if that's not true then our high address is the mid point
             uint64_t MidPoint = LowAddress == OuterLowAddress ? HighAddress : LowAddress;
@@ -157,7 +164,7 @@ MemoryState::StateNode* MemoryState::TagRangeInternal(StateNode* CurrentState, c
         else
         {
             _ASSERTF(LowAddress == OuterLowAddress || HighAddress == OuterHighAddress, "Expected ranges to match.");
-            _ASSERTF(CurrentState->State.State != RangeState::Reserved, "Cannot modify reserved ranges once created.");
+            _ASSERTF(CurrentState->State.State != RangeState::Reserved || State == RangeState::Reserved, "Cannot modify reserved ranges once created.");
 
             CurrentState->State.State = State;
         }
