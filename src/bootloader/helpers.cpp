@@ -100,3 +100,38 @@ extern "C" void AssertionFailed(const char* expression, const char* message, con
 
 	Halt(HALT_ASSERT, nullptr);
 }
+
+bool CompareGuids(const EFI_GUID& Guid1, const EFI_GUID& Guid2)
+{
+	if(!(Guid1.Data1 == Guid2.Data1
+		&& Guid1.Data2 == Guid2.Data2 
+		&& Guid1.Data3 == Guid2.Data3))
+	{
+		return false;
+	}
+
+	for(int part = 0; part < 8; part++)
+	{
+		if(Guid1.Data4[part] != Guid2.Data4[part])
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
+Allocation AllocatePages(uint32_t PageType, uint64_t SizeInBytes)
+{
+	Allocation Out;
+	Out.PageCount = (SizeInBytes + (EFI_PAGE_SIZE-1)) / EFI_PAGE_SIZE;
+
+	ERROR_CHECK(GSystemTable->BootServices->AllocatePages(AllocateAnyPages, (EFI_MEMORY_TYPE)PageType, Out.PageCount, &Out.Data), u"AllocatePages failed");
+	return Out;
+}
+
+void FreePages(Allocation& Allocation)
+{
+	ERROR_CHECK(GSystemTable->BootServices->FreePages(Allocation.Data, Allocation.PageCount), u"FreePages failed");
+	Allocation.Data = 0;
+}

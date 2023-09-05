@@ -8,6 +8,9 @@
 
 #include "Protocol/LoadedImage.h"
 #include "Guid/FileInfo.h"
+#include "Guid/Acpi.h"
+
+#include "IndustryStandard/Acpi61.h"
 
 
 //Header guard to stop it pulling extra stuff in
@@ -29,6 +32,8 @@ EFI_STATUS __attribute__((__noreturn__)) efi_main(EFI_HANDLE imageHandle, EFI_SY
 
 	EFI_BOOT_SERVICES* bootServices = systemTable->BootServices;
 
+	SetResolution(bootServices, bootData);
+
 	SetColor(EFI_LIGHTGREEN);
 	UEFI_CALL(systemTable->ConOut, SetAttribute, EFI_LIGHTGREEN);
 	Print(u"Starting Enkel (Revision ");
@@ -36,15 +41,39 @@ EFI_STATUS __attribute__((__noreturn__)) efi_main(EFI_HANDLE imageHandle, EFI_SY
 	Print(u")...\r\n");
 	SetColor(EFI_WHITE);
 
-	//Set a timeout of 15s, if we haven't transferred to the kernel by then we probably won't be...
-	//bootServices->SetWatchdogTimer(15, 0, 0, 0);
-
 	KernelStartFunction kernelStart = LoadKernel(imageHandle, bootServices, bootData);
 
 	if (kernelStart == nullptr)
 	{
 		Halt(EFI_LOAD_ERROR, u"Failed to load kernel image");
 	}
+
+	EFI_GUID Acpi2Table = EFI_ACPI_20_TABLE_GUID;
+	EFI_ACPI_2_0_ROOT_SYSTEM_DESCRIPTION_POINTER* Acpi2Descriptor = nullptr;
+
+	//Now find the ACPI table
+	for(int systemTableEntry = 0; systemTableEntry < systemTable->NumberOfTableEntries; systemTableEntry++)
+	{
+		if(CompareGuids(systemTable->ConfigurationTable[systemTableEntry].VendorGuid, Acpi2Table))
+		{
+			//This is the RSDP
+			Acpi2Descriptor = (EFI_ACPI_2_0_ROOT_SYSTEM_DESCRIPTION_POINTER*)systemTable->ConfigurationTable[systemTableEntry].VendorTable;
+			break;
+		}
+	}
+
+	if(Acpi2Descriptor == nullptr)
+	{
+		Halt(0, u"System does not support ACPI 2.0");
+	}
+
+	EFI_ACPI_DESCRIPTION_HEADER* Xsdt = (EFI_ACPI_DESCRIPTION_HEADER*)Acpi2Descriptor->XsdtAddress;
+	if(Xsdt == nullptr)
+	{
+		Halt(0, u"XSDT is null");
+	}
+
+	bootData.Xsdt = Xsdt;
 
 	Print(u"About to execute into the kernel...\r\n");
 
@@ -55,24 +84,31 @@ EFI_STATUS __attribute__((__noreturn__)) efi_main(EFI_HANDLE imageHandle, EFI_SY
 
 void __attribute__((__noreturn__)) ExitToKernel(EFI_BOOT_SERVICES* bootServices, EFI_RUNTIME_SERVICES* runtimeServices, EFI_HANDLE imageHandle, KernelBootData& bootData, KernelStartFunction kernelStart)
 {
+	Allocation bootDataKernel = AllocatePages(EfiMemoryMapType_KernelBootData, sizeof(KernelBootData));
+
 	UINT64 stackSize = 256 * 1024;
 
 	//We need a new block of memory that will become the kernel's stack
-	EFI_PHYSICAL_ADDRESS stackLow = 4 * 1024 * 1024; //Must be 4K aligned if we want to enable NX later.
-	UINT64 pageCount = stackSize / EFI_PAGE_SIZE;
-	EFI_PHYSICAL_ADDRESS stackHigh = stackLow + stackSize;
-	ERROR_CHECK(bootServices->AllocatePages(AllocateAddress, EfiLoaderData, pageCount, &stackLow), u"Failed to allocate memory for the stack");
-
-	bootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_KernelStack].VirtualStart = stackLow;
-	bootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_KernelStack].PhysicalStart = stackLow;
+	Allocation stackRange = AllocatePages(EfiMemoryMapType_KernelStack, stackSize);
+	uint64_t stackHigh = (uint64_t)stackRange.Data + stackSize;
+	
+	bootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_KernelStack].VirtualStart = (uint64_t)stackRange.Data;
+	bootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_KernelStack].PhysicalStart = (uint64_t)stackRange.Data;
 	bootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_KernelStack].ByteSize = stackSize;
 
+	//We need to get the memory map to say what memory ranges are used, reserved and free.
+	//However, this is a bit of a convoluted process as anything we do that allocates
+	//can modify the map, invalidating it. And when we exit we need to provide a "key" to
+	//prove the memory map we think we have is actually the one the OS is going to exit with.
+
 	UINTN memoryMapSize = 0;
+	UINTN memoryMapSizeAllocated = 0;
 	UINTN memoryMapKey = 0;
 
 	UINTN descriptorSize = 0;
 	UINT32 descriptorVersion = 0;
 
+	//First get an initial size for it
 	UINTN gmmResult = bootServices->GetMemoryMap(&memoryMapSize, nullptr, nullptr, &descriptorSize, nullptr);
 	if (gmmResult != EFI_BUFFER_TOO_SMALL)
 	{
@@ -81,32 +117,45 @@ void __attribute__((__noreturn__)) ExitToKernel(EFI_BOOT_SERVICES* bootServices,
 
 	Print(u"Memory map entries: ");
 	char16_t tempBuffer[16];
-	witoabuf(tempBuffer, memoryMapSize / sizeof(EFI_MEMORY_DESCRIPTOR), 10);
+	witoabuf(tempBuffer, memoryMapSize / descriptorSize, 10);
 	Print(tempBuffer);
 	Print(u"\r\n");
 
-	// We're about to allocate memory, which can fragment the memory map.
-	// So create some extra space for the number of entries we might need.
-	UINTN newMemoryMapSize = memoryMapSize + 5 * sizeof(EFI_MEMORY_DESCRIPTOR);
-	memoryMapSize = newMemoryMapSize;
-
 	EFI_MEMORY_DESCRIPTOR* memoryMap = nullptr;
-
-	ERROR_CHECK(bootServices->AllocatePool(EfiLoaderData, memoryMapSize, (void**)&memoryMap), u"Failed to allocate memory for memory map");
+	memoryMapSizeAllocated = memoryMapSize + (8 * descriptorSize);
+	Allocation memoryMapAlloc = AllocatePages(EfiMemoryMapType_MemoryMap, memoryMapSizeAllocated);
+	memoryMap = (EFI_MEMORY_DESCRIPTOR*)memoryMapAlloc.Data;
 
 	int retries = 5;
 	do
 	{
+		//Try to get the actual memory map
+		memoryMapSize = memoryMapSizeAllocated;
 		gmmResult = bootServices->GetMemoryMap(&memoryMapSize, memoryMap, &memoryMapKey, &descriptorSize, &descriptorVersion);
-
-		Print(u"Memory map entries (2): ");
-		witoabuf(tempBuffer, memoryMapSize / sizeof(EFI_MEMORY_DESCRIPTOR), 10);
-		Print(tempBuffer);
-		Print(u"\r\n");
 
 		if (gmmResult == EFI_BUFFER_TOO_SMALL)
 		{
-			memoryMapSize += 5 * sizeof(EFI_MEMORY_DESCRIPTOR);
+			Print(u"Memory map too small\r\n");
+
+			FreePages(memoryMapAlloc);
+
+			memoryMapSize = 0;
+			UINTN gmmSizeResult = bootServices->GetMemoryMap(&memoryMapSize, nullptr, nullptr, &descriptorSize, nullptr);
+			if (!(gmmSizeResult == EFI_SUCCESS || gmmSizeResult == EFI_BUFFER_TOO_SMALL))
+			{
+				Halt(gmmSizeResult, u"Failed to get memory map size (3)");
+			}
+
+			Print(u"Memory map entries: ");
+			witoabuf(tempBuffer, memoryMapSize / descriptorSize, 10);
+			Print(tempBuffer);
+			Print(u"\r\n");
+
+			//Add a bit of a buffer
+			memoryMapSizeAllocated = memoryMapSize + (8 * descriptorSize);
+
+			memoryMapAlloc = AllocatePages(EfiMemoryMapType_MemoryMap, memoryMapSizeAllocated);
+			memoryMap = (EFI_MEMORY_DESCRIPTOR*)memoryMapAlloc.Data;
 		}
 	} while (gmmResult == EFI_BUFFER_TOO_SMALL && retries-- > 0);
 
@@ -126,55 +175,39 @@ void __attribute__((__noreturn__)) ExitToKernel(EFI_BOOT_SERVICES* bootServices,
 		}
 	}
 
-	uint64_t totalMemoryBytes = totalMemoryPages * EFI_PAGE_SIZE;
-	uint64_t totalMemoryUnits = totalMemoryBytes;
-	const char16_t* unit = u"B";
-	if (totalMemoryUnits > 1024)
-	{
-		unit = u"KB";
-		totalMemoryUnits /= 1024;
-	}
-	if (totalMemoryUnits > 1024)
-	{
-		unit = u"MB";
-		totalMemoryUnits /= 1024;
-	}
-	if (totalMemoryUnits > 1024)
-	{
-		unit = u"GB";
-		totalMemoryUnits /= 1024;
-	}
-	if (totalMemoryUnits > 1024)
-	{
-		unit = u"TB";
-		totalMemoryUnits /= 1024;
-	}
-
-	Print(u"Memory available: ");
-	witoabuf(tempBuffer, totalMemoryUnits, 10);
-	Print(tempBuffer);
-	Print(unit);
-	Print(u"\r\n");
-
 	Print(u"Starting kernel...\r\n");
-
-	SetResolution(bootServices, bootData);
 
 	DrawDot(bootData); //1
 
 	//We do one last memory map before we call exit boot services, as the map is changing...
-	memoryMapSize = newMemoryMapSize;
+	memoryMapSize = memoryMapSizeAllocated;
 	gmmResult = bootServices->GetMemoryMap(&memoryMapSize, memoryMap, &memoryMapKey, &descriptorSize, &descriptorVersion);
 	if (gmmResult != EFI_SUCCESS)
 	{
+		memoryMapSize = 0;
+		UINTN gmmSizeResult = bootServices->GetMemoryMap(&memoryMapSize, nullptr, nullptr, &descriptorSize, nullptr);
+		if (gmmSizeResult != EFI_SUCCESS)
+		{
+			Halt(gmmSizeResult, u"Failed to get memory map size (4)");
+		}
+
+		Print(u"Memory map entries (3): ");
+		char16_t tempBuffer[16];
+		witoabuf(tempBuffer, memoryMapSize / sizeof(EFI_MEMORY_DESCRIPTOR), 10);
+		Print(tempBuffer);
+		Print(u"\r\n");
+
 		Halt(gmmResult, u"Failed to get memory map (pre-exit)");
 	}
 
 	DrawDot(bootData); //2
 
+	bootData.RuntimeServices = runtimeServices;
 	bootData.MemoryLayout.Map = memoryMap;
-	bootData.MemoryLayout.Entries = memoryMapEntries;
+	bootData.MemoryLayout.MapSize = memoryMapSize;
+	bootData.MemoryLayout.Entries = memoryMapSize / descriptorSize;
 	bootData.MemoryLayout.DescriptorSize = descriptorSize;
+	bootData.MemoryLayout.DescriptorVersion = descriptorVersion;
 
 	//Now we need to find the page mapping for the framebuffer
 	const KernelMemoryLayout& memoryLayout = bootData.MemoryLayout;
@@ -189,19 +222,14 @@ void __attribute__((__noreturn__)) ExitToKernel(EFI_BOOT_SERVICES* bootServices,
 
 	DrawDot(bootData); //4
 
-	bootData.RuntimeServices = runtimeServices;
-	//ERROR_CHECK(runtimeServices->SetVirtualAddressMap(memoryMapSize, descriptorSize, descriptorVersion, memoryMap), u"Failed to transition to virtual address mode");
+	//Copy the boot data to the new memory block the kernel can keep around.
+	memcpy((void*)bootDataKernel.Data, &bootData, sizeof(KernelBootData));
 
-	DrawDot(bootData); //5
+	//Here we go...
+	EnterKernel((KernelBootData*)bootDataKernel.Data, kernelStart, stackHigh);
 
-	EnterKernel(&bootData, kernelStart, stackHigh);
-
-	DrawDot(bootData); //6
-
-	while (1)
-	{
-		bootServices->Stall(ONE_SECOND);
-	}
+	asm volatile("hlt");
+	while (1);
 }
 
 void PrintStat(const char16_t* message, int value)

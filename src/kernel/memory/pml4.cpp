@@ -5,6 +5,7 @@
 #include "memory/memory.h"
 #include "kernel/memory/state.h"
 #include "common/string.h"
+#include "utilities/termination.h"
 
 struct SPagingStructurePage
 {
@@ -217,11 +218,11 @@ void MapPages(uint64_t virtualAddress, uint64_t physicalAddress, uint64_t size, 
 	}
 }
 
-void BuildPML4(const KernelBootData* bootData)
+void BuildPML4(KernelBootData* bootData)
 {
     char16_t Buffer[32];
 
-    const KernelMemoryLayout& memoryLayout = bootData->MemoryLayout;
+    KernelMemoryLayout& memoryLayout = bootData->MemoryLayout;
 
     uintptr_t HighestAddress = 0;
     for (uint32_t entry = 0; entry < memoryLayout.Entries; entry++)
@@ -280,26 +281,26 @@ void BuildPML4(const KernelBootData* bootData)
 
     PreparePML4FreeList();
  
-    MapPages(stack.VirtualStart, stack.PhysicalStart, stack.ByteSize, true, true /*executable*/, MemoryState::RangeState::Used);
-    MapPages(framebuffer.VirtualStart, framebuffer.PhysicalStart, framebuffer.ByteSize, true, true /*executable*/, MemoryState::RangeState::Used);
-    MapPages(binary.VirtualStart, binary.PhysicalStart, binary.ByteSize, true, true /*executable*/, MemoryState::RangeState::Used);
-
     _ASSERTF((uint64_t)&PML4 > binary.VirtualStart && (uint64_t)&PML4 < binary.VirtualStart + binary.ByteSize, "PML4 is not inside the kernel virtual range");
 
     for (uint32_t entry = 0; entry < memoryLayout.Entries; entry++)
     {
-        const EFI_MEMORY_DESCRIPTOR& Desc = *((EFI_MEMORY_DESCRIPTOR*)((UINT8*)memoryLayout.Map + (entry* memoryLayout.DescriptorSize)));
+        EFI_MEMORY_DESCRIPTOR& Desc = *((EFI_MEMORY_DESCRIPTOR*)((UINT8*)memoryLayout.Map + (entry * memoryLayout.DescriptorSize)));
 
-        if (Desc.Type != EfiConventionalMemory)
+		bool IsFree =  Desc.Type == EfiConventionalMemory
+					|| Desc.Type == EfiBootServicesCode
+					|| Desc.Type == EfiBootServicesData;
+
+        if (!IsFree)
         {
             uint64_t Start = Desc.PhysicalStart;
             uint64_t End = Desc.PhysicalStart + Desc.NumberOfPages * EFI_PAGE_SIZE;
             uint64_t VirtualStart = Desc.VirtualStart;
             uint64_t VirtualEnd = VirtualStart + Desc.NumberOfPages * EFI_PAGE_SIZE;
 
-            if (VirtualStart < 0x100000 || Start < 0x100000)
-            {
-                continue;
+			if(VirtualStart == 0)
+			{
+				VirtualStart = Desc.VirtualStart = Desc.PhysicalStart;
 			}
 
             uint64_t Size = Desc.NumberOfPages * EFI_PAGE_SIZE;
@@ -311,17 +312,19 @@ void BuildPML4(const KernelBootData* bootData)
                 || Desc.Type == EfiRuntimeServicesCode
                 || Desc.Type == EfiRuntimeServicesData
                 || Desc.Type == EfiACPIReclaimMemory
+				|| Desc.Type == EfiUnusableMemory
                 || Desc.Type == EfiReservedMemoryType;
 
-			bool IsReadOnly = Desc.Type == EfiACPIReclaimMemory || Desc.Type == EfiACPIMemoryNVS;
-			bool IsExecutable = Desc.Type == EfiBootServicesCode || Desc.Type == EfiRuntimeServicesCode;
+			bool IsReadOnly = Desc.Type == EfiACPIReclaimMemory || Desc.Type == EfiACPIMemoryNVS || Desc.Type == EfiUnusableMemory;
+			bool IsExecutable = Desc.Type == EfiRuntimeServicesCode || EfiMemoryMapType_Kernel;
 
-            MapPages(Desc.VirtualStart, Desc.PhysicalStart, Size, !IsReadOnly, IsExecutable, IsReserved ? MemoryState::RangeState::Reserved : MemoryState::RangeState::Used);
+            MapPages(VirtualStart, Start, Size, !IsReadOnly, IsExecutable, IsReserved ? MemoryState::RangeState::Reserved : MemoryState::RangeState::Used);
         }
     }
+    MapPages(framebuffer.VirtualStart, framebuffer.PhysicalStart, framebuffer.ByteSize, true, false /*executable*/, MemoryState::RangeState::Used);
 }
 
-void BuildAndLoadPML4(const KernelBootData* bootData)
+void BuildAndLoadPML4(KernelBootData* bootData)
 {
     PML4Set = false;
     BuildPML4(bootData);

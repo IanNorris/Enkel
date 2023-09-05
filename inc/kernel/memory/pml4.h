@@ -2,5 +2,5 @@
 
 struct KernelBootData;
 
-void BuildAndLoadPML4(const KernelBootData* bootData);
+void BuildAndLoadPML4(KernelBootData* bootData);
 uint64_t GetPhysicalAddress(uint64_t virtualAddress);

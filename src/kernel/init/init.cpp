@@ -7,7 +7,7 @@
 #include "kernel/utilities/slow.h"
 #include "common/string.h"
 
-void EnterLongMode(const KernelBootData* bootData)
+void EnterLongMode(KernelBootData* bootData)
 {
     //Disable interrupts because we won't be able to handle these until we initialize the GDT and the interrupt handlers.
     DisableInterrupts();

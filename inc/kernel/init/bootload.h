@@ -9,9 +9,19 @@
 #endif
 #define NULL nullptr
 #include "Protocol/GraphicsOutput.h"
+#include "IndustryStandard/Acpi61.h"
+
 #include "kernel/framebuffer/framebuffer.h"
 
 typedef KERNEL_API void (*BootPrintFunction)(const char16_t* message);
+
+enum EfiMemoryMapType
+{
+	EfiMemoryMapType_MemoryMap = 0x80000000,
+	EfiMemoryMapType_KernelBootData,
+	EfiMemoryMapType_Kernel,
+	EfiMemoryMapType_KernelStack,
+};
 
 enum SpecialMemoryLocation
 {
@@ -34,8 +44,10 @@ struct KernelMemoryLayout
 	KernelMemoryLocation SpecialLocations[SpecialMemoryLocation_MAX];
 
 	EFI_MEMORY_DESCRIPTOR* Map;
+	uint32_t MapSize;
 	uint32_t Entries;
 	uint32_t DescriptorSize;
+	uint32_t DescriptorVersion;
 };
 
 struct KernelBootData
@@ -44,6 +56,7 @@ struct KernelBootData
 
 	EFI_GRAPHICS_OUTPUT_PROTOCOL* GraphicsOutput;
 	EFI_RUNTIME_SERVICES* RuntimeServices;
+	EFI_ACPI_DESCRIPTION_HEADER* Xsdt;
 	FramebufferLayout Framebuffer;
 };
 

@@ -67,7 +67,7 @@ KernelStartFunction PrepareKernel(EFI_BOOT_SERVICES* bootServices, const uint8_t
 
 	EFI_PHYSICAL_ADDRESS kernelStart = lowestAddress;
 
-	ERROR_CHECK(bootServices->AllocatePages(AllocateAddress, EfiLoaderData, pageCount, &kernelStart), u"Unable to allocate pages for the kernel");
+	ERROR_CHECK(bootServices->AllocatePages(AllocateAddress, (EFI_MEMORY_TYPE)EfiMemoryMapType_Kernel, pageCount, &kernelStart), u"Unable to allocate pages for the kernel");
 
 	bootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_KernelBinary].VirtualStart = kernelStart;
 	bootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_KernelBinary].PhysicalStart = kernelStart;
