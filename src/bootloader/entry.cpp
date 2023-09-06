@@ -91,6 +91,22 @@ void __attribute__((__noreturn__)) ExitToKernel(EFI_BOOT_SERVICES* bootServices,
 	//We need a new block of memory that will become the kernel's stack
 	Allocation stackRange = AllocatePages(EfiMemoryMapType_KernelStack, stackSize);
 	uint64_t stackHigh = (uint64_t)stackRange.Data + stackSize;
+
+	//Need to ensure we end up in the code segment
+	uint64_t APBootstrapPage = 64 * 1024;
+	EFI_STATUS APStatus;
+	do
+	{
+		APBootstrapPage += EFI_PAGE_SIZE;
+		APStatus = bootServices->AllocatePages(AllocateAddress, (EFI_MEMORY_TYPE)EfiMemoryMapType_APBootstrap, 1, &APBootstrapPage);
+		
+	} while( APStatus != EFI_SUCCESS );
+
+	_ASSERTF( APBootstrapPage < 1 * 1024 * 1024, "AP bootstrap must live <1MB");
+
+	bootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_APBootstrap].VirtualStart = APBootstrapPage;
+	bootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_APBootstrap].PhysicalStart = APBootstrapPage;
+	bootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_APBootstrap].ByteSize = EFI_PAGE_SIZE;
 	
 	bootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_KernelStack].VirtualStart = (uint64_t)stackRange.Data;
 	bootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_KernelStack].PhysicalStart = (uint64_t)stackRange.Data;
@@ -224,6 +240,8 @@ void __attribute__((__noreturn__)) ExitToKernel(EFI_BOOT_SERVICES* bootServices,
 
 	//Copy the boot data to the new memory block the kernel can keep around.
 	memcpy((void*)bootDataKernel.Data, &bootData, sizeof(KernelBootData));
+
+	DrawDot(bootData); //5
 
 	//Here we go...
 	EnterKernel((KernelBootData*)bootDataKernel.Data, kernelStart, stackHigh);

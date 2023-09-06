@@ -3,6 +3,7 @@
 #include "kernel/init/long_mode.h"
 #include "kernel/console/console.h"
 #include "memory/memory.h"
+#include "kernel/memory/pml4.h"
 #include "kernel/memory/state.h"
 #include "common/string.h"
 #include "utilities/termination.h"
@@ -20,6 +21,9 @@ struct SPagingStructurePage
 #define PDPT_ENTRIES 512
 #define PD_ENTRIES 512
 #define PT_ENTRIES (512*512)
+
+#define WRITE_THROUGH (1ULL << 3)
+#define CACHE_DISABLE (1ULL << 4)
 
 #define PRESENT 1
 #define WRITABLE 2
@@ -123,7 +127,7 @@ uint64_t GetPhysicalAddress(uint64_t virtualAddress)
     return physicalAddress;
 }
 
-void MapPages(uint64_t virtualAddress, uint64_t physicalAddress, uint64_t size, bool writable, bool executable, MemoryState::RangeState newState)
+void MapPages(uint64_t virtualAddress, uint64_t physicalAddress, uint64_t size, bool writable, bool executable, MemoryState::RangeState newState, PageFlags pageFlags)
 {
     uint64_t originalVirtualAddress = virtualAddress;
     uint64_t originalPhysicalAddress = physicalAddress;
@@ -200,6 +204,16 @@ void MapPages(uint64_t virtualAddress, uint64_t physicalAddress, uint64_t size, 
             {
                 PT->Entries[ptIndex] |= NOT_EXECUTABLE;
             }
+
+			if(pageFlags == PageFlags_Cache_Disable)
+			{
+				PT->Entries[ptIndex] |= CACHE_DISABLE;
+			}
+
+			if(pageFlags == PageFlags_Cache_WriteThrough)
+			{
+				PT->Entries[ptIndex] |= WRITE_THROUGH;
+			}
 
             uint64_t newPhysicalAddress = GetPhysicalAddress(virtualAddress);
             _ASSERTF(physicalAddress == newPhysicalAddress, "Physical address mismatch.");
@@ -286,7 +300,7 @@ void BuildPML4(KernelBootData* bootData)
     for (uint32_t entry = 0; entry < memoryLayout.Entries; entry++)
     {
         EFI_MEMORY_DESCRIPTOR& Desc = *((EFI_MEMORY_DESCRIPTOR*)((UINT8*)memoryLayout.Map + (entry * memoryLayout.DescriptorSize)));
-
+	
 		bool IsFree =  Desc.Type == EfiConventionalMemory
 					|| Desc.Type == EfiBootServicesCode
 					|| Desc.Type == EfiBootServicesData;

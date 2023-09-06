@@ -21,6 +21,7 @@ enum EfiMemoryMapType
 	EfiMemoryMapType_KernelBootData,
 	EfiMemoryMapType_Kernel,
 	EfiMemoryMapType_KernelStack,
+	EfiMemoryMapType_APBootstrap,
 };
 
 enum SpecialMemoryLocation
@@ -28,6 +29,7 @@ enum SpecialMemoryLocation
 	SpecialMemoryLocation_KernelBinary,
 	SpecialMemoryLocation_KernelStack,
 	SpecialMemoryLocation_Framebuffer,
+	SpecialMemoryLocation_APBootstrap,
 	
 	SpecialMemoryLocation_MAX
 };

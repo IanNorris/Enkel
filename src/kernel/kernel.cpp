@@ -1,5 +1,6 @@
 #include "utilities/termination.h"
 #include "kernel/console/console.h"
+#include "kernel/init/apic.h"
 #include "kernel/init/bootload.h"
 #include "kernel/init/init.h"
 #include "kernel/init/interrupts.h"
@@ -41,8 +42,27 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 	}
 
 	EnterLongMode(&GBootData);
-	
-	ConsolePrint(u"Exiting\n");
 
-	HaltPermanently();
+	//This still doesn't work...
+	/*EFI_STATUS runtimeServicesAddressMapStatus = GBootData.RuntimeServices->SetVirtualAddressMap(GBootData.MemoryLayout.MapSize, GBootData.MemoryLayout.DescriptorSize, GBootData.MemoryLayout.DescriptorVersion, GBootData.MemoryLayout.Map);
+	if(runtimeServicesAddressMapStatus != EFI_SUCCESS)
+	{
+		char16_t Buffer[16];
+		ConsolePrint(u"SetVirtualAddressMap error: 0x");
+		witoabuf(Buffer, (int)runtimeServicesAddressMapStatus, 16);
+		ConsolePrint(Buffer);
+		ConsolePrint(u"\r\n");
+
+		_ASSERTF(false, "Unable to transition to virtual address map for runtime services.");
+	}*/
+
+	InitApic(GBootData.Xsdt);
+	
+	//ConsolePrint(u"Exiting\n");
+	//HaltPermanently();
+
+	while(true)
+	{
+		asm volatile("pause");
+	}
 }

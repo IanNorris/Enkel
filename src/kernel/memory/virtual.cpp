@@ -1,12 +1,10 @@
-#include "memory/virtual.h"
+#include "memory/physical.h"
 #include "kernel/memory/state.h"
 #include "kernel/memory/pml4.h"
 #include "utilities/termination.h"
 
 extern MemoryState PhysicalMemoryState;
 extern MemoryState VirtualMemoryState;
-
-extern void MapPages(uint64_t virtualAddress, uint64_t physicalAddress, uint64_t size, bool writable, bool executable, MemoryState::RangeState newState);
 
 void* VirtualAlloc(uint64_t ByteSize)
 {
