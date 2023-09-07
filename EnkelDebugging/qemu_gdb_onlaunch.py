@@ -75,5 +75,7 @@ def MainScript():
 gdb.execute("set logging overwrite on")
 gdb.execute("set logging enabled")
 gdb.execute("set output-radix 16")
+gdb.execute("set disassembly-flavor intel")
+gdb.execute("set print asm-demangle on")
 gdb.execute("add-symbol-file ~/Enkel/boot_iso/boot_part/kernel/enkel.elf")
 OnKernelMainHook("OnKernelMainHook", temporary=True)
