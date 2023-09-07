@@ -175,8 +175,11 @@ IDT[num].Reserved = 0; \
 }
 
 #define IDT_SIZE 256
-static IDTEntry IDT[IDT_SIZE];
-static GDTPointer IDTLimits;
+extern "C"
+{
+	IDTEntry IDT[IDT_SIZE];
+	GDTPointer IDTLimits;
+}
 
 static_assert(sizeof(IDTEntry) == 0x10);
 

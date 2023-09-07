@@ -42,7 +42,10 @@ constexpr uint64_t PML4AddressMask = (((1ULL << 52) - 1) & ~((1ULL << 12) - 1));
 SPagingStructurePage* PagingFreePageHead = nullptr;
 
 // Reserve space for the page tables
-SPagingStructurePage PML4 __attribute__((aligned(4096)));
+extern "C"
+{
+	SPagingStructurePage PML4 __attribute__((aligned(4096)));
+}
 SPagingStructurePage InitialPageTableEntries[STATIC_PAGE_ENTRIES] __attribute__((aligned(4096)));
 bool PML4Set = false;
 
@@ -330,7 +333,7 @@ void BuildPML4(KernelBootData* bootData)
                 || Desc.Type == EfiReservedMemoryType;
 
 			bool IsReadOnly = Desc.Type == EfiACPIReclaimMemory || Desc.Type == EfiACPIMemoryNVS || Desc.Type == EfiUnusableMemory;
-			bool IsExecutable = Desc.Type == EfiRuntimeServicesCode || EfiMemoryMapType_Kernel;
+			bool IsExecutable = Desc.Type == EfiRuntimeServicesCode || Desc.Type == EfiMemoryMapType_Kernel;
 
             MapPages(VirtualStart, Start, Size, !IsReadOnly, IsExecutable, IsReserved ? MemoryState::RangeState::Reserved : MemoryState::RangeState::Used);
         }

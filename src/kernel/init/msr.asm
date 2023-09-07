@@ -2,6 +2,7 @@ section .text
 
 global GetMSR
 global SetMSR
+global OutPort
 
 ; uint64_t GetMSR(uint32_t msr);
 GetMSR:
@@ -34,5 +35,17 @@ SetMSR:
 
     ; Write the values to the MSR
     wrmsr
+
+    ret
+
+; void OutPort(uint16_t port, uint8_t value);
+OutPort:
+    ; Arguments are passed in:
+    ;   rdi = port
+    ;   rsi = value (only the lowest byte will be used)
+
+    mov dx, di       ; Move the 16-bit port number to dx
+    mov al, sil      ; Move the 8-bit value to al
+    out dx, al       ; Output byte in al to port number in dx
 
     ret

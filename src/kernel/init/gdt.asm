@@ -1,5 +1,7 @@
 section .data
 
+global GDTRegister
+
 global SetGDT
 global ReloadSegments
 align 4

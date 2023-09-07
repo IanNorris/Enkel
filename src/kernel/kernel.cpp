@@ -63,6 +63,6 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 
 	while(true)
 	{
-		asm volatile("pause");
+		asm volatile("hlt");
 	}
 }
