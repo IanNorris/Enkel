@@ -3,6 +3,7 @@ section .text
 global GetMSR
 global SetMSR
 global OutPort
+global InPort
 
 ; uint64_t GetMSR(uint32_t msr);
 GetMSR:
@@ -48,4 +49,14 @@ OutPort:
     mov al, sil      ; Move the 8-bit value to al
     out dx, al       ; Output byte in al to port number in dx
 
+    ret
+
+; uint8_t InPort(uint16_t port);
+InPort:
+    ; DI = port number
+
+	mov dx, di
+
+    ; Read a byte from the port into AL
+    in al, dx
     ret

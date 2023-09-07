@@ -6,9 +6,67 @@
 #include "font/details/bmfont_internal.h"
 #include "font/details/bmfont.h"
 #include "memory/memory.h"
+#include "kernel/init/msr.h"
 
 BMFont GDefaultFont;
 Console GDefaultConsole;
+
+void InitializeSerial0()
+{
+    const uint16_t port = 0x3F8;
+    OutPort(port + 1, 0x00); // Disable all interrupts
+    OutPort(port + 3, 0x80); // Enable DLAB (set baud rate divisor)
+    OutPort(port + 0, 0x03); // Set divisor to 3 (low byte) 38400 baud
+    OutPort(port + 1, 0x00); //                  (high byte)
+    OutPort(port + 3, 0x03); // 8 bits, no parity, one stop bit
+    OutPort(port + 2, 0xC7); // Enable FIFO, clear them, with 14-byte threshold
+	OutPort(port + 4, 0x0B); // Enable FIFO, clear them, with 14-byte threshold
+    OutPort(port + 4, 0x1E); // Enable loopback
+	OutPort(port + 0, '!'); // Write a test value
+
+	if(InPort(port) != '!')
+	{
+		_ASSERTF(false, "Serial port not behaving");
+	}
+
+	OutPort(port + 4, 0x0F); // Disable loopback
+
+	OutPort(port + 2, 0x07); //Flush FIFO queues
+}
+
+uint8_t LastChar = 0xFF;
+int TotalBytesWritten = 0;
+
+void WriteSerial0Int(uint8_t character)
+{
+	const uint16_t port = 0x3F8;
+
+	//Wait until we've transmitted
+	while ((InPort(port + 5) & 0x20) == 0);
+
+	OutPort(port, character);
+	LastChar = character;
+	TotalBytesWritten++;
+}
+
+void WriteSerial0(uint8_t character)
+{
+	const uint16_t port = 0x3F8;
+
+	if(character == '\n')
+	{
+		WriteSerial0Int('\r');
+		WriteSerial0Int('\n');
+	}
+	else if(character == '\r')
+	{
+		
+	}
+	else
+	{
+		WriteSerial0Int(character);
+	}
+}
 
 const BMFont* GetFont(Console* Console)
 {
@@ -62,6 +120,8 @@ void ConsoleInit(Console* Console, const BMFont* Font, const FramebufferLayout& 
 	}
 
 	ConsoleClear(Console);
+
+	InitializeSerial0();
 }
 
 void DefaultConsoleInit(const FramebufferLayout& Framebuffer, BMFontColor BackgroundColor, BMFontColor ForegroundColor)
@@ -122,6 +182,14 @@ void ConsolePrintAtPos(const char16_t* String, int32_t& X, int32_t& Y, int32_t R
 
 void ConsolePrint(const char16_t* String, Console* Console)
 {
+	const char16_t* ToConsole = String;
+	while(*ToConsole)
+	{
+		WriteSerial0((char)*ToConsole);
+
+		ToConsole++;
+	}
+
 	if (Console == nullptr)
 	{
 		Console = &GDefaultConsole;
