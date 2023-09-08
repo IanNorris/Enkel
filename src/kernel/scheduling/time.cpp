@@ -14,11 +14,11 @@ uint64_t HpetTicksPerNanosecond;
 
 extern void WaitForPIT(uint64_t microseconds);
 
-uint64_t GetCalibrationHPETSampleNS()
+uint64_t GetCalibrationHPETSampleNS(bool warmUp)
 {
-	uint64_t Start = *HpetCounter;
+	uint64_t DelayInMS = warmUp ? 1 : 50;
 
-	uint64_t DelayInMS = 50;
+	uint64_t Start = *HpetCounter;
 
 	WaitForPIT(DelayInMS * 1000);
 
@@ -48,12 +48,13 @@ void InitHPET(EFI_ACPI_HIGH_PRECISION_EVENT_TIMER_TABLE_HEADER* Header)
 
 	uint64_t Samples[SampleCount];
 
-	char16_t Buffer[16];
+	//char16_t Buffer[16];
 	//ConsolePrint(u"HPET samples: ");
 
+	//Take SampleCount+1 samples, throwing the first one away
 	for(int sample = 0; sample <= SampleCount; sample++)
 	{
-		uint64_t sampleValue = GetCalibrationHPETSampleNS();
+		uint64_t sampleValue = GetCalibrationHPETSampleNS(sample == 0);
 
 		//witoabuf(Buffer, (int)sampleValue, 10);
 		//ConsolePrint(Buffer);
@@ -69,6 +70,7 @@ void InitHPET(EFI_ACPI_HIGH_PRECISION_EVENT_TIMER_TABLE_HEADER* Header)
 	uint64_t Lowest = ~0;
 	uint64_t Highest = 0;
 
+	//Identify min and max values
 	for(int sample = 0; sample < SampleCount; sample++)
 	{
 		if(Samples[sample] < Lowest)
@@ -82,6 +84,7 @@ void InitHPET(EFI_ACPI_HIGH_PRECISION_EVENT_TIMER_TABLE_HEADER* Header)
 		}
 	}
 
+
 	uint64_t SamplesUsed = 0;
 	for(int sample = 0; sample < SampleCount; sample++)
 	{
@@ -89,7 +92,7 @@ void InitHPET(EFI_ACPI_HIGH_PRECISION_EVENT_TIMER_TABLE_HEADER* Header)
 		{
 			Lowest = ~0;
 		}
-		else if(Samples[sample] > Highest)
+		else if(Samples[sample] == Highest)
 		{
 			Highest = ~0;
 		}
