@@ -11,6 +11,8 @@
 BMFont GDefaultFont;
 Console GDefaultConsole;
 
+bool EnableSerialOutput = false;
+
 void InitializeSerial0()
 {
     const uint16_t port = 0x3F8;
@@ -24,9 +26,13 @@ void InitializeSerial0()
     OutPort(port + 4, 0x1E); // Enable loopback
 	OutPort(port + 0, '!'); // Write a test value
 
-	if(InPort(port) != '!')
+	if(InPort(port) == '!')
 	{
-		_ASSERTF(false, "Serial port not behaving");
+		EnableSerialOutput = true;
+	}
+	else
+	{
+		EnableSerialOutput = false;
 	}
 
 	OutPort(port + 4, 0x0F); // Disable loopback
@@ -51,20 +57,23 @@ void WriteSerial0Int(uint8_t character)
 
 void WriteSerial0(uint8_t character)
 {
-	const uint16_t port = 0x3F8;
+	if(EnableSerialOutput)
+	{
+		const uint16_t port = 0x3F8;
 
-	if(character == '\n')
-	{
-		WriteSerial0Int('\r');
-		WriteSerial0Int('\n');
-	}
-	else if(character == '\r')
-	{
-		
-	}
-	else
-	{
-		WriteSerial0Int(character);
+		if(character == '\n')
+		{
+			WriteSerial0Int('\r');
+			WriteSerial0Int('\n');
+		}
+		else if(character == '\r')
+		{
+			
+		}
+		else
+		{
+			WriteSerial0Int(character);
+		}
 	}
 }
 
