@@ -5,10 +5,12 @@
 #include "common/string.h"
 #include "memory/physical.h"
 #include "kernel/scheduling/time.h"
-#include "kernel/utilities/slow.h"
 #include "kernel/utilities/codegen.h"
 
 #include "Protocol/AcpiSystemDescriptionTable.h"
+
+struct EFI_ACPI_HIGH_PRECISION_EVENT_TIMER_TABLE_HEADER;
+void InitHPET(EFI_ACPI_HIGH_PRECISION_EVENT_TIMER_TABLE_HEADER* Header);
 
 extern KernelBootData GBootData;
 
@@ -49,30 +51,6 @@ extern uint64_t APEntry;
 extern uint64_t APEntryEnd;
 extern uint64_t IDTLimits;
 
-void SleepyUS(uint64_t timeScale)
-{
-	const uint64_t Scaler = 100;
-
-	uint64_t CurrentTSC = _rdtsc();
-	uint64_t TargetTSC = CurrentTSC + (3 * Scaler) * timeScale;
-	while(_rdtsc() < TargetTSC)
-	{
-		asm("pause");
-	}
-}
-
-void SleepyMS(uint64_t timeScale)
-{
-	const uint64_t Scaler = 1000 * 10;
-
-	uint64_t CurrentTSC = _rdtsc();
-	uint64_t TargetTSC = CurrentTSC + (3 * Scaler) * timeScale;
-	while(_rdtsc() < TargetTSC)
-	{
-		asm("pause");
-	}
-}
-
 extern "C" void __attribute__((naked, used, noreturn)) APEntryFunction()
 {
 	ConsolePrint(u"CORE ONLINE!\n");
@@ -86,12 +64,51 @@ extern "C" void __attribute__((naked, used, noreturn)) APEntryFunction()
 void WriteLocalApic(uint32_t Offset, uint32_t Value, uint32_t Mask)
 {
 	uint32_t Existing = *(volatile uint32_t*)(LocalApicVirtual+Offset);
-	*(volatile uint32_t*)(LocalApicVirtual+Offset) = (Existing & ~Mask) | (Value & Mask);
+	uint32_t NewValue = (Existing & ~Mask) | (Value & Mask);
+	*(volatile uint32_t*)(LocalApicVirtual+Offset) = NewValue;
+
+	char16_t Buffer[16];
+
+	ConsolePrint(u"Wrote to 0x");
+	witoabuf(Buffer, Offset, 16);
+	ConsolePrint(Buffer);
+	ConsolePrint(u" value 0x");
+	witoabuf(Buffer, NewValue, 16);
+	ConsolePrint(Buffer);
+	ConsolePrint(u"\n");
 }
 
 uint32_t ReadLocalApic(uint32_t Offset)
 {
-	return *(volatile uint32_t*)(LocalApicVirtual+Offset);
+	uint32_t Result = *(volatile uint32_t*)(LocalApicVirtual+Offset);
+
+	char16_t Buffer[16];
+
+	ConsolePrint(u"Read from 0x");
+	witoabuf(Buffer, Offset, 16);
+	ConsolePrint(Buffer);
+	ConsolePrint(u" value 0x");
+	witoabuf(Buffer, Result, 16);
+	ConsolePrint(Buffer);
+	ConsolePrint(u"\n");
+
+	return Result;
+}
+
+void WaitForIdleIPI()
+{
+	uint32_t ErrorStatus;
+	uint32_t APSelector;
+	bool IsFinished;
+	do
+	{
+		asm volatile("pause");
+		APSelector = ReadLocalApic((uint32_t)LocalApicOffsets::InterruptCommandRegisterLow);
+		IsFinished = (APSelector & (1 << 12)) == 0;
+
+		ErrorStatus = ReadLocalApic((uint32_t)LocalApicOffsets::ErrorStatusRegister);
+		_ASSERTF(ErrorStatus == 0, "APIC error");
+	} while(!IsFinished);
 }
 
 void InitAPs()
@@ -164,38 +181,29 @@ void InitAPs()
 
 		// Upper ICR: set the target processor's APIC ID and send INIT IPI
 		WriteLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterHigh, ProcessorIds[processor] << 24, 0xFF << 24);
-		WriteLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterLow, LEVEL_TRIGGER | LEVEL_ASSERT | DELIVERY_MODE_INIT, 0xFFFFF);
+		WriteLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterLow, 0, ~0);
+		WriteLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterLow, LEVEL_TRIGGER | LEVEL_ASSERT | DELIVERY_MODE_INIT, ~0);
+		//WriteLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterLow, LEVEL_TRIGGER | DELIVERY_MODE_INIT, ~0);
 
-//Slow(Dawdle);
+		ReadLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterLow );
 
-		uint32_t ErrorStatus;
-		uint32_t APSelector;
-		bool IsFinished;
-		do
-		{
-			asm volatile("pause");
-			APSelector = ReadLocalApic((uint32_t)LocalApicOffsets::InterruptCommandRegisterLow);
-			IsFinished = (APSelector & (1 << 12)) == 0;
+		HpetSleepMS(200);
 
-			ErrorStatus = ReadLocalApic((uint32_t)LocalApicOffsets::ErrorStatusRegister);
-			_ASSERTF(ErrorStatus == 0, "APIC error");
-		} while(!IsFinished);
+		WaitForIdleIPI();
 
 		// Lower ICR: Send Startup IPI
 		WriteLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterHigh, ProcessorIds[processor] << 24, 0xFF << 24);
-		WriteLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterLow, LEVEL_TRIGGER | DELIVERY_MODE_INIT, 0xFFFFF);
+		WriteLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterLow, 0, ~0);
+		//WriteLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterLow, LEVEL_TRIGGER | LEVEL_ASSERT | DELIVERY_MODE_INIT, ~0);
+		WriteLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterLow, LEVEL_TRIGGER | DELIVERY_MODE_INIT, ~0);
+
+		ReadLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterLow );
 		
-		do
-		{
-			asm volatile("pause");
-			APSelector = ReadLocalApic((uint32_t)LocalApicOffsets::InterruptCommandRegisterLow);
-			IsFinished = (APSelector & (1 << 12)) == 0;
+		HpetSleepUS(10);
 
-			ErrorStatus = ReadLocalApic((uint32_t)LocalApicOffsets::ErrorStatusRegister);
-			_ASSERTF(ErrorStatus == 0, "APIC error");
-		} while(!IsFinished);
+		WaitForIdleIPI();
 
-		Slow(Dawdle);
+		ReadLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterLow );
 
 		// Send the Startup IPI twice as recommended in some Intel manuals.
 		APSignal = 0;
@@ -205,41 +213,19 @@ void InitAPs()
 			WriteLocalApic( (uint32_t)LocalApicOffsets::ErrorStatusRegister, 0, ~0);
 
 			WriteLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterHigh, ProcessorIds[processor] << 24, 0xFF << 24);
-			WriteLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterLow, DELIVERY_MODE_STARTUP | StartupAddress, 0x000F07FF);
+			WriteLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterLow, 0, ~0);
+			WriteLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterLow, DELIVERY_MODE_STARTUP | StartupAddress, ~0);
 			
-			Slow(Blip);
-			do
-			{
-				asm volatile("pause");
-				APSelector = ReadLocalApic((uint32_t)LocalApicOffsets::InterruptCommandRegisterLow);
-				IsFinished = (APSelector & (1 << 12)) == 0;
-
-				ErrorStatus = ReadLocalApic((uint32_t)LocalApicOffsets::ErrorStatusRegister);
-				_ASSERTF(ErrorStatus == 0, "APIC error");
-			} while(!IsFinished);
+			HpetSleepUS(10);
+			WaitForIdleIPI();
 		}
+
+		ReadLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterLow );
 
 		while(APSignal == 0)
 		{
 			asm volatile("pause");
 		}
-
-		uint32_t FinalValue = ReadLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterLow );
-		uint32_t FinalValueHi = ReadLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterHigh );
-
-		ConsolePrint(u"ICRH before: 0x");
-		witoabuf(Buffer, CurrentValueHi, 16);
-		ConsolePrint(Buffer);
-		ConsolePrint(u" ICRH after: 0x");
-		witoabuf(Buffer, FinalValueHi, 16);
-		ConsolePrint(Buffer);
-		ConsolePrint(u"ICRL before: 0x");
-		witoabuf(Buffer, CurrentValue, 16);
-		ConsolePrint(Buffer);
-		ConsolePrint(u" ICRL after: 0x");
-		witoabuf(Buffer, FinalValue, 16);
-		ConsolePrint(Buffer);
-		ConsolePrint(u"\n");
     }
 }
 
@@ -266,31 +252,8 @@ void InitMADT(EFI_ACPI_2_0_MULTIPLE_APIC_DESCRIPTION_TABLE_HEADER* MADT)
 				{
 					EFI_ACPI_2_0_PROCESSOR_LOCAL_APIC_STRUCTURE* LocalAPIC = (EFI_ACPI_2_0_PROCESSOR_LOCAL_APIC_STRUCTURE*)Data;
 
-					ConsolePrint(u"Processor Id: ");
-					witoabuf(Buffer, (int)LocalAPIC->AcpiProcessorId, 10);
-					ConsolePrint(Buffer);
-					ConsolePrint(u" Core Id: ");
-					witoabuf(Buffer, (int)LocalAPIC->ApicId, 10);
-					ConsolePrint(Buffer);
-
 					ProcessorIds[ProcessorCount] = LocalAPIC->ApicId;
 					ProcessorCount++;
-
-					
-
-					
-
-					//Do this on the actual core
-					/*uint64_t baseMSR = GetMSR(IA32_APIC_BASE_MSR);
-
-					bool IsBSP = (baseMSR & (1 << BSP_BIT_POSITION)) != 0;
-
-					if(IsBSP)
-					{
-						ConsolePrint(u" BSP");
-					}*/
-
-					ConsolePrint(u"\n");
 
 					break;
 				}
@@ -322,14 +285,6 @@ void InitMADT(EFI_ACPI_2_0_MULTIPLE_APIC_DESCRIPTION_TABLE_HEADER* MADT)
 
 	LocalApicVirtual = (uint8_t*)PhysicalAlloc((uint64_t)LocalApicPhysical, 4096, (PageFlags)(PageFlags_Cache_Disable | PageFlags_Cache_WriteThrough));
 
-	asm volatile("cli");
-
-	// Mask off all interrupts on the two PICs
-	OutPort(PIC1_DATA, 0xFF); 
-	OutPort(PIC2_DATA, 0xFF);
-
-	asm volatile("sti");
-
 	//Enable APIC
 	uint64_t msr = GetMSR(IA32_APIC_BASE_MSR);
 	msr = (msr & ~0xFFF) | 0x800; //Global APIC enable bit
@@ -353,9 +308,8 @@ void InitMADT(EFI_ACPI_2_0_MULTIPLE_APIC_DESCRIPTION_TABLE_HEADER* MADT)
 
 void InitApic(EFI_ACPI_DESCRIPTION_HEADER* Xsdt)
 {
-	ConsolePrint(u"Initializing ACPI & APIC\n");
-
-	bool FoundMADT = false;
+	EFI_ACPI_2_0_MULTIPLE_APIC_DESCRIPTION_TABLE_HEADER* MADT = nullptr;
+	EFI_ACPI_HIGH_PRECISION_EVENT_TIMER_TABLE_HEADER* HPET = nullptr;
 
 	int XsdtEntries = (Xsdt->Length - sizeof(EFI_ACPI_DESCRIPTION_HEADER)) / sizeof(EFI_ACPI_DESCRIPTION_HEADER*); //Take off the header and each entry is 8b
 	for(int XsdtEntry = 0; XsdtEntry < XsdtEntries; XsdtEntry++)
@@ -365,10 +319,19 @@ void InitApic(EFI_ACPI_DESCRIPTION_HEADER* Xsdt)
 		//MADT
 		if(Header->Signature == EFI_ACPI_2_0_MULTIPLE_APIC_DESCRIPTION_TABLE_SIGNATURE)
 		{
-			FoundMADT = true;
-			InitMADT((EFI_ACPI_2_0_MULTIPLE_APIC_DESCRIPTION_TABLE_HEADER*)Header);
+			MADT = (EFI_ACPI_2_0_MULTIPLE_APIC_DESCRIPTION_TABLE_HEADER*)Header;
+			
+		}
+		//HPET
+		else if(Header->Signature == EFI_ACPI_3_0_HIGH_PRECISION_EVENT_TIMER_TABLE_SIGNATURE)
+		{
+			HPET = (EFI_ACPI_HIGH_PRECISION_EVENT_TIMER_TABLE_HEADER*)Header;
 		}
 	}
 
-	_ASSERTF(FoundMADT, "MADT was not found in XSDT");
+	_ASSERTF(HPET, "HPET was not found in XSDT");
+	InitHPET(HPET);
+
+	_ASSERTF(MADT, "MADT was not found in XSDT");
+	InitMADT(MADT);
 }

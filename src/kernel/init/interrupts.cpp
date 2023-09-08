@@ -5,8 +5,8 @@
 #include "utilities/termination.h"
 
 #include "kernel/console/console.h"
-#include "kernel/utilities/slow.h"
 #include "kernel/init/gdt.h"
+#include "kernel/init/msr.h"
 #include "common/string.h"
 
 bool GIsDebuggerPresent = false;
@@ -60,8 +60,6 @@ void __attribute__((used,noinline)) InterruptDummy(const char16_t* message, int6
     }
     else
     {
-        Slow();
-
         if (terminate)
         {
             HaltPermanently();
@@ -69,7 +67,9 @@ void __attribute__((used,noinline)) InterruptDummy(const char16_t* message, int6
     }
 }
 
-#define PRINT_INTERRUPT(n) extern "C" void __attribute__((naked)) ISR_Unused##n(void); extern "C" void KERNEL_API __attribute__((sysvi_abi,used,noinline)) ISR_Int_Unused##n(uint64_t rip, uint64_t cr2, uint64_t errorCode){ InterruptDummy(u"Interrupt " #n, rip, cr2, errorCode, false, false); }
+#define PRINT_INTERRUPT(n) extern "C" void __attribute__((naked)) ISR_Unused##n(void); extern "C" void KERNEL_API __attribute__((used,noinline)) ISR_Int_Unused##n(uint64_t rip, uint64_t cr2, uint64_t errorCode){ InterruptDummy(u"Interrupt " #n, rip, cr2, errorCode, false, false); }
+
+#define NAMED_INTERRUPT(functionName) extern "C" void __attribute__((naked)) ISR_##functionName(void); extern "C" void KERNEL_API __attribute__((used,noinline)) ISR_Int_##functionName(uint64_t rip, uint64_t cr2, uint64_t errorCode);
 
 #define PRINT_NAMED_INTERRUPT(functionName, message, hook) extern "C" void __attribute__((naked)) ISR_##functionName(void); extern "C" void KERNEL_API __attribute__((used,noinline)) ISR_Int_##functionName(uint64_t rip, uint64_t cr2, uint64_t errorCode){ InterruptDummy(message, rip, cr2, errorCode, false, hook); }
 #define PRINT_NAMED_INTERRUPT_HALT(functionName, message) extern "C" void __attribute__((naked)) ISR_##functionName(void); extern "C" void KERNEL_API __attribute__((used,noinline)) ISR_Int_##functionName(uint64_t rip, uint64_t cr2, uint64_t errorCode){ InterruptDummy(message, rip, cr2, errorCode, true, true); }
@@ -97,7 +97,7 @@ PRINT_NAMED_INTERRUPT(SIMDFloatingPointException, u"SIMD floating point exceptio
 PRINT_NAMED_INTERRUPT(VirtualizationException, u"Virtualization exception", true) //20
 PRINT_NAMED_INTERRUPT(ControlProtectionException, u"Control protection exception", true) //21
 //22-31 are reserved
-PRINT_INTERRUPT(32)
+NAMED_INTERRUPT(PITInterrupt) //32
 PRINT_INTERRUPT(33)
 PRINT_INTERRUPT(34)
 PRINT_INTERRUPT(35)
@@ -219,7 +219,7 @@ void InitializeDefaultInterrupts()
     SET_NAMED_TRAP(20, VirtualizationException) //20
     SET_NAMED_TRAP(21, ControlProtectionException) //21
     //22-31 are reserved
-    SET_INTERRUPT(32)
+    SET_NAMED_INTERRUPT(32, PITInterrupt) //32
     SET_INTERRUPT(33)
     SET_INTERRUPT(34)
     SET_INTERRUPT(35)

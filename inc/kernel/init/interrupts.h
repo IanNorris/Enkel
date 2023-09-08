@@ -6,3 +6,5 @@ void InitIDT();
 bool IsDebuggerPresent();
 void __attribute__((used, noinline)) OnKernelMainHook();
 void __attribute__((used, noinline)) DebuggerHook();
+
+#define DEFINE_NAMED_INTERRUPT(functionName) extern "C" void KERNEL_API __attribute__((used,noinline)) ISR_Int_##functionName

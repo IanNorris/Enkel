@@ -4,7 +4,6 @@
 #include "kernel/init/long_mode.h"
 #include "kernel/memory/pml4.h"
 #include "kernel/console/console.h"
-#include "kernel/utilities/slow.h"
 #include "common/string.h"
 
 void EnterLongMode(KernelBootData* bootData)

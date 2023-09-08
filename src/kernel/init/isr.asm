@@ -109,7 +109,7 @@ ISR_NO_ERROR    VirtualizationException         ; 20
 ISR_WITH_ERROR  ControlProtectionException      ; 21
 ; 22-31 Intel reserved
 
-ISR_NO_ERROR Unused32
+ISR_NO_ERROR PITInterrupt
 ISR_NO_ERROR Unused33
 ISR_NO_ERROR Unused34
 ISR_NO_ERROR Unused35

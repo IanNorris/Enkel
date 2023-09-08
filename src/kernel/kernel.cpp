@@ -3,6 +3,7 @@
 #include "kernel/init/apic.h"
 #include "kernel/init/bootload.h"
 #include "kernel/init/init.h"
+#include "kernel/init/pic.h"
 #include "kernel/init/interrupts.h"
 #include "memory/memory.h"
 #include "memory/virtual.h"
@@ -11,7 +12,6 @@ KernelBootData GBootData;
 
 extern const char16_t* KernelBuildId;
 
-#include "kernel/utilities/slow.h"
 #include "common/string.h"
 
 void WriteToMemoryWeOwn(void* Address, uint64_t Size, int Pattern)
@@ -56,6 +56,7 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 		_ASSERTF(false, "Unable to transition to virtual address map for runtime services.");
 	}*/
 
+	InitPIC();
 	InitApic(GBootData.Xsdt);
 	
 	//ConsolePrint(u"Exiting\n");
