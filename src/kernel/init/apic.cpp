@@ -109,6 +109,15 @@ void WaitForIdleIPI()
 		IsFinished = (APSelector & (1 << 12)) == 0;
 
 		ErrorStatus = ReadLocalApic((uint32_t)LocalApicOffsets::ErrorStatusRegister);
+		if(ErrorStatus != 0)
+		{
+			char16_t Buffer[16];
+
+			ConsolePrint(u"Error 0x");
+			witoabuf(Buffer, ErrorStatus, 16);
+			ConsolePrint(Buffer);
+		ConsolePrint(u"\n");
+		}
 		_ASSERTF(ErrorStatus == 0, "APIC error");
 	} while(!IsFinished);
 }
@@ -128,11 +137,6 @@ void InitAPs()
 	{
 		if(ProcessorIds[processor] == BSPId)
 		{
-			ConsolePrint(u"BSP is id ");
-			witoabuf(Buffer, BSPId, 10);
-			ConsolePrint(Buffer);
-			ConsolePrint(u"\n");
-			
 			continue;
 		}
 
@@ -140,17 +144,15 @@ void InitAPs()
 
 		VirtualProtect(APTrampoline, PAGE_SIZE, MemoryProtection::ReadWrite);
 
-		//Prepare the registers
-
-		//Pad for alignment
-		*APTrampolinePtr++ = 0x90;
-		*APTrampolinePtr++ = 0x90;
-		*APTrampolinePtr++ = 0x90;
+		//Stop on init
+		*APTrampolinePtr++ = 0xFA; //cli
+		*APTrampolinePtr++ = 0xF4; //hlt
 
 		//Configure the stack
 		APTrampolinePtr = Write_MovRelativeToRegister(APTrampolinePtr, Register::rbp, (uint8_t*)&APStackHigh);
 		APTrampolinePtr = Write_MovRelativeToRegister(APTrampolinePtr, Register::rsp, (uint8_t*)&APStackHigh);
 
+		//Configure registers to read from relative addresses
 		APTrampolinePtr = Write_MovRelativeToRegister(APTrampolinePtr, Register::rdi, (uint8_t*)&PML4);
 		APTrampolinePtr = Write_MovRelativeToRegister(APTrampolinePtr, Register::rdx, (uint8_t*)&GDTRegister);
 		APTrampolinePtr = Write_MovRelativeToRegister(APTrampolinePtr, Register::rcx, (uint8_t*)&APEntryFunction);
@@ -170,9 +172,6 @@ void InitAPs()
 
 		_ASSERTF(StartupAddress == StartupAddressTemp, "Misaligned AP startup vector");
 
-		uint32_t CurrentValue = ReadLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterLow );
-		uint32_t CurrentValueHi = ReadLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterHigh );
-
 		//IMPORTANT NOTE
 		// If you're debugging this in an emulator, these values are not going to look right in the debugger
 		// because the debugger skips the path that intercepts these loads.
@@ -182,42 +181,24 @@ void InitAPs()
 
 		// Upper ICR: set the target processor's APIC ID and send INIT IPI
 		WriteLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterHigh, ProcessorIds[processor] << 24, 0xFF << 24);
-		WriteLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterLow, 0, ~0);
-		WriteLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterLow, LEVEL_TRIGGER | LEVEL_ASSERT | DELIVERY_MODE_INIT, ~0);
-		//WriteLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterLow, LEVEL_TRIGGER | DELIVERY_MODE_INIT, ~0);
+		WriteLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterLow, LEVEL_TRIGGER | LEVEL_ASSERT | DELIVERY_MODE_INIT, 0xFFFFF);
 
 		ReadLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterLow );
 
-		HpetSleepMS(200);
+		HpetSleepMS(10);
 
 		WaitForIdleIPI();
-
-		// Lower ICR: Send Startup IPI
-		WriteLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterHigh, ProcessorIds[processor] << 24, 0xFF << 24);
-		WriteLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterLow, 0, ~0);
-		//WriteLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterLow, LEVEL_TRIGGER | LEVEL_ASSERT | DELIVERY_MODE_INIT, ~0);
-		WriteLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterLow, LEVEL_TRIGGER | DELIVERY_MODE_INIT, ~0);
-
-		ReadLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterLow );
-		
-		HpetSleepUS(10);
-
-		WaitForIdleIPI();
-
-		ReadLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterLow );
 
 		// Send the Startup IPI twice as recommended in some Intel manuals.
 		APSignal = 0;
-		//while(APSignal == 0)
 		for(int i = 0; i < 2; i++)
 		{
 			WriteLocalApic( (uint32_t)LocalApicOffsets::ErrorStatusRegister, 0, ~0);
 
 			WriteLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterHigh, ProcessorIds[processor] << 24, 0xFF << 24);
-			WriteLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterLow, 0, ~0);
-			WriteLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterLow, DELIVERY_MODE_STARTUP | StartupAddress, ~0);
+			WriteLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterLow, DELIVERY_MODE_STARTUP | StartupAddress, ~0xfff0f800);
 			
-			HpetSleepUS(10);
+			HpetSleepMS(200);
 			WaitForIdleIPI();
 		}
 
@@ -292,9 +273,9 @@ void InitMADT(EFI_ACPI_2_0_MULTIPLE_APIC_DESCRIPTION_TABLE_HEADER* MADT)
 	SetMSR(IA32_APIC_BASE_MSR, msr);
 
 	msr = GetMSR(IA32_APIC_BASE_MSR);
-	if(msr & 0x800)
+	if(!(msr & 0x800))
 	{
-		ConsolePrint(u"APIC enabled.\n");
+		_ASSERTF(false, "APIC not enabled");
 	}
 	
 
