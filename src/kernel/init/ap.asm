@@ -12,13 +12,11 @@ APEntry:
 	; rdx contains GDTRegister
 	; rcx contains APEntryFunction
 	; r8 contains IDTLimit
-	; r9 contains APSignal
 
 	;Prepare a stack frame
 	mov rax, [rel APEntry]
 	push rax
 
-	mov qword [r9], 1
 	cli ; Disable interrupts
 	mov cr3, rdi
 	lgdt [rdx]

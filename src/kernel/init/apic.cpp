@@ -53,6 +53,8 @@ extern uint64_t IDTLimits;
 
 extern "C" void __attribute__((naked, used, noreturn)) APEntryFunction()
 {
+	APSignal = true;
+
 	ConsolePrint(u"CORE ONLINE!\n");
 
 	while(true)
@@ -153,7 +155,6 @@ void InitAPs()
 		APTrampolinePtr = Write_MovRelativeToRegister(APTrampolinePtr, Register::rdx, (uint8_t*)&GDTRegister);
 		APTrampolinePtr = Write_MovRelativeToRegister(APTrampolinePtr, Register::rcx, (uint8_t*)&APEntryFunction);
 		APTrampolinePtr = Write_MovRelativeToRegister(APTrampolinePtr, Register::r8, (uint8_t*)&IDTLimits);
-		APTrampolinePtr = Write_MovRelativeToRegister(APTrampolinePtr, Register::r9, (uint8_t*)&APSignal);
 
 		//Now copy the whole of APEntry
 		uint64_t APEntrySize = (uint64_t)&APEntryEnd - (uint64_t)&APEntry;
