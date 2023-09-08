@@ -17,11 +17,11 @@ typedef KERNEL_API void (*BootPrintFunction)(const char16_t* message);
 
 enum EfiMemoryMapType
 {
-	EfiMemoryMapType_MemoryMap = 0x80000000,
-	EfiMemoryMapType_KernelBootData,
-	EfiMemoryMapType_Kernel,
-	EfiMemoryMapType_KernelStack,
-	EfiMemoryMapType_APBootstrap,
+	EfiMemoryMapType_MemoryMap = EfiLoaderCode, // = 0x80000000,
+	EfiMemoryMapType_KernelBootData = EfiLoaderData,
+	EfiMemoryMapType_Kernel = EfiLoaderCode,
+	EfiMemoryMapType_KernelStack = EfiLoaderData,
+	EfiMemoryMapType_APBootstrap = EfiLoaderCode,
 };
 
 enum SpecialMemoryLocation
