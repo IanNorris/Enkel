@@ -5,7 +5,6 @@
 #include "common/string.h"
 #include "memory/physical.h"
 #include "kernel/scheduling/time.h"
-#include "kernel/utilities/codegen.h"
 
 #include "Protocol/AcpiSystemDescriptionTable.h"
 
@@ -147,21 +146,6 @@ void InitAPs()
 		//Stop on init
 		*APTrampolinePtr++ = 0xFA; //cli
 		*APTrampolinePtr++ = 0xF4; //hlt
-
-		//Configure the stack
-		APTrampolinePtr = Write_MovRelativeToRegister(APTrampolinePtr, Register::rbp, (uint8_t*)&APStackHigh);
-		APTrampolinePtr = Write_MovRelativeToRegister(APTrampolinePtr, Register::rsp, (uint8_t*)&APStackHigh);
-
-		//Configure registers to read from relative addresses
-		APTrampolinePtr = Write_MovRelativeToRegister(APTrampolinePtr, Register::rdi, (uint8_t*)&PML4);
-		APTrampolinePtr = Write_MovRelativeToRegister(APTrampolinePtr, Register::rdx, (uint8_t*)&GDTRegister);
-		APTrampolinePtr = Write_MovRelativeToRegister(APTrampolinePtr, Register::rcx, (uint8_t*)&APEntryFunction);
-		APTrampolinePtr = Write_MovRelativeToRegister(APTrampolinePtr, Register::r8, (uint8_t*)&IDTLimits);
-
-		//Now copy the whole of APEntry
-		uint64_t APEntrySize = (uint64_t)&APEntryEnd - (uint64_t)&APEntry;
-		memcpy(APTrampolinePtr, &APEntry, APEntrySize);
-		APTrampolinePtr += APEntrySize;
 
 		VirtualProtect(APTrampoline, PAGE_SIZE, MemoryProtection::Execute);
 
