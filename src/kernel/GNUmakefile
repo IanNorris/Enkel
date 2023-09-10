@@ -125,7 +125,7 @@ override HEADER_DEPS := $(CPPFILES:.cpp=.cpp.d) $(ASFILES:.S=.S.d)
 
 # Default target.
 .PHONY: force all
-all: $(NASMBINFILES $(KERNEL) $(FONT_CPP_FILES) kernel_build.cpptemp.o $(FONT_H_FILES) $(NASMFILES))
+all: $(NASMBINFILES) $(KERNEL) $(FONT_CPP_FILES) kernel_build.cpptemp.o $(FONT_H_FILES) $(NASMFILES)
 
 $(FONT_CPP_FILES) $(FONT_H_FILES): fonts
 
@@ -141,7 +141,7 @@ fonts:
 	$(MAKE) -C ../../fonts
 
 # Link rules for the final kernel executable.
-$(KERNEL): $(OBJ) $(CPPFILES) $(LDTEMPLATE) $(NASMFILES) uefi-headers kernel_build.cpptemp.o
+$(KERNEL): $(NASMBINFILES:.asmb=.asmb.o) $(OBJ) $(CPPFILES) $(LDTEMPLATE) $(NASMFILES) uefi-headers kernel_build.cpptemp.o
 	$(LD) $(OBJ) kernel_build.cpptemp.o $(LDFLAGS) -o $@
 	rm -f kernel_build.cpptemp
 	rm -f kernel_build.cpptemp.o
