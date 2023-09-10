@@ -13,6 +13,7 @@ FONT_NAME := Jura
 FONT_ROOT := ../../fonts
 FONT_CPP_FILES := $(FONT_ROOT)/$(FONT_NAME).cpp $(FONT_ROOT)/$(FONT_NAME)_0.cpp
 FONT_H_FILES := $(FONT_ROOT)/$(FONT_NAME).h  $(FONT_ROOT)/$(FONT_NAME)_0.h 
+TOOLS := ../../tools
 
 LDTEMPLATE := linker.ld
 
@@ -104,6 +105,10 @@ override NASMFLAGS += \
     -Wall \
     -f elf64
 
+override NASMBINFLAGS += \
+    -Wall \
+    -f bin
+
 override SFLAGS += \
     -Wall \
     -fPIC
@@ -113,12 +118,14 @@ override SFLAGS += \
 override CPPFILES := $(shell find -L . -type f -name '*.cpp') $(FONT_CPP_FILES)
 override ASFILES := $(shell find -L . -type f -name '*.S')
 override NASMFILES := $(shell find -L . -type f -name '*.asm')
-override OBJ := $(CPPFILES:.cpp=.cpp.o) $(ASFILES:.S=.S.o) $(NASMFILES:.asm=.asm.o)
+override NASMBINFILES := $(shell find -L . -type f -name '*.asmb')
+override NASMBINFILES := $(shell find -L . -type f -name '*.asmb')
+override OBJ := $(CPPFILES:.cpp=.cpp.o) $(ASFILES:.S=.S.o) $(NASMFILES:.asm=.asm.o) $(NASMBINFILES:.asmb=.asmb.o)
 override HEADER_DEPS := $(CPPFILES:.cpp=.cpp.d) $(ASFILES:.S=.S.d)
 
 # Default target.
 .PHONY: force all
-all: $(KERNEL) $(FONT_CPP_FILES) kernel_build.cpptemp.o $(FONT_H_FILES) $(NASMFILES)
+all: $(NASMBINFILES $(KERNEL) $(FONT_CPP_FILES) kernel_build.cpptemp.o $(FONT_H_FILES) $(NASMFILES))
 
 $(FONT_CPP_FILES) $(FONT_H_FILES): fonts
 
@@ -153,6 +160,13 @@ $(KERNEL): $(OBJ) $(CPPFILES) $(LDTEMPLATE) $(NASMFILES) uefi-headers kernel_bui
 # Compilation rules for *.asm (nasm) files.
 %.asm.o: %.asm
 	nasm $(NASMFLAGS) $< -o $@
+
+%.asmb.o: %.asmb
+	nasm $(NASMBINFLAGS) $< -o $(basename $<).bin
+	python3 $(TOOLS)/bin2c.py $(basename $<).bin $(basename $<)
+	mv $(basename $<).h $(basename $<).htemp
+	mv $(basename $<).cpp $(basename $<).cpptemp
+	$(CC) -x c++ $(CFLAGS) $(CPPFLAGS) -c $(basename $<).cpptemp -o $@
 
 # Remove object files and the final executable.
 .PHONY: clean
