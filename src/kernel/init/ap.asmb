@@ -1,0 +1,63 @@
+bits 16
+
+Start:
+
+; Here we go
+APEntry:
+	cli ; Disable interrupts
+	hlt
+	hlt
+	hlt
+	hlt
+	hlt
+	hlt
+
+	;Prepare the stack
+	mov esp, [rel APEntryDataStackHigh]
+	mov ebp, [rel APEntryDataStackHigh]
+
+	;Prepare a stack frame
+	mov eax, [rel APEntry]
+	push eax
+	
+	hlt
+
+	;GDT
+	mov eax, [rel APEntryDataGDT]
+	lgdt [eax]
+
+	;IDT
+	mov eax, [rel APEntryDataIDT]
+	lidt [eax]
+
+	; Enable PE
+	mov eax, cr0
+	or eax, 1
+	mov cr0, eax
+
+	; Re-enable interrupts
+	sti
+
+	jmp far [rel APEntryProtectedModeJumpTarget]
+
+	hlt
+
+bits 32
+
+align 16
+APEntryProtectedModeStart:
+
+	mov eax, [rel APEntryDataEntryFunction]
+	jmp eax ;Jump to APEntryFunction
+    hlt
+
+APEntryEnd:
+	hlt
+
+align 16
+APEntryDataStackHigh dd 0x0
+APEntryDataGDT dd 0x0
+APEntryDataEntryFunction dd 0x0
+APEntryDataIDT dd 0x0
+APEntryProtectedModeJumpTarget dw APEntryProtectedModeStart - Start
+APEntryProtectedModeJumpTargetSegment dw 0x8
