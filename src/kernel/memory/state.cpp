@@ -126,6 +126,20 @@ MemoryState::StateNode* MemoryState::TagRangeInternal(StateNode* CurrentState, c
             NewLeft->SetAddress(MidPoint);
             NewLeft->State.State = CurrentState->State.State;
 
+			if(MidPoint != NewLeft->GetAddress())
+			{
+				char16_t buffer[16];
+				ConsolePrint(u"MidPoint: ");
+				witoabuf(buffer, MidPoint, 16);
+				ConsolePrint(buffer);
+
+				ConsolePrint(u"\nNewLeft Address: ");
+				witoabuf(buffer, NewLeft->GetAddress(), 16);
+				ConsolePrint(buffer);
+
+				ConsolePrint(u"\n");
+			}
+
 			_ASSERTF(MidPoint == NewLeft->GetAddress(), "Mismatch on expected block bounds");
 
 			_ASSERTF(Address == OuterHighAddress || (OuterHighAddress & PAGE_MASK) == (~0ULL & PAGE_MASK), "Right block should touch the outer bound");

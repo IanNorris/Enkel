@@ -29,8 +29,6 @@ struct SPagingStructurePage
 #define WRITABLE 2
 #define NOT_EXECUTABLE (1ULL << 63)
 
-#define INVALID_ADDRESS (~0ULL)
-
 static_assert(1 << PAGE_BITS == PAGE_SIZE, "Page size and page bits not consistent.");
 static_assert(EFI_PAGE_SIZE == PAGE_SIZE, "Page sizes between kernel and EFI should match.");
 static_assert(sizeof(SPagingStructurePage) == PAGE_SIZE, "Paging structure should be 1 page in size.");
@@ -135,6 +133,8 @@ void MapPages(uint64_t virtualAddress, uint64_t physicalAddress, uint64_t size, 
     uint64_t originalVirtualAddress = virtualAddress;
     uint64_t originalPhysicalAddress = physicalAddress;
 
+	_ASSERTF((size & (PAGE_SIZE-1)) == 0, "Misaligned page size");
+
     uint64_t endVirtualAddress = virtualAddress + size;
 
     virtualAddress &= PAGE_MASK;
@@ -191,13 +191,21 @@ void MapPages(uint64_t virtualAddress, uint64_t physicalAddress, uint64_t size, 
 			PT = GetPML4FreePage();
 			PD->Entries[pdIndex] = ((uint64_t)PT) | PRESENT | WRITABLE;
 		}
-        
+
         if(newState == MemoryState::RangeState::Free)
         {
             PT->Entries[ptIndex] = (physicalAddress & PAGE_MASK);
         }
         else
         {
+			bool wasPresent = (PT->Entries[ptIndex] & PRESENT) != 0;
+
+			//We're about to yoink the memory away, flush the cache
+			if(wasPresent)
+			{
+				asm volatile("clflush (%0)" ::"r"(virtualAddress) : "memory");
+			}
+
             PT->Entries[ptIndex] = (physicalAddress & PAGE_MASK) | PRESENT;
             if (writable)
             {
@@ -222,9 +230,9 @@ void MapPages(uint64_t virtualAddress, uint64_t physicalAddress, uint64_t size, 
             _ASSERTF(physicalAddress == newPhysicalAddress, "Physical address mismatch.");
         }
 
-        //Tell the CPU we've just invalidated that address.
+		//Tell the CPU we've just invalidated that address.
         //TODO: Revisit this once we're looking at running user code.
-        if(PML4Set)
+		if(PML4Set)
         {
             asm volatile("invlpg (%0)" ::"r"(virtualAddress) : "memory");
         }
@@ -293,6 +301,9 @@ void BuildPML4(KernelBootData* bootData)
         HighestAddress = ((framebuffer.PhysicalStart + framebuffer.ByteSize + (PAGE_SIZE-1))) & PAGE_MASK;
     }
 
+	//Chop off any straggling bits so we get full pages only
+	HighestAddress &= PAGE_MASK;
+
 	PhysicalMemoryState.Init(HighestAddress);
 	VirtualMemoryState.Init(2ULL << 48); //Limit set by x86-64 architecture.
 
@@ -338,7 +349,10 @@ void BuildPML4(KernelBootData* bootData)
             MapPages(VirtualStart, Start, Size, !IsReadOnly, IsExecutable, IsReserved ? MemoryState::RangeState::Reserved : MemoryState::RangeState::Used);
         }
     }
-    MapPages(framebuffer.VirtualStart, framebuffer.PhysicalStart, framebuffer.ByteSize, true, false /*executable*/, MemoryState::RangeState::Used);
+
+	uint64_t allocatedFrameBufferSize = (framebuffer.ByteSize + (PAGE_SIZE-1)) & PAGE_MASK;
+
+    MapPages(framebuffer.VirtualStart, framebuffer.PhysicalStart, allocatedFrameBufferSize, true, false /*executable*/, MemoryState::RangeState::Used);
 }
 
 void BuildAndLoadPML4(KernelBootData* bootData)
