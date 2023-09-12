@@ -83,8 +83,6 @@ void __attribute__((used, noinline)) PrintStackTrace(int maxFrames)
 
 void KERNEL_NORETURN AssertionFailed(const char* expression, const char* message, const char* filename, size_t lineNumber)
 {
-	PrintStackTrace(30);
-
     char16_t messageBuffer[2048];
 
     //BMFontColor Background = { 0x54, 0x00, 0x2C };
@@ -129,6 +127,10 @@ void KERNEL_NORETURN AssertionFailed(const char* expression, const char* message
     witoabuf(messageBuffer, lineNumber, 10);
     ConsolePrintAtPosWithColor(messageBuffer, StartX, StartY, OriginX, Text);
     StartY += Font->Common->LineHeight;
+
+	ConsolePrint(u"\n\n\n\n\n\n\nStack trace:\n");
+
+	PrintStackTrace(60);
 
 	DebugBreak();
     HaltPermanently();
