@@ -1,4 +1,7 @@
 #include "kernel/console/console.h"
+#include "utilities/termination.h"
+
+#include "memory/physical.h"
 
 #include "common/string.h"
 #include "font/details/bmfont_internal.h"
@@ -24,8 +27,64 @@ void __attribute__((used, noinline, noreturn)) HaltPermanently(void)
     }
 }
 
+void __attribute__((used, noinline)) PrintStackTrace(int maxFrames)
+{
+	char16_t buffer[2048];
+
+	//Skip ourself
+	StackFrame* Top = GetCurrentStackFrame();
+	StackFrame* Prev = nullptr;
+	int stackIndex = 0;
+	while(true)
+	{
+		if(		Top == nullptr 
+			|| 	Top == Prev
+			||	Top->RIP == 0
+			||	maxFrames == 0)
+		{
+			break;
+		}
+
+		bool InvalidPointer = 
+				(uint64_t)GetPhysicalAddress((uint64_t)Top) == INVALID_ADDRESS
+			||	(uint64_t)GetPhysicalAddress((uint64_t)Top + sizeof(StackFrame)) == INVALID_ADDRESS;
+
+		if(InvalidPointer)
+		{
+			ConsolePrint(u"#0x");
+			witoabuf(buffer, stackIndex, 16);
+			ConsolePrint(buffer);
+
+			ConsolePrint(u": 0x");
+			witoabuf(buffer, Top->RIP, 16);
+			ConsolePrint(buffer);
+
+			ConsolePrint(u" INVALID ADDRESS!\n");
+			break;
+		}
+
+		ConsolePrint(u"#0x");
+		witoabuf(buffer, stackIndex, 16);
+		ConsolePrint(buffer);
+
+		ConsolePrint(u": 0x");
+		witoabuf(buffer, Top->RIP, 16);
+		ConsolePrint(buffer);
+
+		ConsolePrint(u"\n");
+		
+		Prev = Top;
+		maxFrames--;
+		stackIndex++;
+
+		Top = Top->RBP;
+	}
+}
+
 void KERNEL_NORETURN AssertionFailed(const char* expression, const char* message, const char* filename, size_t lineNumber)
 {
+	PrintStackTrace(30);
+
     char16_t messageBuffer[2048];
 
     //BMFontColor Background = { 0x54, 0x00, 0x2C };
@@ -43,6 +102,7 @@ void KERNEL_NORETURN AssertionFailed(const char* expression, const char* message
     BMFontColor Label = { 0x8c, 0xFF, 0x0 }; //Light Green
     BMFontColor Text = { 0xFF, 0xFF, 0x00 }; //Yellow
 
+	StartY = -1;
     ConsolePrintAtPosWithColor(u"\n\nASSERTION FAILED", StartX, StartY, OriginX, Header);
     StartY += Font->Common->LineHeight;
 

@@ -142,7 +142,7 @@ fonts:
 
 # Link rules for the final kernel executable.
 $(KERNEL): $(NASMBINFILES:.asmb=.asmb.o) $(OBJ) $(CPPFILES) $(LDTEMPLATE) $(NASMFILES) uefi-headers kernel_build.cpptemp.o
-	$(LD) $(OBJ) kernel_build.cpptemp.o $(LDFLAGS) -o $@
+	$(LD) $(OBJ) kernel_build.cpptemp.o $(LDFLAGS) -Map=$(basename $@).map -o $@
 	rm -f kernel_build.cpptemp
 	rm -f kernel_build.cpptemp.o
 

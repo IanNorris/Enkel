@@ -2,6 +2,15 @@
 
 #include "common/types.h"
 
+struct StackFrame
+{
+	StackFrame* RBP;
+	uint64_t RIP;
+};
+
+extern "C" KERNEL_API StackFrame* GetCurrentStackFrame();
+void __attribute__((used, noinline)) PrintStackTrace(int maxFrames);
+
 void Halt(void);
 void DebugBreak();
 void KERNEL_NORETURN HaltPermanently(void);

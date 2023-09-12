@@ -31,26 +31,34 @@ bool IsDebuggerPresent()
 //GCC bug! If this is not tagged with noinline, if this function can be inlined it
 //this inlined function will be labelled as an ISR itself and it'll generate:
 // "error : interrupt service routine cannot be called directly" which is incorrect.
-void __attribute__((used,noinline)) InterruptDummy(const char16_t* message, int64_t rip, uint64_t cr2, uint64_t errorCode, bool terminate, bool hook)
+void __attribute__((used,noinline)) InterruptDummy(const char16_t* message, int64_t rip, uint64_t cr2, uint64_t errorCode, uint32_t interruptNumber, bool terminate, bool hook)
 {
-    char16_t Buffer[32];
+	if(!hook)
+	{
+		char16_t Buffer[32];
 
-    ConsolePrint(message);
-    ConsolePrint(u"\nError code: 0x");
-    witoabuf(Buffer, errorCode, 16);
-    ConsolePrint(Buffer);
-    ConsolePrint(u"\nRIP: 0x");
-    witoabuf(Buffer, rip, 16);
-    ConsolePrint(Buffer);
-    ConsolePrint(u"\nCR2: 0x");
-    witoabuf(Buffer, cr2, 16);
-    ConsolePrint(Buffer);
-    ConsolePrint(u"\n");
+		ConsolePrint(message);
+		ConsolePrint(u"\nError code: 0x");
+		witoabuf(Buffer, errorCode, 16);
+		ConsolePrint(Buffer);
+		ConsolePrint(u"\nRIP: 0x");
+		witoabuf(Buffer, rip, 16);
+		ConsolePrint(Buffer);
+		ConsolePrint(u"\nCR2: 0x");
+		witoabuf(Buffer, cr2, 16);
+		ConsolePrint(Buffer);
+		ConsolePrint(u"\n");
+	}
 
     bool debuggerPresent = IsDebuggerPresent();
 
     if (hook)
     {
+		if(interruptNumber != 3)
+		{
+			PrintStackTrace(30);
+		}
+
         DebuggerHook();
     }
 
@@ -67,12 +75,12 @@ void __attribute__((used,noinline)) InterruptDummy(const char16_t* message, int6
     }
 }
 
-#define PRINT_INTERRUPT(n) extern "C" void __attribute__((naked)) ISR_Unused##n(void); extern "C" void KERNEL_API __attribute__((used,noinline)) ISR_Int_Unused##n(uint64_t rip, uint64_t cr2, uint64_t errorCode){ InterruptDummy(u"Interrupt " #n, rip, cr2, errorCode, false, false); }
+#define PRINT_INTERRUPT(n) extern "C" void __attribute__((naked)) ISR_Unused##n(void); extern "C" void KERNEL_API __attribute__((used,noinline)) ISR_Int_Unused##n(uint64_t rip, uint64_t cr2, uint64_t errorCode, uint32_t interruptNumber){ InterruptDummy(u"Interrupt " #n, rip, cr2, errorCode, interruptNumber, false, false); }
 
-#define NAMED_INTERRUPT(functionName) extern "C" void __attribute__((naked)) ISR_##functionName(void); extern "C" void KERNEL_API __attribute__((used,noinline)) ISR_Int_##functionName(uint64_t rip, uint64_t cr2, uint64_t errorCode);
+#define NAMED_INTERRUPT(functionName) extern "C" void __attribute__((naked)) ISR_##functionName(void); extern "C" void KERNEL_API __attribute__((used,noinline)) ISR_Int_##functionName(uint64_t rip, uint64_t cr2, uint64_t errorCode, uint32_t interruptNumber);
 
-#define PRINT_NAMED_INTERRUPT(functionName, message, hook) extern "C" void __attribute__((naked)) ISR_##functionName(void); extern "C" void KERNEL_API __attribute__((used,noinline)) ISR_Int_##functionName(uint64_t rip, uint64_t cr2, uint64_t errorCode){ InterruptDummy(message, rip, cr2, errorCode, false, hook); }
-#define PRINT_NAMED_INTERRUPT_HALT(functionName, message) extern "C" void __attribute__((naked)) ISR_##functionName(void); extern "C" void KERNEL_API __attribute__((used,noinline)) ISR_Int_##functionName(uint64_t rip, uint64_t cr2, uint64_t errorCode){ InterruptDummy(message, rip, cr2, errorCode, true, true); }
+#define PRINT_NAMED_INTERRUPT(functionName, message, hook) extern "C" void __attribute__((naked)) ISR_##functionName(void); extern "C" void KERNEL_API __attribute__((used,noinline)) ISR_Int_##functionName(uint64_t rip, uint64_t cr2, uint64_t errorCode, uint32_t interruptNumber){ InterruptDummy(message, rip, cr2, errorCode, interruptNumber, false, hook); }
+#define PRINT_NAMED_INTERRUPT_HALT(functionName, message) extern "C" void __attribute__((naked)) ISR_##functionName(void); extern "C" void KERNEL_API __attribute__((used,noinline)) ISR_Int_##functionName(uint64_t rip, uint64_t cr2, uint64_t errorCode, uint32_t interruptNumber){ InterruptDummy(message, rip, cr2, errorCode, interruptNumber, true, true); }
 
 PRINT_NAMED_INTERRUPT(DivideByZero, u"Divide by 0", true) //0
 PRINT_NAMED_INTERRUPT_HALT(SingleStep, u"Single step") //1

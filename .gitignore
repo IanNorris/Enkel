@@ -384,6 +384,7 @@ src/bootloader/bootloader.img
 EnkelDebugging/gdb.txt
 gdb.txt
 
+*.map
 *.cpptemp
 *.htemp
 ap.bin

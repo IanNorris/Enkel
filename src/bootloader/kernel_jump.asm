@@ -11,6 +11,11 @@ EnterKernel:
     ; Set up the new stack pointer
     mov rsp, rdx
     mov rbp, rdx
+
+	push $0
+	push $0
+	push $0
+	push $0
     
     ; Call kernel main, rdi is already the boot data
     jmp rsi

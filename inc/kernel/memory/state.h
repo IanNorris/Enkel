@@ -4,6 +4,8 @@
 #include <stddef.h>
 #include "memory/memory.h"
 
+#define INVALID_ADDRESS (~0ULL)
+
 #define PAGE_BITS 12
 #define PAGE_SIZE 4096
 #define PAGE_MASK (~(PAGE_SIZE-1))
