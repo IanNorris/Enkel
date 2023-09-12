@@ -93,7 +93,7 @@ void __attribute__((__noreturn__)) ExitToKernel(EFI_BOOT_SERVICES* bootServices,
 	uint64_t stackHigh = (uint64_t)stackRange.Data + stackSize;
 
 	//Need to ensure we end up in the code segment
-	uint64_t APBootstrapPage = 3 * 4096;
+	uint64_t APBootstrapPage = 16 * 4096;
 	EFI_STATUS APStatus;
 	do
 	{
@@ -103,7 +103,7 @@ void __attribute__((__noreturn__)) ExitToKernel(EFI_BOOT_SERVICES* bootServices,
 	} while( APStatus != EFI_SUCCESS );
 
 	_ASSERTF( (APBootstrapPage & EFI_PAGE_MASK) == 0, "AP bootstrap not on page boundary");
-	_ASSERTF( APBootstrapPage < 64 * 1024, "AP bootstrap must live <64K");
+	_ASSERTF( APBootstrapPage < 1 * 1024 * 1024, "AP bootstrap must live <1MB");
 
 	bootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_APBootstrap].VirtualStart = APBootstrapPage;
 	bootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_APBootstrap].PhysicalStart = APBootstrapPage;
