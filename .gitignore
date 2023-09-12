@@ -388,3 +388,4 @@ gdb.txt
 *.cpptemp
 *.htemp
 ap.bin
+temp/
