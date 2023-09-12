@@ -36,6 +36,11 @@ SECTIONS
     . += CONSTANT(MAXPAGESIZE);
 
     .data : {
+		CRTStaticInitStart = .;
+		KEEP(*( .init_array ));
+		KEEP(*(SORT_BY_INIT_PRIORITY( .init_array.* )));
+		CRTStaticInitEnd = .;
+
         *(.data .data.*)
     } :data
 

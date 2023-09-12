@@ -24,6 +24,19 @@ void WriteToMemoryWeDontOwn(void* Address, uint64_t Size, int Pattern)
 	memset(Address, Pattern, Size);
 }
 
+//Define what a constructor is
+typedef void (*StaticInitFunction)();
+
+extern "C" StaticInitFunction CRTStaticInitStart;
+extern "C" StaticInitFunction CRTStaticInitEnd;
+extern "C" void CRTInit()
+{
+    for(StaticInitFunction* InitFunction = &CRTStaticInitStart; InitFunction != &CRTStaticInitEnd; InitFunction++)
+	{
+		(*InitFunction)();
+	}
+}
+
 extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootData * BootData)
 {
 	OnKernelMainHook();
@@ -35,6 +48,8 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 	ConsolePrint(u"Starting Enkel (Revision ");
 	ConsolePrint(KernelBuildId);
 	ConsolePrint(u")...\n");
+
+	CRTInit();
 
 	if (IsDebuggerPresent())
 	{
