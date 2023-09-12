@@ -46,3 +46,9 @@ void InitPIC()
 
 	EnableIRQ0();
 }
+
+void DisablePIC()
+{
+	OutPort(0x21, 0xFF);
+    OutPort(0xA1, 0xFF);
+}
