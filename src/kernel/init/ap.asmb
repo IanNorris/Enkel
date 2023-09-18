@@ -1,63 +1,55 @@
 bits 16
-
-Start:
+ORG 0x1000
 
 ; Here we go
 APEntry:
 	cli ; Disable interrupts
-	hlt
-	hlt
-	hlt
-	hlt
-	hlt
-	hlt
+	cld ; Clear direction. Ensure memory ops go forward through memory
 
-	;Prepare the stack
-	mov esp, [rel APEntryDataStackHigh]
-	mov ebp, [rel APEntryDataStackHigh]
-
-	;Prepare a stack frame
-	mov eax, [rel APEntry]
-	push eax
-	
-	hlt
+	;We'll do the IDT from C++ once we're in 64bit long mode
 
 	;GDT
-	mov eax, [rel APEntryDataGDT]
-	lgdt [eax]
+	lgdt [APEntryDataGDTLimit]
 
-	;IDT
-	mov eax, [rel APEntryDataIDT]
-	lidt [eax]
+	mov ax, 0x8
+	mov ds, ax ;Clear the data segments
+	mov ss, ax
 
-	; Enable PE
+	;Prepare the stack
+	mov esp, [APEntryDataStackHigh]
+	mov ebp, [APEntryDataStackHigh]
+
+	; Set PE flag to enter protected mode
 	mov eax, cr0
 	or eax, 1
 	mov cr0, eax
 
-	; Re-enable interrupts
-	sti
+	jmp 0x8:APEntryProtected32bit ;Set 32bit code segment
 
-	jmp far [rel APEntryProtectedModeJumpTarget]
-
-	hlt
+	hlt ;Should never get here
 
 bits 32
 
-align 16
-APEntryProtectedModeStart:
-
-	mov eax, [rel APEntryDataEntryFunction]
-	jmp eax ;Jump to APEntryFunction
-    hlt
-
-APEntryEnd:
+align 32
+APEntryProtected32bit:
+	cli
 	hlt
 
-align 16
+	mov eax, [APEntryDataEntryFunction]
+	jmp eax ;Jump to APEntryFunction
+
+    hlt ;Should never get here
+
+align 32
+
+GDTTableNull dd 0x0, 0x0
+GDTTableCode dd 0x0000FFFF, 0x008F9200
+GDTTableData dd 0x00000068, 0x00CF8900
+GDTTableEnd  dd 0x0, 0x0
+
+GDTLimitPad dw 0x0
+APEntryDataGDTLimit dw (GDTTableEnd - GDTTableNull - 1)
+APEntryDataGDTBase dq GDTTableNull
+
 APEntryDataStackHigh dd 0x0
-APEntryDataGDT dd 0x0
 APEntryDataEntryFunction dd 0x0
-APEntryDataIDT dd 0x0
-APEntryProtectedModeJumpTarget dw APEntryProtectedModeStart - Start
-APEntryProtectedModeJumpTargetSegment dw 0x8

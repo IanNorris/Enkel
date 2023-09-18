@@ -1,5 +1,6 @@
 #include "kernel/init/bootload.h"
 #include "kernel/init/apic.h"
+#include "kernel/init/pic.h"
 #include "kernel/init/msr.h"
 #include "kernel/console/console.h"
 #include "common/string.h"
@@ -7,6 +8,8 @@
 #include "kernel/scheduling/time.h"
 
 #include "Protocol/AcpiSystemDescriptionTable.h"
+
+#include "ap.htemp"
 
 struct EFI_ACPI_HIGH_PRECISION_EVENT_TIMER_TABLE_HEADER;
 void InitHPET(EFI_ACPI_HIGH_PRECISION_EVENT_TIMER_TABLE_HEADER* Header);
@@ -46,8 +49,6 @@ volatile uint64_t APSignal = 0x0;
 
 extern uint64_t PML4;
 extern uint64_t GDTRegister;
-extern uint64_t APEntry;
-extern uint64_t APEntryEnd;
 extern uint64_t IDTLimits;
 
 extern "C" void __attribute__((naked, used, noreturn)) APEntryFunction()
@@ -83,7 +84,7 @@ uint32_t ReadLocalApic(uint32_t Offset)
 {
 	uint32_t Result = *(volatile uint32_t*)(LocalApicVirtual+Offset);
 
-	char16_t Buffer[16];
+	/*char16_t Buffer[16];
 
 	ConsolePrint(u"Read from 0x");
 	witoabuf(Buffer, Offset, 16);
@@ -91,7 +92,7 @@ uint32_t ReadLocalApic(uint32_t Offset)
 	ConsolePrint(u" value 0x");
 	witoabuf(Buffer, Result, 16);
 	ConsolePrint(Buffer);
-	ConsolePrint(u"\n");
+	ConsolePrint(u"\n");*/
 
 	return Result;
 }
@@ -115,7 +116,7 @@ void WaitForIdleIPI()
 			ConsolePrint(u"Error 0x");
 			witoabuf(Buffer, ErrorStatus, 16);
 			ConsolePrint(Buffer);
-		ConsolePrint(u"\n");
+			ConsolePrint(u"\n");
 		}
 		_ASSERTF(ErrorStatus == 0, "APIC error");
 	} while(!IsFinished);
@@ -139,37 +140,50 @@ void InitAPs()
 			continue;
 		}
 
+		VirtualProtect(APTrampoline, PAGE_SIZE, MemoryProtection::ReadWrite, PageFlags_Cache_WriteThrough);
+
 		uint8_t* APTrampolinePtr = APTrampoline;
 
-		VirtualProtect(APTrampoline, PAGE_SIZE, MemoryProtection::ReadWrite);
+		//Now copy the whole of the AP binary
 
-		//Stop on init
-		*APTrampolinePtr++ = 0xFA; //cli
-		*APTrampolinePtr++ = 0xF4; //hlt
+		memcpy(APTrampoline, ap_bin_data, ap_bin_size);
+
+		uint8_t* Data = APTrampoline+ap_bin_size;
+
+		Data -= sizeof(uint32_t);
+		uint32_t Temp32 = (uint32_t)(uint64_t)&APEntryFunction;
+		memcpy(Data, &Temp32, sizeof(uint32_t));
+
+		Data -= sizeof(uint32_t);
+		Temp32 = (uint32_t)(uint64_t)APStackHigh;
+		memcpy(Data, &Temp32, sizeof(uint32_t));
 
 		VirtualProtect(APTrampoline, PAGE_SIZE, MemoryProtection::Execute);
 
 		uint64_t StartupAddress = GetPhysicalAddress((uint64_t)APTrampoline);
-		StartupAddress = StartupAddress >> 12;
+		StartupAddress /= PAGE_SIZE;
 		uint64_t StartupAddressTemp = StartupAddress;
 		StartupAddress &= 0xFF;
 
 		_ASSERTF(StartupAddress == StartupAddressTemp, "Misaligned AP startup vector");
 
-		//IMPORTANT NOTE
-		// If you're debugging this in an emulator, these values are not going to look right in the debugger
-		// because the debugger skips the path that intercepts these loads.
-		//IMPORTANT NOTE
+		//WHYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY
+		StartupAddress *= 2;
 
+		ConsolePrint(u"Send INIT IPI\n");
+
+		// Set the target processor's APIC ID and send INIT IPI
 		WriteLocalApic( (uint32_t)LocalApicOffsets::ErrorStatusRegister, 0, ~0);
-
-		// Upper ICR: set the target processor's APIC ID and send INIT IPI
 		WriteLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterHigh, ProcessorIds[processor] << 24, 0xFF << 24);
 		WriteLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterLow, LEVEL_TRIGGER | LEVEL_ASSERT | DELIVERY_MODE_INIT, 0xFFFFF);
 
-		ReadLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterLow );
+		WaitForIdleIPI();
+
+		WriteLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterHigh, ProcessorIds[processor] << 24, 0xFF << 24);
+		WriteLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterLow, LEVEL_TRIGGER | DELIVERY_MODE_INIT, 0xFFFFF);
 
 		HpetSleepMS(10);
+
 
 		WaitForIdleIPI();
 
@@ -177,21 +191,33 @@ void InitAPs()
 		APSignal = 0;
 		for(int i = 0; i < 2; i++)
 		{
+			ConsolePrint(u"Send SIPI\n");
+
 			WriteLocalApic( (uint32_t)LocalApicOffsets::ErrorStatusRegister, 0, ~0);
 
 			WriteLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterHigh, ProcessorIds[processor] << 24, 0xFF << 24);
-			WriteLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterLow, DELIVERY_MODE_STARTUP | StartupAddress, ~0xfff0f800);
+			WriteLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterLow, DELIVERY_MODE_STARTUP | StartupAddress, ~0);
 			
-			HpetSleepMS(200);
+			HpetSleepUS(200);
 			WaitForIdleIPI();
 		}
+		
+		char16_t Buffer[16];
 
-		ReadLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterLow );
+		ConsolePrint(u"AP initialized ");
+		witoabuf(Buffer, processor, 10);
+		ConsolePrint(Buffer);
+		ConsolePrint(u"\n");
 
 		while(APSignal == 0)
 		{
 			asm volatile("pause");
 		}
+
+		ConsolePrint(u"AP signalled ");
+		witoabuf(Buffer, processor, 10);
+		ConsolePrint(Buffer);
+		ConsolePrint(u"\n");
     }
 }
 
@@ -297,6 +323,8 @@ void InitApic(EFI_ACPI_DESCRIPTION_HEADER* Xsdt)
 
 	_ASSERTF(HPET, "HPET was not found in XSDT");
 	InitHPET(HPET);
+
+	DisablePIC();
 
 	_ASSERTF(MADT, "MADT was not found in XSDT");
 	InitMADT(MADT);
