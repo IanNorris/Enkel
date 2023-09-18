@@ -2,7 +2,7 @@
 
 void DisableInterrupts();
 void EnableInterrupts();
-void InitIDT();
+void InitIDT(uint8_t* IDT);
 bool IsDebuggerPresent();
 void __attribute__((used, noinline)) OnKernelMainHook();
 void __attribute__((used, noinline)) DebuggerHook();

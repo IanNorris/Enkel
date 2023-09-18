@@ -93,21 +93,21 @@ void __attribute__((__noreturn__)) ExitToKernel(EFI_BOOT_SERVICES* bootServices,
 	uint64_t stackHigh = (uint64_t)stackRange.Data + stackSize;
 
 	//Need to ensure we end up in the code segment
-	uint64_t APBootstrapPage = 16 * 4096;
-	EFI_STATUS APStatus;
-	do
-	{
-		APBootstrapPage += EFI_PAGE_SIZE;
-		APStatus = bootServices->AllocatePages(AllocateAddress, (EFI_MEMORY_TYPE)EfiMemoryMapType_APBootstrap, 1, &APBootstrapPage);
-		
-	} while( APStatus != EFI_SUCCESS );
+	uint64_t APBootstrapPage = 0x1000;
+	EFI_STATUS APStatus = bootServices->AllocatePages(AllocateAddress, (EFI_MEMORY_TYPE)EfiMemoryMapType_APBootstrap, 1, &APBootstrapPage);
+	_ASSERTF(APStatus == EFI_SUCCESS, "Unable to allocate AP bootstrap");
 
-	_ASSERTF( (APBootstrapPage & EFI_PAGE_MASK) == 0, "AP bootstrap not on page boundary");
-	_ASSERTF( APBootstrapPage < 1 * 1024 * 1024, "AP bootstrap must live <1MB");
+	uint64_t IDTPage = 0x2000;
+	APStatus = bootServices->AllocatePages(AllocateAddress, (EFI_MEMORY_TYPE)EfiMemoryMapType_IDT, 1, &IDTPage);
+	_ASSERTF(APStatus == EFI_SUCCESS, "Unable to allocate IDT page");
 
 	bootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_APBootstrap].VirtualStart = APBootstrapPage;
 	bootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_APBootstrap].PhysicalStart = APBootstrapPage;
 	bootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_APBootstrap].ByteSize = EFI_PAGE_SIZE;
+
+	bootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_IDT].VirtualStart = IDTPage;
+	bootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_IDT].PhysicalStart = IDTPage;
+	bootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_IDT].ByteSize = EFI_PAGE_SIZE;
 	
 	bootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_KernelStack].VirtualStart = (uint64_t)stackRange.Data;
 	bootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_KernelStack].PhysicalStart = (uint64_t)stackRange.Data;

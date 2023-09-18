@@ -15,7 +15,7 @@ void EnterLongMode(KernelBootData* bootData)
     InitGDT();
 
     ConsolePrint(u"Initializing IDT...\n");
-    InitIDT();
+    InitIDT((uint8_t*)bootData->MemoryLayout.SpecialLocations[SpecialMemoryLocation_IDT].VirtualStart);
 
     //We can now re-enable interrupts.
     EnableInterrupts();

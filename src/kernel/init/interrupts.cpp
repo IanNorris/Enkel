@@ -185,7 +185,6 @@ IDT[num].Reserved = 0; \
 #define IDT_SIZE 256
 extern "C"
 {
-	IDTEntry IDT[IDT_SIZE];
 	GDTPointer IDTLimits;
 }
 
@@ -201,8 +200,10 @@ void EnableInterrupts()
     __asm("sti");
 }
 
-void InitializeDefaultInterrupts()
+void InitializeDefaultInterrupts(uint8_t* IDTPtr)
 {
+	IDTEntry* IDT = (IDTEntry*)IDTPtr;
+
     SET_NAMED_TRAP(0, DivideByZero) //0
     SET_NAMED_TRAP(1, SingleStep) //1
     SET_NAMED_TRAP(2, NonMaskableInterrupt) //2
@@ -267,14 +268,14 @@ void InitializeDefaultInterrupts()
     SET_INTERRUPT(69)
 }
 
-void InitIDT()
+void InitIDT(uint8_t* IDT)
 {
-    IDTLimits.Limit = sizeof(IDT) - 1;
+    IDTLimits.Limit = (sizeof(IDTEntry) * IDT_SIZE) - 1;
     IDTLimits.Base = (uint64_t)IDT;
 
     memset(IDT, 0, sizeof(IDT));
 
-    InitializeDefaultInterrupts();
+    InitializeDefaultInterrupts(IDT);
 
     asm volatile("lidt %0" : : "m"(IDTLimits));
 }
