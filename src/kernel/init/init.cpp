@@ -9,13 +9,21 @@
 void EnterLongMode(KernelBootData* bootData)
 {
     //Disable interrupts because we won't be able to handle these until we initialize the GDT and the interrupt handlers.
+	//NOTE: We can't debug between these because the selector won't be valid yet
     DisableInterrupts();
 
-    ConsolePrint(u"Initializing GDT...\n");
-    InitGDT();
+	unsigned int codeSelector = 1;
 
+	//Construct our IDT into the tables block
     ConsolePrint(u"Initializing IDT...\n");
-    InitIDT((uint8_t*)bootData->MemoryLayout.SpecialLocations[SpecialMemoryLocation_IDT].VirtualStart);
+	uint8_t* TableOffset = (uint8_t*)bootData->MemoryLayout.SpecialLocations[SpecialMemoryLocation_Tables].VirtualStart;
+    size_t IDTTableSize = InitIDT(TableOffset, codeSelector);
+	IDTTableSize = (IDTTableSize + 64) & 63;
+
+	TableOffset += IDTTableSize;
+
+	ConsolePrint(u"Initializing GDT...\n");
+    InitGDT(TableOffset);
 
     //We can now re-enable interrupts.
     EnableInterrupts();

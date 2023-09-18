@@ -97,17 +97,17 @@ void __attribute__((__noreturn__)) ExitToKernel(EFI_BOOT_SERVICES* bootServices,
 	EFI_STATUS APStatus = bootServices->AllocatePages(AllocateAddress, (EFI_MEMORY_TYPE)EfiMemoryMapType_APBootstrap, 1, &APBootstrapPage);
 	_ASSERTF(APStatus == EFI_SUCCESS, "Unable to allocate AP bootstrap");
 
-	uint64_t IDTPage = 0x2000;
-	APStatus = bootServices->AllocatePages(AllocateAddress, (EFI_MEMORY_TYPE)EfiMemoryMapType_IDT, 1, &IDTPage);
-	_ASSERTF(APStatus == EFI_SUCCESS, "Unable to allocate IDT page");
+	uint64_t TablePage = 0x2000;
+	APStatus = bootServices->AllocatePages(AllocateAddress, (EFI_MEMORY_TYPE)EfiMemoryMapType_Tables, 1, &TablePage);
+	_ASSERTF(APStatus == EFI_SUCCESS, "Unable to allocate tables page");
 
 	bootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_APBootstrap].VirtualStart = APBootstrapPage;
 	bootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_APBootstrap].PhysicalStart = APBootstrapPage;
 	bootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_APBootstrap].ByteSize = EFI_PAGE_SIZE;
 
-	bootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_IDT].VirtualStart = IDTPage;
-	bootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_IDT].PhysicalStart = IDTPage;
-	bootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_IDT].ByteSize = EFI_PAGE_SIZE;
+	bootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_Tables].VirtualStart = TablePage;
+	bootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_Tables].PhysicalStart = TablePage;
+	bootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_Tables].ByteSize = EFI_PAGE_SIZE;
 	
 	bootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_KernelStack].VirtualStart = (uint64_t)stackRange.Data;
 	bootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_KernelStack].PhysicalStart = (uint64_t)stackRange.Data;

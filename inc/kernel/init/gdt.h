@@ -29,7 +29,7 @@ struct GDTEntry
     uint8_t  BaseHigh;          // The last 8 bits of the base.
 } __attribute__((packed));
 
-struct GDTPointer
+struct __attribute__ ((aligned (16))) GDTPointer
 {
 	uint16_t Limit;
 	uint64_t Base;
@@ -46,7 +46,6 @@ struct IDTEntry
     uint32_t Reserved;            // Reserved, must be zero
 } __attribute__((packed));
 
-extern "C" void SetGDT(uint16_t limit, uint64_t base);
 extern "C" void ReloadSegments();
 
-void InitGDT();
+void InitGDT(uint8_t* target);

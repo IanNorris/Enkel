@@ -103,17 +103,19 @@ static GDTEntry GDT[] =
     }
 };
 
-GDTPointer GDTLimits;
-
 static_assert(sizeof(GDTEntry) == 0x8);
 
-void InitGDT()
+void InitGDT(uint8_t* target)
 {
+	GDTPointer GDTLimits;
+
     GDTLimits.Limit = sizeof(GDT) - 1;
-    GDTLimits.Base = (uint64_t)GDT;
+    GDTLimits.Base = (uint64_t)target;
+
+	memcpy(target, GDT, sizeof(GDT));
 
     //Load the GDT
-    SetGDT(sizeof(GDT) - 1, (uint64_t)&GDT[0]);
+    asm volatile("lgdt %0" : : "m"(GDTLimits));
 
     //Force a jump to apply all the changes
     ReloadSegments();

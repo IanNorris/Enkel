@@ -144,15 +144,13 @@ PRINT_INTERRUPT(67)
 PRINT_INTERRUPT(68)
 PRINT_INTERRUPT(69)
 
-#define KERNEL_CODE_SEGMENT 1
-
 #define SET_INTERRUPT(num) \
 { \
 uint64_t ISRAddress = (uint64_t)&ISR_Unused##num; \
 IDT[num].OffsetLow = (uint16_t)(ISRAddress & 0xFFFF); \
 IDT[num].OffsetMid = (uint16_t)((ISRAddress >> 16) & 0xFFFF); \
 IDT[num].OffsetHigh = (uint32_t)((ISRAddress >> 32) & 0xFFFFFFFF); \
-IDT[num].Selector = KERNEL_CODE_SEGMENT * sizeof(GDTEntry); \
+IDT[num].Selector = codeSelector * sizeof(GDTEntry); \
 IDT[num].IST = 0; \
 IDT[num].Flags = TrapGate; \
 IDT[num].Reserved = 0; \
@@ -164,7 +162,7 @@ uint64_t ISRAddress = (uint64_t)&ISR_##functionName; \
 IDT[num].OffsetLow = (uint16_t)(ISRAddress & 0xFFFF); \
 IDT[num].OffsetMid = (uint16_t)((ISRAddress >> 16) & 0xFFFF); \
 IDT[num].OffsetHigh = (uint32_t)((ISRAddress >> 32) & 0xFFFFFFFF); \
-IDT[num].Selector = KERNEL_CODE_SEGMENT * sizeof(GDTEntry); \
+IDT[num].Selector = codeSelector * sizeof(GDTEntry); \
 IDT[num].IST = 0; \
 IDT[num].Flags = InterruptGate; \
 IDT[num].Reserved = 0; \
@@ -176,17 +174,13 @@ uint64_t ISRAddress = (uint64_t)&ISR_##functionName; \
 IDT[num].OffsetLow = (uint16_t)(ISRAddress & 0xFFFF); \
 IDT[num].OffsetMid = (uint16_t)((ISRAddress >> 16) & 0xFFFF); \
 IDT[num].OffsetHigh = (uint32_t)((ISRAddress >> 32) & 0xFFFFFFFF); \
-IDT[num].Selector = KERNEL_CODE_SEGMENT * sizeof(GDTEntry); \
+IDT[num].Selector = codeSelector * sizeof(GDTEntry); \
 IDT[num].IST = 0; \
 IDT[num].Flags = TrapGate; \
 IDT[num].Reserved = 0; \
 }
 
 #define IDT_SIZE 256
-extern "C"
-{
-	GDTPointer IDTLimits;
-}
 
 static_assert(sizeof(IDTEntry) == 0x10);
 
@@ -200,7 +194,7 @@ void EnableInterrupts()
     __asm("sti");
 }
 
-void InitializeDefaultInterrupts(uint8_t* IDTPtr)
+void InitializeDefaultInterrupts(uint8_t* IDTPtr, unsigned int codeSelector)
 {
 	IDTEntry* IDT = (IDTEntry*)IDTPtr;
 
@@ -268,14 +262,19 @@ void InitializeDefaultInterrupts(uint8_t* IDTPtr)
     SET_INTERRUPT(69)
 }
 
-void InitIDT(uint8_t* IDT)
+size_t InitIDT(uint8_t* TargetMemory, unsigned int codeSelector)
 {
-    IDTLimits.Limit = (sizeof(IDTEntry) * IDT_SIZE) - 1;
-    IDTLimits.Base = (uint64_t)IDT;
+	GDTPointer IDTLimits;
 
-    memset(IDT, 0, sizeof(IDT));
+	size_t IDTSize = sizeof(IDTEntry) * IDT_SIZE;
 
-    InitializeDefaultInterrupts(IDT);
+    IDTLimits.Limit = IDTSize - 1;
+    IDTLimits.Base = (uint64_t)TargetMemory;
+
+    memset(TargetMemory, 0, IDTSize);
+    InitializeDefaultInterrupts(TargetMemory, codeSelector);
 
     asm volatile("lidt %0" : : "m"(IDTLimits));
+
+	return IDTSize;
 }
