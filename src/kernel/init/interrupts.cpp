@@ -6,6 +6,7 @@
 
 #include "kernel/console/console.h"
 #include "kernel/init/gdt.h"
+#include "kernel/init/interrupts.h"
 #include "kernel/init/msr.h"
 #include "common/string.h"
 
@@ -144,6 +145,8 @@ PRINT_INTERRUPT(67)
 PRINT_INTERRUPT(68)
 PRINT_INTERRUPT(69)
 
+NAMED_INTERRUPT(SpuriousInterrupt) //0xFF
+
 #define SET_INTERRUPT(num) \
 { \
 uint64_t ISRAddress = (uint64_t)&ISR_Unused##num; \
@@ -192,6 +195,10 @@ void DisableInterrupts()
 void EnableInterrupts()
 {
     __asm("sti");
+}
+
+DEFINE_NAMED_INTERRUPT(SpuriousInterrupt)(uint64_t rip, uint64_t cr2, uint64_t errorCode, uint32_t interruptNumber)
+{
 }
 
 void InitializeDefaultInterrupts(uint8_t* IDTPtr, unsigned int codeSelector)
@@ -260,6 +267,8 @@ void InitializeDefaultInterrupts(uint8_t* IDTPtr, unsigned int codeSelector)
     SET_INTERRUPT(67)
     SET_INTERRUPT(68)
     SET_INTERRUPT(69)
+
+	SET_NAMED_INTERRUPT(0xFF, SpuriousInterrupt)
 }
 
 size_t InitIDT(uint8_t* TargetMemory, unsigned int codeSelector)

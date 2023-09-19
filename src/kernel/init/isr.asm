@@ -41,7 +41,7 @@ section .data
 	global DebugHook_ISR_%2
 ISR_%2:
 	nop
-DebugHook_ISR_%2
+DebugHook_ISR_%2:
     PushGeneralPurposeRegisters
 
     ; Get the value of CR2 (where the faulting instruction accessed)
@@ -149,3 +149,5 @@ ISR_NO_ERROR 66, Unused66
 ISR_NO_ERROR 67, Unused67
 ISR_NO_ERROR 68, Unused68
 ISR_NO_ERROR 69, Unused69
+
+ISR_NO_ERROR 255, SpuriousInterrupt
