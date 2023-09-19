@@ -53,6 +53,11 @@ extern uint64_t IDTLimits;
 
 extern "C" void __attribute__((naked, used, noreturn)) APEntryFunction()
 {
+	while(true)
+	{
+	asm("hlt");
+	}
+
 	APSignal = true;
 
 	ConsolePrint(u"CORE ONLINE!\n");
@@ -69,7 +74,7 @@ void WriteLocalApic(uint32_t Offset, uint32_t Value, uint32_t Mask)
 	uint32_t NewValue = (Existing & ~Mask) | (Value & Mask);
 	*(volatile uint32_t*)(LocalApicVirtual+Offset) = NewValue;
 
-	char16_t Buffer[16];
+	/*char16_t Buffer[16];
 
 	ConsolePrint(u"Wrote to 0x");
 	witoabuf(Buffer, Offset, 16);
@@ -77,7 +82,7 @@ void WriteLocalApic(uint32_t Offset, uint32_t Value, uint32_t Mask)
 	ConsolePrint(u" value 0x");
 	witoabuf(Buffer, NewValue, 16);
 	ConsolePrint(Buffer);
-	ConsolePrint(u"\n");
+	ConsolePrint(u"\n");*/
 }
 
 uint32_t ReadLocalApic(uint32_t Offset)
@@ -97,9 +102,25 @@ uint32_t ReadLocalApic(uint32_t Offset)
 	return Result;
 }
 
-void WaitForIdleIPI()
+void CheckLAPICErrorStatus()
 {
 	uint32_t ErrorStatus;
+
+	ErrorStatus = ReadLocalApic((uint32_t)LocalApicOffsets::ErrorStatusRegister);
+	if(ErrorStatus != 0)
+	{
+		char16_t Buffer[16];
+
+		ConsolePrint(u"Error 0x");
+		witoabuf(Buffer, ErrorStatus, 16);
+		ConsolePrint(Buffer);
+		ConsolePrint(u"\n");
+	}
+	_ASSERTF(ErrorStatus == 0, "APIC error");
+}
+
+void WaitForIdleIPI()
+{
 	uint32_t APSelector;
 	bool IsFinished;
 	do
@@ -107,18 +128,6 @@ void WaitForIdleIPI()
 		asm volatile("pause");
 		APSelector = ReadLocalApic((uint32_t)LocalApicOffsets::InterruptCommandRegisterLow);
 		IsFinished = (APSelector & (1 << 12)) == 0;
-
-		ErrorStatus = ReadLocalApic((uint32_t)LocalApicOffsets::ErrorStatusRegister);
-		if(ErrorStatus != 0)
-		{
-			char16_t Buffer[16];
-
-			ConsolePrint(u"Error 0x");
-			witoabuf(Buffer, ErrorStatus, 16);
-			ConsolePrint(Buffer);
-			ConsolePrint(u"\n");
-		}
-		_ASSERTF(ErrorStatus == 0, "APIC error");
 	} while(!IsFinished);
 }
 
@@ -170,8 +179,6 @@ void InitAPs()
 		//WHYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY
 		StartupAddress *= 2;
 
-		ConsolePrint(u"Send INIT IPI\n");
-
 		// Set the target processor's APIC ID and send INIT IPI
 		WriteLocalApic( (uint32_t)LocalApicOffsets::ErrorStatusRegister, 0, ~0);
 		WriteLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterHigh, ProcessorIds[processor] << 24, 0xFF << 24);
@@ -179,20 +186,19 @@ void InitAPs()
 
 		WaitForIdleIPI();
 
+		WriteLocalApic( (uint32_t)LocalApicOffsets::ErrorStatusRegister, 0, ~0);
 		WriteLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterHigh, ProcessorIds[processor] << 24, 0xFF << 24);
 		WriteLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterLow, LEVEL_TRIGGER | DELIVERY_MODE_INIT, 0xFFFFF);
 
 		HpetSleepMS(10);
 
-
 		WaitForIdleIPI();
+		CheckLAPICErrorStatus();
 
 		// Send the Startup IPI twice as recommended in some Intel manuals.
 		APSignal = 0;
 		for(int i = 0; i < 2; i++)
 		{
-			ConsolePrint(u"Send SIPI\n");
-
 			WriteLocalApic( (uint32_t)LocalApicOffsets::ErrorStatusRegister, 0, ~0);
 
 			WriteLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterHigh, ProcessorIds[processor] << 24, 0xFF << 24);
@@ -201,7 +207,7 @@ void InitAPs()
 			HpetSleepUS(200);
 			WaitForIdleIPI();
 		}
-		
+
 		char16_t Buffer[16];
 
 		ConsolePrint(u"AP initialized ");
