@@ -8,21 +8,16 @@ APEntry:
 
 	;We'll do the IDT from C++ once we're in 64bit long mode
 
-	;GDT
-	lgdt [APEntryDataGDTLimit]
-
-	mov ax, 0x8
-	mov ds, ax ;Clear the data segments
-	mov ss, ax
-
-	;Prepare the stack
-	mov esp, [APEntryDataStackHigh]
-	mov ebp, [APEntryDataStackHigh]
-
 	; Enable A20 line (access memory >1MB)
 	in al, 0x92
     or al, 0x2
     out 0x92, al
+
+	;GDT
+	lgdt [APEntryDataGDTLimit]
+
+	mov ax, 0x10
+	mov ds, ax ;Clear the data segments
 
 	; Set PE flag to enter protected mode
 	mov eax, cr0
@@ -37,8 +32,15 @@ bits 32
 
 align 32
 APEntryProtected32bit:
-	hlt
-	
+
+	mov eax, 0x10
+	mov ds, eax ;Clear the data segments
+	mov ss, eax
+
+	;Prepare the stack
+	mov esp, [APEntryDataStackHigh]
+	mov ebp, [APEntryDataStackHigh]
+
 	mov eax, [APEntryDataEntryFunction]
 	jmp eax ;Jump to APEntryFunction
 
@@ -48,7 +50,7 @@ align 32
 
 GDTTableNull dq 0x0
 GDTTableCode dq 0x00CF9A000000FFFF
-GDTTableData dq 0x00CF9200000000FFFF
+GDTTableData dq 0x00CF92000000FFFF
 GDTTableEnd  dq 0x0
 
 GDTLimitPad dw 0xCCCC
