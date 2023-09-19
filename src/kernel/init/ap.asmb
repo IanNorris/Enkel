@@ -19,6 +19,11 @@ APEntry:
 	mov esp, [APEntryDataStackHigh]
 	mov ebp, [APEntryDataStackHigh]
 
+	; Enable A20 line (access memory >1MB)
+	in al, 0x92
+    or al, 0x2
+    out 0x92, al
+
 	; Set PE flag to enter protected mode
 	mov eax, cr0
 	or eax, 1
@@ -32,9 +37,8 @@ bits 32
 
 align 32
 APEntryProtected32bit:
-	cli
 	hlt
-
+	
 	mov eax, [APEntryDataEntryFunction]
 	jmp eax ;Jump to APEntryFunction
 
@@ -42,14 +46,14 @@ APEntryProtected32bit:
 
 align 32
 
-GDTTableNull dd 0x0, 0x0
-GDTTableCode dd 0x0000FFFF, 0x008F9200
-GDTTableData dd 0x00000068, 0x00CF8900
-GDTTableEnd  dd 0x0, 0x0
+GDTTableNull dq 0x0
+GDTTableCode dq 0x00CF9A000000FFFF
+GDTTableData dq 0x00CF9200000000FFFF
+GDTTableEnd  dq 0x0
 
-GDTLimitPad dw 0x0
+GDTLimitPad dw 0xCCCC
 APEntryDataGDTLimit dw (GDTTableEnd - GDTTableNull - 1)
-APEntryDataGDTBase dq GDTTableNull
+APEntryDataGDTBase dd GDTTableNull
 
 APEntryDataStackHigh dd 0x0
 APEntryDataEntryFunction dd 0x0
