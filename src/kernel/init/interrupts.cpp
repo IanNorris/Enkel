@@ -10,6 +10,11 @@
 #include "kernel/init/msr.h"
 #include "common/string.h"
 
+extern "C"
+{
+	GDTPointer IDTLimits;
+}
+
 bool GIsDebuggerPresent = false;
 
 void __attribute__((used, noinline)) OnKernelMainHook()
@@ -273,8 +278,6 @@ void InitializeDefaultInterrupts(uint8_t* IDTPtr, unsigned int codeSelector)
 
 size_t InitIDT(uint8_t* TargetMemory, unsigned int codeSelector)
 {
-	GDTPointer IDTLimits;
-
 	size_t IDTSize = sizeof(IDTEntry) * IDT_SIZE;
 
     IDTLimits.Limit = IDTSize - 1;

@@ -18,12 +18,12 @@ void EnterLongMode(KernelBootData* bootData)
     ConsolePrint(u"Initializing IDT...\n");
 	uint8_t* TableOffset = (uint8_t*)bootData->MemoryLayout.SpecialLocations[SpecialMemoryLocation_Tables].VirtualStart;
     size_t IDTTableSize = InitIDT(TableOffset, codeSelector);
-	IDTTableSize = (IDTTableSize + 64) & 63;
 
 	TableOffset += IDTTableSize;
 
 	ConsolePrint(u"Initializing GDT...\n");
-    InitGDT(TableOffset);
+	uint8_t* GDTOffset = (uint8_t*)bootData->MemoryLayout.SpecialLocations[SpecialMemoryLocation_APBootstrap].VirtualStart + 512;
+    InitGDT(GDTOffset);
 
     //We can now re-enable interrupts.
     EnableInterrupts();

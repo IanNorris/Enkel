@@ -29,7 +29,7 @@ struct GDTEntry
     uint8_t  BaseHigh;          // The last 8 bits of the base.
 } __attribute__((packed));
 
-struct __attribute__ ((aligned (16))) GDTPointer
+struct __attribute__ ((aligned (8))) GDTPointer
 {
 	uint16_t Limit;
 	uint64_t Base;

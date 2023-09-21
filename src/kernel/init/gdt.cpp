@@ -4,6 +4,11 @@
 #include "memory/memory.h"
 #include "kernel/init/gdt.h"
 
+extern "C"
+{
+	GDTPointer GDTLimits;
+}
+
 static GDTEntry GDT[] =
 {
     // Null - 0 index, 0x0 offset
@@ -107,8 +112,6 @@ static_assert(sizeof(GDTEntry) == 0x8);
 
 void InitGDT(uint8_t* target)
 {
-	GDTPointer GDTLimits;
-
     GDTLimits.Limit = sizeof(GDT) - 1;
     GDTLimits.Base = (uint64_t)target;
 
