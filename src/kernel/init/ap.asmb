@@ -16,9 +16,6 @@ APEntry:
 	;GDT
 	lgdt [APEntryDataGDTLimit]
 
-	mov ax, 0x10
-	mov ds, ax ;Clear the data segments
-
 	; Set PE flag to enter protected mode
 	mov eax, cr0
 	or eax, 1
@@ -30,32 +27,132 @@ APEntry:
 
 bits 32
 
-align 32
+align 16
 APEntryProtected32bit:
+	cli ;Re-disable interrupts again
 
-	mov eax, 0x10
-	mov ds, eax ;Clear the data segments
-	mov ss, eax
+	mov ax, 0x10
+	mov ds, ax ;Clear the data segments
+	mov ss, ax
+
+	; Disable any old paging setup
+	mov eax, cr0
+	and eax, ~(1 << 31)
+	mov cr0, eax
 
 	;Prepare the stack
-	mov esp, [APEntryDataStackHigh]
-	mov ebp, [APEntryDataStackHigh]
+	mov esp, [APTempStack]
+	mov ebp, [APTempStack]
 
-	mov eax, [APEntryDataEntryFunction]
-	jmp eax ;Jump to APEntryFunction
+	; Set the GDT
+	; Set the proper GDT
+	lgdt [GDTLimit64]
+
+	; Set PML4
+	mov eax, [PML4Table]
+	mov cr3, eax
+
+	; Enable PAE
+	mov eax, cr4
+	or eax, 1 << 5
+	mov cr4, eax
+
+	; Enable long mode
+	mov ecx, 0xC0000080
+	rdmsr
+	or eax, 1 << 8
+	wrmsr
+
+	; Enable PG and PE flags
+	mov eax, cr0
+	or eax, 1 << 31
+	mov cr0, eax
+
+	jmp 0x8:EnterLongMode ;Set 64bit code segment
+
+	hlt ;Should never get here
+
+bits 64
+
+align 16
+EnterLongMode: 
+	cli
+	
+	mov ax, 0x10 ; DS register offset
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+    mov ss, ax
+
+	push 0x08 ; CS register offset <-- crashes here
+    lea rax, [rel PrepareToEnterC]
+
+HACF: hlt
+	jmp HACF
+
+    push rax
+    retfq ; This jumps to PrepareToEnterC
+
+PrepareToEnterC:
+	cli
+	hlt
+
+	; Set the IDT
+	lidt [IDTLimit]
+
+	;Re-enable interrupts
+	sti
+
+	hlt
+
+	;Prepare the real stack
+	mov rsp, [APEntryDataEntryStack]
+	mov rbp, [APEntryDataEntryStack]
+
+	mov rax, [APEntryDataEntryFunction]
+	jmp rax ;Jump to APEntryFunction
 
     hlt ;Should never get here
 
-align 32
+align 16
 
 GDTTableNull dq 0x0
 GDTTableCode dq 0x00CF9A000000FFFF
 GDTTableData dq 0x00CF92000000FFFF
 GDTTableEnd  dq 0x0
 
-GDTLimitPad dw 0xCCCC
+align 16
 APEntryDataGDTLimit dw (GDTTableEnd - GDTTableNull - 1)
 APEntryDataGDTBase dd GDTTableNull
 
-APEntryDataStackHigh dd 0x0
-APEntryDataEntryFunction dd 0x0
+; This block maps to struct APInitData.
+
+align 8
+Anchor1 dq 0xBADF00DA77C0FFEE
+
+APTempStack dd 0xAAAAAAAA
+PML4Table dd 0xBBBBBBBB
+
+align 8
+Anchor2 dq 0xBADF00DA77C0FFEE
+
+align 8
+APEntryDataEntryStack dq 0xAAAAAAAAAAAAAAAA
+APEntryDataEntryFunction dq 0x0
+
+Anchor3 dq 0xBADF00DA77C0FFEE
+
+align 8
+GDTLimit64 dw 0x0
+GDTBase64 dq 0x0
+
+align 8
+Anchor4 dq 0xBADF00DA77C0FFEE
+
+align 8
+IDTLimit dw 0x0
+IDTBase dq 0x0
+
+align 8
+Anchor5 dq 0xBADF00DA77C0FFEE

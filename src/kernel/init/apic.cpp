@@ -1,15 +1,41 @@
 #include "kernel/init/bootload.h"
 #include "kernel/init/apic.h"
+#include "kernel/init/gdt.h"
 #include "kernel/init/pic.h"
 #include "kernel/init/msr.h"
 #include "kernel/console/console.h"
 #include "common/string.h"
 #include "memory/physical.h"
 #include "kernel/scheduling/time.h"
+#include "utilities/termination.h"
 
 #include "Protocol/AcpiSystemDescriptionTable.h"
 
 #include "ap.htemp"
+
+const static uint64_t AnchorValue = 0xBADF00DA77C0FFEE;
+struct APInitData
+{
+	uint64_t Anchor1;
+
+	uint32_t TempStack;
+	uint32_t PML4;
+
+	uint64_t Anchor2;
+
+	uint64_t APEntryStack;
+	uint64_t APEntryFunction;
+
+	uint64_t Anchor3;
+
+	GDTPointer GDT;
+
+	uint64_t Anchor4;
+
+	GDTPointer IDT;
+
+	uint64_t Anchor5;
+};
 
 struct EFI_ACPI_HIGH_PRECISION_EVENT_TIMER_TABLE_HEADER;
 void InitHPET(EFI_ACPI_HIGH_PRECISION_EVENT_TIMER_TABLE_HEADER* Header);
@@ -48,17 +74,22 @@ uint64_t APStackHigh = 0x0;
 volatile uint64_t APSignal = 0x0;
 
 extern uint64_t PML4;
-extern uint64_t GDTRegister;
+extern uint64_t GDTLimits;
 extern uint64_t IDTLimits;
 
-extern "C" void __attribute__((naked, used, noreturn)) APEntryFunction()
+extern "C" void __attribute__((__noreturn__, naked, used)) APEntryFunction()
 {
+	asm("int $3");
+
+	DebugBreak();
+
+	//This generates a 64bit instruction that we can't execute yet
+	APSignal = true;
+
 	while(true)
 	{
 	asm("hlt");
 	}
-
-	APSignal = true;
 
 	ConsolePrint(u"CORE ONLINE!\n");
 
@@ -74,7 +105,7 @@ void WriteLocalApic(uint32_t Offset, uint32_t Value, uint32_t Mask)
 	uint32_t NewValue = (Existing & ~Mask) | (Value & Mask);
 	*(volatile uint32_t*)(LocalApicVirtual+Offset) = NewValue;
 
-	/*char16_t Buffer[16];
+	char16_t Buffer[16];
 
 	ConsolePrint(u"Wrote to 0x");
 	witoabuf(Buffer, Offset, 16);
@@ -82,7 +113,7 @@ void WriteLocalApic(uint32_t Offset, uint32_t Value, uint32_t Mask)
 	ConsolePrint(u" value 0x");
 	witoabuf(Buffer, NewValue, 16);
 	ConsolePrint(Buffer);
-	ConsolePrint(u"\n");*/
+	ConsolePrint(u"\n");
 }
 
 uint32_t ReadLocalApic(uint32_t Offset)
@@ -135,11 +166,14 @@ void InitAPs()
 {
 	char16_t Buffer[16];
 
-	const int APStackSize = 256 * 1024;
-	uint64_t APStack = (uint64_t)VirtualAlloc(APStackSize);
-	APStackHigh = APStack + APStackSize;
+	const int APStackSize = 16 * 1024;
+	uint64_t APStackFinal = (uint64_t)VirtualAlloc(APStackSize);
+	uint64_t APStackHighFinal = APStackFinal + APStackSize;
 
 	uint8_t* APTrampoline = (uint8_t*)GBootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_APBootstrap].VirtualStart;
+
+	uint8_t* APTempStackHigh = (uint8_t*)GBootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_Tables].VirtualStart + (2*PAGE_SIZE) - 64;
+	memset(APTempStackHigh, 0xFE, 64);
 	
 	ProcessorCount = 2;
     for(unsigned int processor = 0; processor < ProcessorCount; processor++)
@@ -150,6 +184,7 @@ void InitAPs()
 		}
 
 		VirtualProtect(APTrampoline, PAGE_SIZE, MemoryProtection::ReadWrite, PageFlags_Cache_WriteThrough);
+		_ASSERTF(GetPhysicalAddress((uint64_t)APTrampoline) == (uint64_t)APTrampoline, "Expected identity address");
 
 		uint8_t* APTrampolinePtr = APTrampoline;
 
@@ -159,13 +194,29 @@ void InitAPs()
 
 		uint8_t* Data = APTrampoline+ap_bin_size;
 
-		Data -= sizeof(uint32_t);
-		uint32_t Temp32 = (uint32_t)(uint64_t)&APEntryFunction;
-		memcpy(Data, &Temp32, sizeof(uint32_t));
+		APInitData* DataBlock = (APInitData*)(Data - sizeof(APInitData));
+		_ASSERTF(DataBlock->Anchor1 == AnchorValue, "Misaligned anchor" );
+		_ASSERTF(DataBlock->Anchor2 == AnchorValue, "Misaligned anchor" );
+		_ASSERTF(DataBlock->Anchor3 == AnchorValue, "Misaligned anchor" );
+		_ASSERTF(DataBlock->Anchor4 == AnchorValue, "Misaligned anchor" );
+		_ASSERTF(DataBlock->Anchor5 == AnchorValue, "Misaligned anchor" );
 
-		Data -= sizeof(uint32_t);
-		Temp32 = (uint32_t)(uint64_t)APStackHigh;
-		memcpy(Data, &Temp32, sizeof(uint32_t));
+		_ASSERTF(DataBlock->TempStack == 0xAAAAAAAA, "Misaligned anchor" );
+		_ASSERTF(DataBlock->APEntryStack == 0xAAAAAAAAAAAAAAAA, "Misaligned anchor" );
+		_ASSERTF(DataBlock->PML4 == 0xBBBBBBBB, "Misaligned anchor" );
+
+		DataBlock->TempStack = (uint32_t)(uint64_t)APTempStackHigh;
+		DataBlock->APEntryStack = (uint64_t)APStackHighFinal;
+		DataBlock->PML4 = (uint32_t)(uint64_t)&PML4;
+		DataBlock->APEntryFunction = (uint64_t)&APEntryFunction;
+		memcpy( &DataBlock->GDT, &GDTLimits, 8+2 );
+		memcpy( &DataBlock->IDT, &IDTLimits, 8+2 );
+
+		_ASSERTF(DataBlock->Anchor1 == AnchorValue, "Corrupted anchor" );
+		_ASSERTF(DataBlock->Anchor2 == AnchorValue, "Corrupted anchor" );
+		_ASSERTF(DataBlock->Anchor3 == AnchorValue, "Corrupted anchor" );
+		_ASSERTF(DataBlock->Anchor4 == AnchorValue, "Corrupted anchor" );
+		_ASSERTF(DataBlock->Anchor5 == AnchorValue, "Corrupted anchor" );
 
 		VirtualProtect(APTrampoline, PAGE_SIZE, MemoryProtection::Execute);
 
@@ -175,9 +226,6 @@ void InitAPs()
 		StartupAddress &= 0xFF;
 
 		_ASSERTF(StartupAddress == StartupAddressTemp, "Misaligned AP startup vector");
-
-		//WHYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY
-		StartupAddress *= 2;
 
 		// Set the target processor's APIC ID and send INIT IPI
 		WriteLocalApic( (uint32_t)LocalApicOffsets::ErrorStatusRegister, 0, ~0);
