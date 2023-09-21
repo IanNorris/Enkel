@@ -68,7 +68,7 @@ static GDTEntry GDT[] =
         .Granularity = 1, //4KiB
         .BaseHigh = 0
     },
-	// Code (32bit) - 3 index, 0x18 offset
+	/* Code (32bit) - 3 index, 0x18 offset
     {
         .LimitLow = 0xFFFF,
         .BaseLow = 0,
@@ -105,7 +105,7 @@ static GDTEntry GDT[] =
         .OpSize = 1,
         .Granularity = 1, //4KiB
         .BaseHigh = 0
-    }
+    }*/
 };
 
 static_assert(sizeof(GDTEntry) == 0x8);
