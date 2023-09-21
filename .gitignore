@@ -389,3 +389,4 @@ gdb.txt
 *.htemp
 ap.bin
 temp/
+*.lst

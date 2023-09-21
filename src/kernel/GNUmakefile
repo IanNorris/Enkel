@@ -159,10 +159,10 @@ $(KERNEL): $(NASMBINFILES:.asmb=.asmb.o) $(OBJ) $(CPPFILES) $(LDTEMPLATE) $(NASM
 
 # Compilation rules for *.asm (nasm) files.
 %.asm.o: %.asm
-	nasm $(NASMFLAGS) $< -o $@
+	nasm $(NASMFLAGS) -l $(basename $<).lst $< -o $@
 
 %.asmb.o: %.asmb
-	nasm $(NASMBINFLAGS) $< -o $(basename $<).bin
+	nasm $(NASMBINFLAGS) -l $(basename $<).lst $< -o $(basename $<).bin
 	python3 $(TOOLS)/bin2c.py $(basename $<).bin $(basename $<)
 	mv $(basename $<).h $(basename $<).htemp
 	mv $(basename $<).cpp $(basename $<).cpptemp
