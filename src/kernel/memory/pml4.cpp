@@ -29,6 +29,11 @@ struct SPagingStructurePage
 #define WRITABLE 2
 #define NOT_EXECUTABLE (1ULL << 63)
 
+#define PM_RESERVED_MASK 0xF000000000000
+#define PML4_RESERVED_MASK 0xF000000000000 | 0x80
+
+#define CHECK_PML4_RESERVED_BITS(entry, mask) _ASSERTF(((entry) & (mask)) == 0, "Reserved bits set")
+
 static_assert(1 << PAGE_BITS == PAGE_SIZE, "Page size and page bits not consistent.");
 static_assert(EFI_PAGE_SIZE == PAGE_SIZE, "Page sizes between kernel and EFI should match.");
 static_assert(sizeof(SPagingStructurePage) == PAGE_SIZE, "Paging structure should be 1 page in size.");
@@ -168,6 +173,7 @@ void MapPages(uint64_t virtualAddress, uint64_t physicalAddress, uint64_t size, 
         {
             PDPT = GetPML4FreePage();
 			PML4.Entries[pml4Index] = ((uint64_t)PDPT) | PRESENT | WRITABLE;
+			CHECK_PML4_RESERVED_BITS(PML4.Entries[pml4Index], PML4_RESERVED_MASK);
 		}
 
 		// Set up PDPT
@@ -179,6 +185,7 @@ void MapPages(uint64_t virtualAddress, uint64_t physicalAddress, uint64_t size, 
         {
             PD = GetPML4FreePage();
             PDPT->Entries[pdptIndex] = ((uint64_t)PD) | PRESENT | WRITABLE;
+			CHECK_PML4_RESERVED_BITS(PDPT->Entries[pdptIndex], PM_RESERVED_MASK);
         }
 
 		// Set up the PD
@@ -190,6 +197,7 @@ void MapPages(uint64_t virtualAddress, uint64_t physicalAddress, uint64_t size, 
         {
 			PT = GetPML4FreePage();
 			PD->Entries[pdIndex] = ((uint64_t)PT) | PRESENT | WRITABLE;
+			CHECK_PML4_RESERVED_BITS(PD->Entries[pdIndex], PM_RESERVED_MASK);
 		}
 
         if(newState == MemoryState::RangeState::Free)
@@ -225,6 +233,8 @@ void MapPages(uint64_t virtualAddress, uint64_t physicalAddress, uint64_t size, 
 			{
 				PT->Entries[ptIndex] |= WRITE_THROUGH;
 			}
+
+			CHECK_PML4_RESERVED_BITS(PT->Entries[ptIndex], PM_RESERVED_MASK);
 
             uint64_t newPhysicalAddress = GetPhysicalAddress(virtualAddress);
             _ASSERTF(physicalAddress == newPhysicalAddress, "Physical address mismatch.");
