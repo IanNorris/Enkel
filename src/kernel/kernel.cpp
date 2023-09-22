@@ -74,7 +74,7 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 	InitPIC();
 	InitApic(GBootData.Xsdt);
 	
-	//ConsolePrint(u"Exiting\n");
+	ConsolePrint(u"Ready!\n");
 	//HaltPermanently();
 
 	while(true)

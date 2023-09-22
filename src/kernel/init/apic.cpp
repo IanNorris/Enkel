@@ -83,7 +83,6 @@ extern "C" void __attribute__((__noreturn__, used)) APEntryFunction()
 {
 	int NewCoreIndex = CoreIndex++;
 
-	//This generates a 64bit instruction that we can't execute yet
 	APSignal = true;
 
 	int32_t X = 700;
@@ -252,23 +251,13 @@ void InitAPs()
 			WaitForIdleIPI();
 		}
 
-		char16_t Buffer[16];
-
-		ConsolePrint(u"AP initialized ");
-		witoabuf(Buffer, processor, 10);
-		ConsolePrint(Buffer);
-		ConsolePrint(u"\n");
-
 		while(APSignal == 0)
 		{
 			asm volatile("pause");
 		}
-
-		ConsolePrint(u"AP signalled ");
-		witoabuf(Buffer, processor, 10);
-		ConsolePrint(Buffer);
-		ConsolePrint(u"\n");
     }
+
+	ConsolePrint(u"All cores online.\n");
 }
 
 void InitMADT(EFI_ACPI_2_0_MULTIPLE_APIC_DESCRIPTION_TABLE_HEADER* MADT)
