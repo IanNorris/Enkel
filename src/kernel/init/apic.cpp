@@ -77,21 +77,18 @@ extern uint64_t PML4;
 extern uint64_t GDTLimits;
 extern uint64_t IDTLimits;
 
-extern "C" void __attribute__((__noreturn__, naked, used)) APEntryFunction()
-{
-	asm("int $3");
+int CoreIndex = 0;
 
-	DebugBreak();
+extern "C" void __attribute__((__noreturn__, used)) APEntryFunction()
+{
+	int NewCoreIndex = CoreIndex++;
 
 	//This generates a 64bit instruction that we can't execute yet
 	APSignal = true;
 
-	while(true)
-	{
-	asm("hlt");
-	}
-
-	ConsolePrint(u"CORE ONLINE!\n");
+	int32_t X = 700;
+	int32_t Y = 40 * NewCoreIndex;
+	ConsolePrintAtPos(u"CORE ONLINE!\n", X, Y, 0, nullptr);
 
 	while(true)
 	{
@@ -105,7 +102,7 @@ void WriteLocalApic(uint32_t Offset, uint32_t Value, uint32_t Mask)
 	uint32_t NewValue = (Existing & ~Mask) | (Value & Mask);
 	*(volatile uint32_t*)(LocalApicVirtual+Offset) = NewValue;
 
-	char16_t Buffer[16];
+	/*char16_t Buffer[16];
 
 	ConsolePrint(u"Wrote to 0x");
 	witoabuf(Buffer, Offset, 16);
@@ -113,7 +110,7 @@ void WriteLocalApic(uint32_t Offset, uint32_t Value, uint32_t Mask)
 	ConsolePrint(u" value 0x");
 	witoabuf(Buffer, NewValue, 16);
 	ConsolePrint(Buffer);
-	ConsolePrint(u"\n");
+	ConsolePrint(u"\n");*/
 }
 
 uint32_t ReadLocalApic(uint32_t Offset)
@@ -172,10 +169,9 @@ void InitAPs()
 
 	uint8_t* APTrampoline = (uint8_t*)GBootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_APBootstrap].VirtualStart;
 
-	uint8_t* APTempStackHigh = (uint8_t*)GBootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_Tables].VirtualStart + (2*PAGE_SIZE) - 64;
-	memset(APTempStackHigh, 0xFE, 64);
+	uint8_t* APTempStackHigh = (uint8_t*)GBootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_Tables].VirtualStart + (2*PAGE_SIZE) - 64; //TODO: Remove this -64
+	memset(APTempStackHigh - 0x200, 0xFE, 0x200);
 	
-	ProcessorCount = 2;
     for(unsigned int processor = 0; processor < ProcessorCount; processor++)
 	{
 		if(ProcessorIds[processor] == BSPId)

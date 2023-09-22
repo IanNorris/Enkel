@@ -6,12 +6,7 @@ APEntry:
 	cli ; Disable interrupts
 	cld ; Clear direction. Ensure memory ops go forward through memory
 
-	;We'll do the IDT from C++ once we're in 64bit long mode
-
-	; Enable A20 line (access memory >1MB)
-	in al, 0x92
-    or al, 0x2
-    out 0x92, al
+	;We'll do the IDT from C++ once we're in 64bit long mode so we don't need a 32bit IDT as well
 
 	;GDT
 	lgdt [APEntryDataGDTLimit]
@@ -60,7 +55,8 @@ APEntryProtected32bit:
 	; Enable long mode
 	mov ecx, 0xC0000080
 	rdmsr
-	or eax, 1 << 8
+	or eax, 1 << 8 ; long mode
+	or eax, 1 << 11 ; NX bit - allows us to mark pages as NX
 	wrmsr
 
 	; Enable PG and PE flags
@@ -85,26 +81,14 @@ EnterLongMode:
     mov gs, ax
     mov ss, ax
 
-	push 0x08 ; CS register offset <-- crashes here
-    lea rax, [rel PrepareToEnterC]
-
-HACF: hlt
-	jmp HACF
-
-    push rax
-    retfq ; This jumps to PrepareToEnterC
-
 PrepareToEnterC:
 	cli
-	hlt
 
 	; Set the IDT
 	lidt [IDTLimit]
 
 	;Re-enable interrupts
 	sti
-
-	hlt
 
 	;Prepare the real stack
 	mov rsp, [APEntryDataEntryStack]
