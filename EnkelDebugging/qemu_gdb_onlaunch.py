@@ -45,12 +45,86 @@ class OnKernelMainHook(gdb.Breakpoint):
         MainScript()
         return False
 
+def get_pml4_base():
+    # Execute the "info registers cr3" command and capture its output
+    output = gdb.execute("info registers cr3", to_string=True)
+
+    # Extract the PDBR value from the output string
+    pml4_base = int(output.split()[1], 16)
+
+    return pml4_base
+
+def translate_address(virtual_address):
+    # Get the base address of the PML4 from the CR3 register
+    pml4_base = get_pml4_base()
+
+    # Calculate the address of the PML4 entry
+    pml4_entry = pml4_base + ((virtual_address >> 39) & 0x1FF) * 8
+
+    # Get the PML4 entry
+    pml4_value = gdb.parse_and_eval("*((unsigned long long *)%s)" % pml4_entry)
+
+    # Check if the PML4 entry is present
+    if not pml4_value & 1:
+        raise Exception("Address not mapped (PML4 entry not present)")
+
+    # Get the base address of the PDPT from the PML4 entry
+    pdpt_base = pml4_value & 0x7ffffffffffff000
+    pt_entry_value = None
+
+    # Repeat the process for the PDPT, PDT, and PT
+    for level, shift in [("PDPT", 30), ("PDT", 21), ("PT", 12)]:
+        entry_address = pdpt_base + ((virtual_address >> shift) & 0x1FF) * 8
+        entry_value = gdb.parse_and_eval("*((unsigned long long *)%s)" % entry_address)
+
+        # Check if the entry is present
+        if not entry_value & 1:
+            raise Exception("Address not mapped (%s entry not present)" % level)
+
+        pdpt_base = entry_value & 0x7ffffffffffff000
+        
+        if level == "PT":
+            pt_entry_value = entry_value
+
+    # Calculate the physical address
+    physical_address = pdpt_base + (virtual_address & 0xFFF)
+
+	# Print the flags
+    if pt_entry_value is not None:
+        p = pt_entry_value & 1
+        rw = (pt_entry_value >> 1) & 1
+        us = (pt_entry_value >> 2) & 1
+        pwt = (pt_entry_value >> 3) & 1
+        pcd = (pt_entry_value >> 4) & 1
+        a = (pt_entry_value >> 5) & 1
+        d = (pt_entry_value >> 6) & 1
+        pat = (pt_entry_value >> 7) & 1
+        g = (pt_entry_value >> 8) & 1
+        nx = (pt_entry_value >> 63) & 1
+        print("PT value: %x, Present: %d\nR/W: %d\nUser/Supervisor: %d\nPageWriteThrough: %d\nPageCacheDisable: %d\nAccessed: %d\nDirty: %d\nPageAttributeTable: %d\nGlobal: %d\nNoExecute: %d\n" % (pt_entry_value, p, rw, us, pwt, pcd, a, d, pat, g, nx))
+
+    return physical_address
+
+class TranslateCommand(gdb.Command):
+    def __init__(self):
+        super(TranslateCommand, self).__init__("translate_address", gdb.COMMAND_USER)
+
+    def invoke(self, arg, from_tty):
+        virtual_address = int(arg, 0)
+        try:
+            physical_address = translate_address(virtual_address)
+            print("Virtual address 0x%x translates to physical address 0x%x" % (virtual_address, physical_address))
+        except Exception as e:
+            print(str(e))
+
 def MainScript():
     print("Enkel gdb scripts starting...")
     gdb.execute("interrupt")
 
     print("Setting GIsDebuggerPresent")
     gdb.parse_and_eval("GIsDebuggerPresent = true")
+    
+    TranslateCommand()
 
     print("Setting debugger hook")
     DebuggerHook("DebuggerHook")
