@@ -12,11 +12,11 @@ I was looking for non-English synonyms for "simple" and "small" and `enkel` mean
 
 ## Can I use this as my main OS?
 
-No. At this point I don't think it even call it an operating system.
+No. I don't think you can even call it an operating system at this point.
 
 ## Will it work on device X?
 
-No, I'm employing the principle of `It works on my machine`, except right now it does't even do *that*!.
+No, I'm employing the principle of `It works on my machine`, except right now it doesn't even do *that*!.
 
 ## What is the license?
 
