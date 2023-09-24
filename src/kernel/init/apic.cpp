@@ -9,9 +9,11 @@
 #include "kernel/scheduling/time.h"
 #include "utilities/termination.h"
 
-#include "Protocol/AcpiSystemDescriptionTable.h"
+#include "IndustryStandard/MemoryMappedConfigurationSpaceAccessTable.h"
 
 #include "ap.htemp"
+
+uint32_t GRdsp;
 
 const static uint64_t AnchorValue = 0xBADF00DA77C0FFEE;
 struct APInitData
@@ -337,10 +339,14 @@ void InitMADT(EFI_ACPI_2_0_MULTIPLE_APIC_DESCRIPTION_TABLE_HEADER* MADT)
 	InitAPs();
 }
 
-void InitApic(EFI_ACPI_DESCRIPTION_HEADER* Xsdt)
+void InitApic(EFI_ACPI_SDT_HEADER* Rsdt, EFI_ACPI_DESCRIPTION_HEADER* Xsdt)
 {
+	GRdsp = (uint32_t)(uint64_t)Rsdt;
+
 	EFI_ACPI_2_0_MULTIPLE_APIC_DESCRIPTION_TABLE_HEADER* MADT = nullptr;
+	EFI_ACPI_2_0_FIXED_ACPI_DESCRIPTION_TABLE* FACP = nullptr;
 	EFI_ACPI_HIGH_PRECISION_EVENT_TIMER_TABLE_HEADER* HPET = nullptr;
+	EFI_ACPI_MEMORY_MAPPED_CONFIGURATION_BASE_ADDRESS_TABLE_HEADER* MCFG = nullptr;
 
 	int XsdtEntries = (Xsdt->Length - sizeof(EFI_ACPI_DESCRIPTION_HEADER)) / sizeof(EFI_ACPI_DESCRIPTION_HEADER*); //Take off the header and each entry is 8b
 	for(int XsdtEntry = 0; XsdtEntry < XsdtEntries; XsdtEntry++)
@@ -353,6 +359,10 @@ void InitApic(EFI_ACPI_DESCRIPTION_HEADER* Xsdt)
 			MADT = (EFI_ACPI_2_0_MULTIPLE_APIC_DESCRIPTION_TABLE_HEADER*)Header;
 			
 		}
+		if(Header->Signature == EFI_ACPI_2_0_FIXED_ACPI_DESCRIPTION_TABLE_SIGNATURE)
+		{
+			FACP = (EFI_ACPI_2_0_FIXED_ACPI_DESCRIPTION_TABLE*)Header;
+		}
 		//HPET
 		else if(Header->Signature == EFI_ACPI_3_0_HIGH_PRECISION_EVENT_TIMER_TABLE_SIGNATURE)
 		{
@@ -360,6 +370,8 @@ void InitApic(EFI_ACPI_DESCRIPTION_HEADER* Xsdt)
 		}
 	}
 
+	_ASSERTF(FACP, "FACP was not found in XSDT");
+	
 	_ASSERTF(HPET, "HPET was not found in XSDT");
 	InitHPET(HPET);
 

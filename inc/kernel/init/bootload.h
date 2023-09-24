@@ -10,6 +10,7 @@
 #define NULL nullptr
 #include "Protocol/GraphicsOutput.h"
 #include "IndustryStandard/Acpi61.h"
+#include "Protocol/AcpiSystemDescriptionTable.h"
 
 #include "kernel/framebuffer/framebuffer.h"
 
@@ -61,6 +62,7 @@ struct KernelBootData
 	EFI_GRAPHICS_OUTPUT_PROTOCOL* GraphicsOutput;
 	EFI_RUNTIME_SERVICES* RuntimeServices;
 	EFI_ACPI_DESCRIPTION_HEADER* Xsdt;
+	EFI_ACPI_SDT_HEADER* Rsdt;
 	FramebufferLayout Framebuffer;
 };
 

@@ -14,6 +14,7 @@
 
 #include "Uefi.h"
 #include "IndustryStandard/Acpi61.h"
+#include "Protocol/AcpiSystemDescriptionTable.h"
 
 enum class LocalApicOffsets : uint32_t
 {
@@ -46,4 +47,4 @@ enum class LocalApicOffsets : uint32_t
 };
 
 
-void InitApic(EFI_ACPI_DESCRIPTION_HEADER* Xsdt);
+void InitApic(EFI_ACPI_SDT_HEADER* Rsdt, EFI_ACPI_DESCRIPTION_HEADER* Xsdt);

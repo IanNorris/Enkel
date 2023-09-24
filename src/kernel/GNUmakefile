@@ -5,7 +5,7 @@ override MAKEFLAGS += -rR
 # Change as needed.
 override KERNEL := enkel.elf
 
-override DEBUG_FLAGS := -g3 -O0
+override DEBUG_FLAGS := -g3 -O0 -D_DEBUG -DACPI_DEBUG_OUTPUT
 #override DEBUG_FLAGS := -O3
 
 # The name of the font
@@ -59,8 +59,10 @@ $(eval $(call DEFAULT_VAR,LDFLAGS,$(DEFAULT_LDFLAGS)))
 # -mgeneral-regs-only for interrupt handling (for now, see https://wiki.osdev.org/Interrupt_Service_Routines)
 override CFLAGS += \
     $(DEBUG_FLAGS) \
+	-D__ENKEL__ \
     -Wall \
     -Wextra \
+	-Wno-unused-parameter \
     -finput-charset=CP1252\
     -ffreestanding \
     -fno-stack-protector \
@@ -80,7 +82,8 @@ override CFLAGS += \
     -I $(FONT_ROOT) \
 	-I ../../inc \
     -I $(VENDOR_ROOT)/uefi-headers/Include/ \
-    -I $(VENDOR_ROOT)/uefi-headers/Include/X64
+    -I $(VENDOR_ROOT)/uefi-headers/Include/X64 \
+	-I $(VENDOR_ROOT)/acpica/source/include
 
 # Internal C preprocessor flags that should not be changed by the user.
 override CPPFLAGS := \
@@ -125,9 +128,12 @@ override HEADER_DEPS := $(CPPFILES:.cpp=.cpp.d) $(ASFILES:.S=.S.d)
 
 # Default target.
 .PHONY: force all
-all: $(NASMBINFILES) $(KERNEL) $(FONT_CPP_FILES) kernel_build.cpptemp.o $(FONT_H_FILES) $(NASMFILES)
+all: $(VENDOR_ROOT)/acpica_out/acpica.a $(NASMBINFILES) $(KERNEL) $(FONT_CPP_FILES) kernel_build.cpptemp.o $(FONT_H_FILES) $(NASMFILES)
 
 $(FONT_CPP_FILES) $(FONT_H_FILES): fonts
+
+$(VENDOR_ROOT)/acpica_out/acpica.a:
+	make -C $(VENDOR_ROOT)/acpica_out
 
 uefi-headers:
 	make -C $(VENDOR_ROOT)
@@ -141,8 +147,8 @@ fonts:
 	$(MAKE) -C ../../fonts
 
 # Link rules for the final kernel executable.
-$(KERNEL): $(NASMBINFILES:.asmb=.asmb.o) $(OBJ) $(CPPFILES) $(LDTEMPLATE) $(NASMFILES) uefi-headers kernel_build.cpptemp.o
-	$(LD) $(OBJ) kernel_build.cpptemp.o $(LDFLAGS) -Map=$(basename $@).map -o $@
+$(KERNEL): $(VENDOR_ROOT)/acpica_out/acpica.a $(NASMBINFILES:.asmb=.asmb.o) $(OBJ) $(CPPFILES) $(LDTEMPLATE) $(NASMFILES) uefi-headers kernel_build.cpptemp.o
+	$(LD) $(OBJ) kernel_build.cpptemp.o -L $(VENDOR_ROOT)/acpica_out -lacpica $(LDFLAGS) -Map=$(basename $@).map -o $@
 	rm -f kernel_build.cpptemp
 	rm -f kernel_build.cpptemp.o
 
