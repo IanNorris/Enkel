@@ -4,20 +4,10 @@
 #include "kernel/init/bootload.h"
 #include "kernel/init/init.h"
 #include "kernel/init/pic.h"
+#include "kernel/init/tls.h"
 #include "kernel/init/interrupts.h"
 #include "memory/memory.h"
 #include "memory/virtual.h"
-
-//Define this for rpmalloc (and other things later)
-int __errno_value = 0;
-
-extern "C"
-{
-	int* __errno_location(void)
-	{
-		return &__errno_value;
-	}
-}
 
 extern "C"
 {
@@ -239,14 +229,14 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 	ConsolePrint(KernelBuildId);
 	ConsolePrint(u")...\n");
 
-	CRTInit();
-
 	if (IsDebuggerPresent())
 	{
 		ConsolePrint(u"DEBUGGER ATTACHED!\n");
 	}
 
 	EnterLongMode(&GBootData);
+
+	InitializeTLS();
 
 	rpmalloc_config_t rpmConfig;
 	memset(&rpmConfig, 0, sizeof(rpmConfig));
@@ -257,7 +247,12 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 	rpmConfig.page_size = 4096;
 
 	rpmalloc_initialize_config(&rpmConfig);
-	//rpmalloc_thread_initialize(); //TODO add TLS support back to rpmalloc
+	rpmalloc_thread_initialize();
+
+	CRTInit();
+
+	//uint8_t* buffer = (uint8_t*)rpmalloc(128);
+	//buffer[3] = 0;
 
 	//This still doesn't work...
 	/*EFI_STATUS runtimeServicesAddressMapStatus = GBootData.RuntimeServices->SetVirtualAddressMap(GBootData.MemoryLayout.MapSize, GBootData.MemoryLayout.DescriptorSize, GBootData.MemoryLayout.DescriptorVersion, GBootData.MemoryLayout.Map);

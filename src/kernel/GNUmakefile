@@ -63,8 +63,8 @@ override CFLAGS += \
     $(DEBUG_FLAGS) \
 	-D__ENKEL__ \
 	-DARCH_64BIT \
-	-DRPMALLOC_CONFIGURABLE \
-	-DRPMALLOC_FIRST_CLASS_HEAPS \
+	-DRPMALLOC_CONFIGURABLE=1 \
+	-DRPMALLOC_FIRST_CLASS_HEAPS=0 \
     -Wall \
     -Wextra \
 	-Wno-unused-parameter \
@@ -84,6 +84,7 @@ override CFLAGS += \
     -mno-sse \
     -mno-sse2 \
     -mno-red-zone \
+	-mcmodel=large \
     -I $(FONT_ROOT) \
 	-I ../../inc \
     -I $(VENDOR_ROOT)/uefi-headers/Include/ \

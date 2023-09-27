@@ -15,6 +15,8 @@
 #include "rpmalloc.h"
 #undef __linux__
 
+#define RPMALLOC_CONFIGURABLE 1
+
 ////////////
 ///
 /// Build time configurable limits
@@ -744,7 +746,9 @@ get_thread_heap(void) {
 //! Fast thread ID
 static inline uintptr_t
 get_thread_id(void) {
-#if defined(_WIN32)
+#if defined(__ENKEL__)
+	return 1; //TODO threading
+#elif defined(_WIN32)
 	return (uintptr_t)((void*)NtCurrentTeb());
 #elif (defined(__GNUC__) || defined(__clang__)) && !defined(__CYGWIN__)
 	uintptr_t tid;
@@ -2741,7 +2745,7 @@ rpmalloc_initialize_config(const rpmalloc_config_t* config) {
 	GetSystemInfo(&system_info);
 	_memory_map_granularity = system_info.dwAllocationGranularity;
 #else
-	return 4096;
+	_memory_map_granularity = 4096;
 #endif
 
 #if RPMALLOC_CONFIGURABLE

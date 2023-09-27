@@ -83,6 +83,8 @@ int CoreIndex = 0;
 
 extern "C" void __attribute__((__noreturn__, used)) APEntryFunction()
 {
+	//TODO INIT TLS BASE
+
 	int NewCoreIndex = CoreIndex++;
 
 	APSignal = true;
