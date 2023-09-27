@@ -8,8 +8,12 @@
  * This library is put in the public domain; you can redistribute it and/or modify it without any restrictions.
  *
  */
+// WARNING 
+// WARNING This file has Enkel specific edits!
+// WARNING 
 
 #include "rpmalloc.h"
+#undef __linux__
 
 ////////////
 ///
@@ -880,6 +884,7 @@ _rpmalloc_unmap(void* address, size_t size, size_t offset, size_t release) {
 	_memory_config.memory_unmap(address, size, offset, release);
 }
 
+#if 0
 //! Default implementation to map new pages to virtual memory
 static void*
 _rpmalloc_mmap_os(size_t size, size_t* offset) {
@@ -999,6 +1004,7 @@ _rpmalloc_unmap_os(void* address, size_t size, size_t offset, size_t release) {
 	if (release)
 		_rpmalloc_stat_sub(&_mapped_pages_os, release >> _memory_page_size_shift);
 }
+#endif
 
 static void
 _rpmalloc_span_mark_as_subspan_unless_master(span_t* master, span_t* subspan, size_t span_count);
@@ -2725,8 +2731,8 @@ rpmalloc_initialize_config(const rpmalloc_config_t* config) {
 		memset(&_memory_config, 0, sizeof(rpmalloc_config_t));
 
 	if (!_memory_config.memory_map || !_memory_config.memory_unmap) {
-		_memory_config.memory_map = _rpmalloc_mmap_os;
-		_memory_config.memory_unmap = _rpmalloc_unmap_os;
+		//_memory_config.memory_map = _rpmalloc_mmap_os;
+		//_memory_config.memory_unmap = _rpmalloc_unmap_os;
 	}
 
 #if PLATFORM_WINDOWS
@@ -2735,7 +2741,7 @@ rpmalloc_initialize_config(const rpmalloc_config_t* config) {
 	GetSystemInfo(&system_info);
 	_memory_map_granularity = system_info.dwAllocationGranularity;
 #else
-	_memory_map_granularity = (size_t)sysconf(_SC_PAGESIZE);
+	return 4096;
 #endif
 
 #if RPMALLOC_CONFIGURABLE

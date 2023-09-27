@@ -29,6 +29,8 @@ endef
 
 VENDOR_ROOT := ../../vendor
 
+RPMALLOC_C_FILES := $(VENDOR_ROOT)/rpmalloc/rpmalloc/rpmalloc.c $(VENDOR_ROOT)/rpmalloc/rpmalloc/malloc.c
+
 # It is highly recommended to use a custom built cross toolchain to build a kernel.
 # We are only using "cc" as a placeholder here. It may work by using
 # the host system's toolchain, but this is not guaranteed.
@@ -60,6 +62,9 @@ $(eval $(call DEFAULT_VAR,LDFLAGS,$(DEFAULT_LDFLAGS)))
 override CFLAGS += \
     $(DEBUG_FLAGS) \
 	-D__ENKEL__ \
+	-DARCH_64BIT \
+	-DRPMALLOC_CONFIGURABLE \
+	-DRPMALLOC_FIRST_CLASS_HEAPS \
     -Wall \
     -Wextra \
 	-Wno-unused-parameter \
@@ -83,7 +88,8 @@ override CFLAGS += \
 	-I ../../inc \
     -I $(VENDOR_ROOT)/uefi-headers/Include/ \
     -I $(VENDOR_ROOT)/uefi-headers/Include/X64 \
-	-I $(VENDOR_ROOT)/acpica/source/include
+	-I $(VENDOR_ROOT)/acpica/source/include \
+	-I $(VENDOR_ROOT)/rpmalloc/rpmalloc
 
 # Internal C preprocessor flags that should not be changed by the user.
 override CPPFLAGS := \
@@ -119,16 +125,20 @@ override SFLAGS += \
 # Use "find" to glob all *.c, *.S, and *.asm files in the tree and obtain the
 # object and header dependency file names.
 override CPPFILES := $(shell find -L . -type f -name '*.cpp') $(FONT_CPP_FILES)
+override CFILES := $(RPMALLOC_C_FILES)
 override ASFILES := $(shell find -L . -type f -name '*.S')
 override NASMFILES := $(shell find -L . -type f -name '*.asm')
 override NASMBINFILES := $(shell find -L . -type f -name '*.asmb')
 override NASMBINFILES := $(shell find -L . -type f -name '*.asmb')
-override OBJ := $(CPPFILES:.cpp=.cpp.o) $(ASFILES:.S=.S.o) $(NASMFILES:.asm=.asm.o) $(NASMBINFILES:.asmb=.asmb.o)
-override HEADER_DEPS := $(CPPFILES:.cpp=.cpp.d) $(ASFILES:.S=.S.d)
+override OBJ := $(CPPFILES:.cpp=.cpp.o) $(CFILES:.c=.c.o) $(ASFILES:.S=.S.o) $(NASMFILES:.asm=.asm.o) $(NASMBINFILES:.asmb=.asmb.o)
+override HEADER_DEPS := $(CPPFILES:.cpp=.cpp.d) $(CFILES:.c=.c.d) $(ASFILES:.S=.S.d)
 
 # Default target.
 .PHONY: force all
-all: $(VENDOR_ROOT)/acpica_out/acpica.a $(NASMBINFILES) $(KERNEL) $(FONT_CPP_FILES) kernel_build.cpptemp.o $(FONT_H_FILES) $(NASMFILES)
+all: vendor $(VENDOR_ROOT)/acpica_out/acpica.a $(NASMBINFILES) $(KERNEL) $(FONT_CPP_FILES) kernel_build.cpptemp.o $(FONT_H_FILES) $(NASMFILES)
+
+vendor:
+	make -C $(VENDOR_ROOT)
 
 $(FONT_CPP_FILES) $(FONT_H_FILES): fonts
 
@@ -147,7 +157,7 @@ fonts:
 	$(MAKE) -C ../../fonts
 
 # Link rules for the final kernel executable.
-$(KERNEL): $(VENDOR_ROOT)/acpica_out/acpica.a $(NASMBINFILES:.asmb=.asmb.o) $(OBJ) $(CPPFILES) $(LDTEMPLATE) $(NASMFILES) uefi-headers kernel_build.cpptemp.o
+$(KERNEL): $(VENDOR_ROOT)/acpica_out/acpica.a $(NASMBINFILES:.asmb=.asmb.o) $(OBJ) $(CPPFILES) $(CFILES) $(LDTEMPLATE) $(NASMFILES) uefi-headers kernel_build.cpptemp.o
 	$(LD) $(OBJ) kernel_build.cpptemp.o -L $(VENDOR_ROOT)/acpica_out -lacpica $(LDFLAGS) -Map=$(basename $@).map -o $@
 	rm -f kernel_build.cpptemp
 	rm -f kernel_build.cpptemp.o
@@ -158,6 +168,9 @@ $(KERNEL): $(VENDOR_ROOT)/acpica_out/acpica.a $(NASMBINFILES:.asmb=.asmb.o) $(OB
 # Compilation rules for *.cpp files.
 %.cpp.o: %.cpp
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@
+
+%.c.o: %.c
+	$(CC) $(CFLAGS) $(CFLAGS) -c $< -o $@
 
 # Compilation rules for *.S files.
 %.S.o: %.S

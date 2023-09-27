@@ -158,6 +158,8 @@
 #include "kernel/scheduling/time.h"
 #include "utilities/termination.h"
 
+#include "rpmalloc.h"
+
 extern "C"
 {
 #include "acpi.h"
@@ -293,9 +295,7 @@ void *
 AcpiOsAllocate (
     ACPI_SIZE               Size)
 {
-	_ASSERTF(false, "Not implemented");
-	return 0;
-    //return (k_malloc (Size));
+	return rpmalloc(Size);
 }
 
 
@@ -1366,19 +1366,6 @@ AcpiAhMatchHardwareId (
     return (NULL);
 }
 
-//TODO: DELETE ME
-static void* malloc(int size)
-{
-	_ASSERTF(false, "Not implemented");
-	return NULL;
-}
-
-static void free(void* ptr)
-{
-	_ASSERTF(false, "Not implemented");
-}
-
-
 ACPI_STATUS
 AcpiOsCreateCache (
     char                    *CacheName,
@@ -1389,7 +1376,7 @@ AcpiOsCreateCache (
     ACPI_MEMORY_LIST        *NewCache;
 
 
-    NewCache = (ACPI_MEMORY_LIST*)malloc (sizeof (ACPI_MEMORY_LIST));
+    NewCache = (ACPI_MEMORY_LIST*)rpmalloc (sizeof (ACPI_MEMORY_LIST));
     if (!NewCache)
     {
         return (AE_NO_MEMORY);
@@ -1408,7 +1395,7 @@ ACPI_STATUS
 AcpiOsDeleteCache (
     ACPI_CACHE_T            *Cache)
 {
-    free (Cache);
+    rpfree (Cache);
     return (AE_OK);
 }
 
@@ -1418,7 +1405,7 @@ AcpiOsAcquireObject (
 {
     void                    *NewObject;
 
-    NewObject = malloc (((ACPI_MEMORY_LIST *) Cache)->ObjectSize);
+    NewObject = rpmalloc (((ACPI_MEMORY_LIST *) Cache)->ObjectSize);
     memset (NewObject, 0, ((ACPI_MEMORY_LIST *) Cache)->ObjectSize);
 
     return (NewObject);
@@ -1429,7 +1416,7 @@ AcpiOsReleaseObject (
     ACPI_CACHE_T            *Cache,
     void                    *Object)
 {
-    free (Object);
+    rpfree (Object);
     return (AE_OK);
 }
 

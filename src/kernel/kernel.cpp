@@ -8,6 +8,17 @@
 #include "memory/memory.h"
 #include "memory/virtual.h"
 
+//Define this for rpmalloc (and other things later)
+int __errno_value = 0;
+
+extern "C"
+{
+	int* __errno_location(void)
+	{
+		return &__errno_value;
+	}
+}
+
 extern "C"
 {
 #include "acpi.h"
@@ -42,8 +53,6 @@ extern "C" void CRTInit()
 		(*InitFunction)();
 	}
 }
-
-
 
 /******************************************************************************
  *
@@ -193,6 +202,30 @@ InitializeFullAcpica (void)
     return (AE_OK);
 }
 
+#include "rpnew.h"
+
+void OnRPMallocError(const char* message)
+{
+	char16_t Buffer[256];
+	char16_t* BufferPtr = Buffer;
+	while((*BufferPtr++ = *message) != 0 && (BufferPtr - Buffer < 255));
+
+	*BufferPtr = '\0';
+
+	ConsolePrint(Buffer);
+
+	_ASSERTF(false, "RPMalloc failed");
+}
+
+void* RPMallocMap(size_t size, size_t* offset)
+{
+	return VirtualAlloc(size);
+}
+
+void RPMallocUnmap(void* address, size_t size, size_t offset, size_t release)
+{
+	_ASSERTF(false, "Not implemented");
+}
 
 extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootData * BootData)
 {
@@ -214,6 +247,17 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 	}
 
 	EnterLongMode(&GBootData);
+
+	rpmalloc_config_t rpmConfig;
+	memset(&rpmConfig, 0, sizeof(rpmConfig));
+
+	rpmConfig.memory_map = &RPMallocMap;
+	rpmConfig.memory_unmap = &RPMallocUnmap;
+	rpmConfig.error_callback = &OnRPMallocError;
+	rpmConfig.page_size = 4096;
+
+	rpmalloc_initialize_config(&rpmConfig);
+	//rpmalloc_thread_initialize(); //TODO add TLS support back to rpmalloc
 
 	//This still doesn't work...
 	/*EFI_STATUS runtimeServicesAddressMapStatus = GBootData.RuntimeServices->SetVirtualAddressMap(GBootData.MemoryLayout.MapSize, GBootData.MemoryLayout.DescriptorSize, GBootData.MemoryLayout.DescriptorVersion, GBootData.MemoryLayout.Map);
