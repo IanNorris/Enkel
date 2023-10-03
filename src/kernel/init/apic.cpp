@@ -81,9 +81,13 @@ extern uint64_t IDTLimits;
 
 int CoreIndex = 0;
 
-extern "C" void __attribute__((__noreturn__, used)) APEntryFunction()
+extern "C" void KERNEL_API __attribute__((__noreturn__, used)) APEntryFunction()
 {
 	//TODO INIT TLS BASE
+
+	uint32_t TestValue = 0xBADF00C;
+	TestValue++;
+	_ASSERTF(TestValue == 0xBADF00D, "Sentinel mismatch");
 
 	int NewCoreIndex = CoreIndex++;
 
@@ -170,10 +174,17 @@ void InitAPs()
 	uint64_t APStackFinal = (uint64_t)VirtualAlloc(APStackSize);
 	uint64_t APStackHighFinal = APStackFinal + APStackSize;
 
+	uint64_t Value = *(uint64_t*)APStackFinal;
+
+	//memset((void*)(APStackHighFinal-0x200), 0xCD, 0x200);
+	memset((void*)(APStackFinal), 0xC1, 4096);
+
+	uint64_t Value2 = *(uint64_t*)APStackFinal;
+
 	uint8_t* APTrampoline = (uint8_t*)GBootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_APBootstrap].VirtualStart;
 
 	uint8_t* APTempStackHigh = (uint8_t*)GBootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_Tables].VirtualStart + (2*PAGE_SIZE) - 64; //TODO: Remove this -64
-	memset(APTempStackHigh - 0x200, 0xFE, 0x200);
+	memset(APTempStackHigh - 0x200, 0xCD, 0x200);
 	
     for(unsigned int processor = 0; processor < ProcessorCount; processor++)
 	{
