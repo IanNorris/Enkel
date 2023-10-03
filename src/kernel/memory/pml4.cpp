@@ -18,6 +18,24 @@ struct SPagingStructurePage
 
 }__attribute__((aligned(4096)));
 
+//Extended spec flags (mostly mirrored from EFI_MEMORY_... in UefiSpec.h)
+#define UEFI_MEMORY_UC              0x0000000000000001
+#define UEFI_MEMORY_WC              0x0000000000000002
+#define UEFI_MEMORY_WT              0x0000000000000004
+#define UEFI_MEMORY_WB              0x0000000000000008
+#define UEFI_MEMORY_UCE             0x0000000000000010
+#define UEFI_MEMORY_WP              0x0000000000001000
+#define UEFI_MEMORY_RP              0x0000000000002000
+#define UEFI_MEMORY_XP              0x0000000000004000
+#define UEFI_MEMORY_NV              0x0000000000008000
+#define UEFI_MEMORY_MORE_RELIABLE   0x0000000000010000
+#define UEFI_MEMORY_RO              0x0000000000020000
+#define UEFI_MEMORY_SP              0x0000000000040000
+#define UEFI_MEMORY_CPU_CRYPTO      0x0000000000080000
+#define UEFI_MEMORY_RUNTIME         0x8000000000000000
+#define UEFI_MEMORY_ISA_VALID       0x4000000000000000
+#define UEFI_MEMORY_ISA_MASK        0x0FFFF00000000000
+
 #define PDPT_ENTRIES 512
 #define PD_ENTRIES 512
 #define PT_ENTRIES (512*512)
@@ -25,8 +43,15 @@ struct SPagingStructurePage
 #define WRITE_THROUGH (1ULL << 3)
 #define CACHE_DISABLE (1ULL << 4)
 
-#define PRESENT 1
-#define WRITABLE 2
+#define PRESENT (1ULL<<0)
+#define WRITABLE (1ULL<<1)
+#define USER_CPL (1ULL<<2)
+#define PAGE_LEVEL_WRITE_THROUGH (1ULL<<3)
+#define PAGE_CACHE_DISABLE (1ULL<<4)
+#define PAGE_WAS_ACCESSED (1ULL<<5)
+#define PAGE_IS_DIRTY (1ULL<<6)
+#define PAGE_PAT (1ULL<<7)
+#define PAGE_GLOBAL (1ULL<<8)
 #define NOT_EXECUTABLE (1ULL << 63)
 
 #define PM_RESERVED_MASK 0xF000000000000
@@ -75,13 +100,13 @@ SPagingStructurePage* GetPML4FreePage()
 
     Result->Entries[0] = 0;
 
+	memset(Result, 0, sizeof(SPagingStructurePage));
+
 	return Result;
 }
 
 void FreePML4Page(SPagingStructurePage* Page)
 {
-    memset(Page, 0, sizeof(SPagingStructurePage));
-
 	Page->Next = PagingFreePageHead;
 	PagingFreePageHead = Page;
 }
@@ -144,6 +169,9 @@ void MapPages(uint64_t virtualAddress, uint64_t physicalAddress, uint64_t size, 
 
     virtualAddress &= PAGE_MASK;
     physicalAddress &= PAGE_MASK;
+
+	_ASSERTF(originalVirtualAddress == virtualAddress, "Virtual address mismatch.");
+	_ASSERTF(originalPhysicalAddress == physicalAddress, "Physical address mismatch.");
 
     uint64_t pageAlignedSize = (size + (PAGE_SIZE-1)) & PAGE_MASK;
 
@@ -238,6 +266,12 @@ void MapPages(uint64_t virtualAddress, uint64_t physicalAddress, uint64_t size, 
 
             uint64_t newPhysicalAddress = GetPhysicalAddress(virtualAddress);
             _ASSERTF(physicalAddress == newPhysicalAddress, "Physical address mismatch.");
+
+			_ASSERTF(originalVirtualAddress == virtualAddress, "Virtual address mismatch.");
+			_ASSERTF(originalPhysicalAddress == physicalAddress, "Physical address mismatch.");
+
+			originalVirtualAddress += PAGE_SIZE;
+			originalPhysicalAddress += PAGE_SIZE;
         }
 
 		//Tell the CPU we've just invalidated that address.
@@ -253,6 +287,70 @@ void MapPages(uint64_t virtualAddress, uint64_t physicalAddress, uint64_t size, 
 	}
 }
 
+const char16_t* MemoryMapTypeToString(EFI_MEMORY_TYPE Type)
+{
+	switch(Type)
+	{
+		case EfiReservedMemoryType:
+			return u"EfiReservedMemoryType";
+
+		case EfiLoaderCode:
+			return u"EfiLoaderCode";
+
+		case EfiLoaderData:
+			return u"EfiLoaderData";
+
+		case EfiBootServicesCode:
+			return u"EfiBootServicesCode";
+
+		case EfiBootServicesData:
+			return u"EfiBootServicesData";
+			
+		case EfiRuntimeServicesCode:
+			return u"EfiRuntimeServicesCode";
+			
+		case EfiRuntimeServicesData:
+			return u"EfiRuntimeServicesData";
+			
+		case EfiConventionalMemory:
+			return u"EfiConventionalMemory";
+			
+		case EfiUnusableMemory:
+			return u"EfiUnusableMemory";
+			
+		case EfiACPIReclaimMemory:
+			return u"EfiACPIReclaimMemory";
+			
+		case EfiACPIMemoryNVS:
+			return u"EfiACPIMemoryNVS";
+			
+		case EfiMemoryMappedIO:
+			return u"EfiMemoryMappedIO";
+			
+		case EfiMemoryMappedIOPortSpace:
+			return u"EfiMemoryMappedIOPortSpace";
+			
+		case EfiPalCode:
+			return u"EfiPalCode";
+			
+		case EfiPersistentMemory:
+			return u"EfiPersistentMemory";
+			
+		default:
+			return u"EfiUnknown";
+	}
+}
+
+void LogPrintNumeric(const char16_t* Start, uint64_t Value, const char16_t* Suffix, int Base = 16)
+{
+	char16_t Buffer[32];
+
+	SerialPrint(Start);
+	witoabuf(Buffer, Value, Base);
+	SerialPrint(Buffer);
+	SerialPrint(Suffix);
+}
+
 void BuildPML4(KernelBootData* bootData)
 {
     char16_t Buffer[32];
@@ -265,7 +363,7 @@ void BuildPML4(KernelBootData* bootData)
         const EFI_MEMORY_DESCRIPTOR& Desc = *((EFI_MEMORY_DESCRIPTOR*)((UINT8*)memoryLayout.Map + (entry * memoryLayout.DescriptorSize)));
 
         uintptr_t End = Desc.PhysicalStart + Desc.NumberOfPages * EFI_PAGE_SIZE;
-        if (End > HighestAddress)
+        if (End > HighestAddress && Desc.Type == EfiConventionalMemory)
         {
             HighestAddress = End;
         }
@@ -296,7 +394,7 @@ void BuildPML4(KernelBootData* bootData)
     const KernelMemoryLocation& binary = bootData->MemoryLayout.SpecialLocations[SpecialMemoryLocation_KernelBinary];
     const KernelMemoryLocation& framebuffer = bootData->MemoryLayout.SpecialLocations[SpecialMemoryLocation_Framebuffer];
 
-    if(stack.PhysicalStart + stack.ByteSize > HighestAddress)
+ /*  if(stack.PhysicalStart + stack.ByteSize > HighestAddress)
     {
         HighestAddress = ((stack.PhysicalStart + stack.ByteSize + (PAGE_SIZE-1))) & PAGE_MASK;
     }
@@ -309,13 +407,13 @@ void BuildPML4(KernelBootData* bootData)
     if(framebuffer.PhysicalStart + framebuffer.ByteSize > HighestAddress)
     {
         HighestAddress = ((framebuffer.PhysicalStart + framebuffer.ByteSize + (PAGE_SIZE-1))) & PAGE_MASK;
-    }
+    }*/
 
 	//Chop off any straggling bits so we get full pages only
 	HighestAddress &= PAGE_MASK;
 
 	PhysicalMemoryState.Init(HighestAddress);
-	VirtualMemoryState.Init(2ULL << 48); //Limit set by x86-64 architecture.
+	VirtualMemoryState.Init(((~0ULL) & ~(PAGE_SIZE-1)) & PAGE_MASK); //Limit set by x86-64 architecture.
 
     PreparePML4FreeList();
  
@@ -328,6 +426,39 @@ void BuildPML4(KernelBootData* bootData)
 		bool IsFree =  Desc.Type == EfiConventionalMemory
 					|| Desc.Type == EfiBootServicesCode
 					|| Desc.Type == EfiBootServicesData;
+
+		SerialPrint("Type: ");
+		SerialPrint(MemoryMapTypeToString((EFI_MEMORY_TYPE)Desc.Type));
+		SerialPrint(", ");
+
+		LogPrintNumeric(u"FromV: ", Desc.VirtualStart, u", ");
+		LogPrintNumeric(u"ToV: ", Desc.VirtualStart + (Desc.NumberOfPages * PAGE_SIZE), u", ");
+
+		LogPrintNumeric(u"FromP: ", Desc.PhysicalStart, u", ");
+		LogPrintNumeric(u"ToP: ", Desc.PhysicalStart + (Desc.NumberOfPages * PAGE_SIZE), u", ");
+
+		LogPrintNumeric(u"Pages: ", Desc.NumberOfPages, u", ");
+		LogPrintNumeric(u"Bytes: ", Desc.NumberOfPages * PAGE_SIZE, u", ");
+
+		bool PrevBit = false;
+		if(Desc.Attribute & EFI_MEMORY_UC){ if(PrevBit){ SerialPrint("|"); } SerialPrint("EFI_MEMORY_UC"); PrevBit = true; }
+		if(Desc.Attribute & EFI_MEMORY_WC){ if(PrevBit){ SerialPrint("|"); } SerialPrint("EFI_MEMORY_WC"); PrevBit = true; }
+		if(Desc.Attribute & EFI_MEMORY_WT){ if(PrevBit){ SerialPrint("|"); } SerialPrint("EFI_MEMORY_WT"); PrevBit = true; }
+		if(Desc.Attribute & EFI_MEMORY_WB){ if(PrevBit){ SerialPrint("|"); } SerialPrint("EFI_MEMORY_WB"); PrevBit = true; }
+		if(Desc.Attribute & EFI_MEMORY_UCE){ if(PrevBit){ SerialPrint("|"); } SerialPrint("EFI_MEMORY_UCE"); PrevBit = true; }
+		if(Desc.Attribute & EFI_MEMORY_WP){ if(PrevBit){ SerialPrint("|"); } SerialPrint("EFI_MEMORY_WP"); PrevBit = true; }
+		if(Desc.Attribute & EFI_MEMORY_RP){ if(PrevBit){ SerialPrint("|"); } SerialPrint("EFI_MEMORY_RP"); PrevBit = true; }
+		if(Desc.Attribute & EFI_MEMORY_XP){ if(PrevBit){ SerialPrint("|"); } SerialPrint("EFI_MEMORY_XP"); PrevBit = true; }
+		if(Desc.Attribute & EFI_MEMORY_NV){ if(PrevBit){ SerialPrint("|"); } SerialPrint("EFI_MEMORY_NV"); PrevBit = true; }
+		if(Desc.Attribute & EFI_MEMORY_MORE_RELIABLE){ if(PrevBit){ SerialPrint("|"); } SerialPrint("EFI_MEMORY_MORE_RELIABLE"); PrevBit = true; }
+		if(Desc.Attribute & EFI_MEMORY_RO){ if(PrevBit){ SerialPrint("|"); } SerialPrint("EFI_MEMORY_RO"); PrevBit = true; }
+		if(Desc.Attribute & UEFI_MEMORY_SP){ if(PrevBit){ SerialPrint("|"); } SerialPrint("UEFI_MEMORY_SP"); PrevBit = true; }
+		if(Desc.Attribute & UEFI_MEMORY_CPU_CRYPTO){ if(PrevBit){ SerialPrint("|"); } SerialPrint("UEFI_MEMORY_CPU_CRYPTO"); PrevBit = true; }
+		if(Desc.Attribute & EFI_MEMORY_RUNTIME){ if(PrevBit){ SerialPrint("|"); } SerialPrint("EFI_MEMORY_RUNTIME"); PrevBit = true; }
+		if(Desc.Attribute & UEFI_MEMORY_ISA_VALID){ if(PrevBit){ SerialPrint("|"); } SerialPrint("UEFI_MEMORY_ISA_VALID"); PrevBit = true; }
+		if(Desc.Attribute & UEFI_MEMORY_ISA_MASK){ if(PrevBit){ SerialPrint("|"); } SerialPrint("UEFI_MEMORY_ISA_MASK"); PrevBit = true; }
+
+		SerialPrint("\n");
 
         if (!IsFree)
         {
