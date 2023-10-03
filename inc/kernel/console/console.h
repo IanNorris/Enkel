@@ -28,6 +28,9 @@ struct Console
 	uint32_t CurrentRow;
 };
 
+void SerialPrint(const char* String);
+void SerialPrint(const char16_t* String);
+
 const BMFont* GetFont(Console* Console = nullptr);
 
 void DefaultFontInit();

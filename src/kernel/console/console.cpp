@@ -77,6 +77,27 @@ void WriteSerial0(uint8_t character)
 	}
 }
 
+void SerialPrint(const char16_t* String)
+{
+	const char16_t* ToConsole = String;
+	while(*ToConsole)
+	{
+		WriteSerial0((char)*ToConsole);
+
+		ToConsole++;
+	}
+}
+
+void SerialPrint(const char* String)
+{
+	while(*String)
+	{
+		WriteSerial0((char)*String);
+
+		String++;
+	}
+}
+
 const BMFont* GetFont(Console* Console)
 {
 	if (Console == nullptr)
@@ -191,13 +212,7 @@ void ConsolePrintAtPos(const char16_t* String, int32_t& X, int32_t& Y, int32_t R
 
 void ConsolePrint(const char16_t* String, Console* Console)
 {
-	const char16_t* ToConsole = String;
-	while(*ToConsole)
-	{
-		WriteSerial0((char)*ToConsole);
-
-		ToConsole++;
-	}
+	SerialPrint(String);
 
 	if (Console == nullptr)
 	{
