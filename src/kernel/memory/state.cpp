@@ -26,11 +26,12 @@ MemoryState VirtualMemoryState;
 // If you encounter a leaf node (ie anything except a branch), the Address pointer
 // now contains the upper bound of the allocation from the parent's lower bound.
 
-void MemoryState::Init(const uint64_t HighestAddress)
+void MemoryState::Init(const uint64_t highestAddress)
 {
 	StateRoot = nullptr;
 	StateLeafFreeHead = nullptr;
 	StateBranchFreeHead = nullptr;
+	HighestAddress = highestAddress;
 
 	static_assert(sizeof(InitialLeafEntries) == sizeof(StateNode) * 4096, "Table size doesn't match expected");
 
@@ -52,7 +53,7 @@ void MemoryState::Init(const uint64_t HighestAddress)
 
    // Set the root to the first entry
     StateRoot = GetFreeBranchState();
-    StateRoot->SetAddress(HighestAddress);
+    StateRoot->SetAddress(highestAddress);
     StateRoot->State.State = RangeState::Free;
 }
 
@@ -101,6 +102,8 @@ MemoryState::StateNode* MemoryState::TagRangeInternal(StateNode* CurrentState, c
     }
     else
     {
+		_ASSERTF(Address >= LowAddress && Address >= HighAddress, "Address out of bounds");
+
         // We're on a leaf node. Check if we need to split it.
         if (!(LowAddress == OuterLowAddress && HighAddress == Address))
         {

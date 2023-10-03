@@ -8,7 +8,7 @@
 
 #define PAGE_BITS 12
 #define PAGE_SIZE 4096
-#define PAGE_MASK (~(PAGE_SIZE-1))
+#define PAGE_MASK 0x1FFFFFFFFF000
 
 class MemoryState
 {
@@ -69,12 +69,12 @@ public:
 
 	void TagRange(const uintptr_t LowAddress, const uintptr_t HighAddress, const RangeState State)
 	{
-		StateRoot = TagRangeInternal(StateRoot, LowAddress, HighAddress, State, 0ULL, ~0ULL);
+		StateRoot = TagRangeInternal(StateRoot, LowAddress, HighAddress, State, 0ULL, HighestAddress);
 	}
 
 	uintptr_t FindMinimumSizeFreeBlock(uint64_t MinSize)
 	{
-		return FindMinimumSizeFreeBlockInternal(StateRoot, MinSize, 0ULL, ~0ULL);
+		return FindMinimumSizeFreeBlockInternal(StateRoot, MinSize, 0ULL, HighestAddress);
 	}
 
 private:
@@ -188,6 +188,8 @@ private:
 
 	StateNode InitialLeafEntries[InitialLeafTableEntries];
 	BranchStateNode InitialBranchEntries[InitialBranchTableEntries];
+
+	uint64_t HighestAddress;
 
 	static_assert(sizeof(StateNode) == 8, "Leaf state not expected size");
 	static_assert(sizeof(BranchStateNode) == 40, "Branch state not expected size");
