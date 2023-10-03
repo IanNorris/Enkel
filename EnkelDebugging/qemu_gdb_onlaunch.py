@@ -68,6 +68,9 @@ def translate_address(virtual_address):
     if not pml4_value & 1:
         raise Exception("Address not mapped (PML4 entry not present)")
 
+    # Print flags for PML4
+    print_flags("PML4", pml4_value)
+
     # Get the base address of the PDPT from the PML4 entry
     pdpt_base = pml4_value & 0x7ffffffffffff000
     pt_entry_value = None
@@ -77,33 +80,36 @@ def translate_address(virtual_address):
         entry_address = pdpt_base + ((virtual_address >> shift) & 0x1FF) * 8
         entry_value = gdb.parse_and_eval("*((unsigned long long *)%s)" % entry_address)
 
+        # Print flags for the current level
+        print_flags(level, entry_value)
+
         # Check if the entry is present
         if not entry_value & 1:
             raise Exception("Address not mapped (%s entry not present)" % level)
 
         pdpt_base = entry_value & 0x7ffffffffffff000
-        
+
         if level == "PT":
             pt_entry_value = entry_value
 
     # Calculate the physical address
     physical_address = pdpt_base + (virtual_address & 0xFFF)
 
-	# Print the flags
-    if pt_entry_value is not None:
-        p = pt_entry_value & 1
-        rw = (pt_entry_value >> 1) & 1
-        us = (pt_entry_value >> 2) & 1
-        pwt = (pt_entry_value >> 3) & 1
-        pcd = (pt_entry_value >> 4) & 1
-        a = (pt_entry_value >> 5) & 1
-        d = (pt_entry_value >> 6) & 1
-        pat = (pt_entry_value >> 7) & 1
-        g = (pt_entry_value >> 8) & 1
-        nx = (pt_entry_value >> 63) & 1
-        print("PT value: %x, Present: %d\nR/W: %d\nUser/Supervisor: %d\nPageWriteThrough: %d\nPageCacheDisable: %d\nAccessed: %d\nDirty: %d\nPageAttributeTable: %d\nGlobal: %d\nNoExecute: %d\n" % (pt_entry_value, p, rw, us, pwt, pcd, a, d, pat, g, nx))
-
     return physical_address
+
+def print_flags(level, entry_value):
+    p = entry_value & 1
+    rw = (entry_value >> 1) & 1
+    us = (entry_value >> 2) & 1
+    pwt = (entry_value >> 3) & 1
+    pcd = (entry_value >> 4) & 1
+    a = (entry_value >> 5) & 1
+    d = (entry_value >> 6) & 1
+    pat = (entry_value >> 7) & 1
+    g = (entry_value >> 8) & 1
+    nx = (entry_value >> 63) & 1
+    print("%s value: %x, Present: %d, R/W: %d, User/Supervisor: %d, PageWriteThrough: %d, PageCacheDisable: %d, Accessed: %d, Dirty: %d, PageAttributeTable: %d, Global: %d, NoExecute: %d" % (level, entry_value, p, rw, us, pwt, pcd, a, d, pat, g, nx))
+
 
 class TranslateCommand(gdb.Command):
     def __init__(self):
