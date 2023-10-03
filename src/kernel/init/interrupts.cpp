@@ -101,14 +101,14 @@ PRINT_NAMED_INTERRUPT_HALT(DoubleFault, u"Double fault") //8
 PRINT_NAMED_INTERRUPT(InvalidTaskStateSegment, u"Invalid task state segment", true) //10
 PRINT_NAMED_INTERRUPT_HALT(SegmentNotPresent, u"Segment not present") //11
 PRINT_NAMED_INTERRUPT_HALT(StackSegmentFault, u"Stack segment fault") //12
-PRINT_NAMED_INTERRUPT_HALT(GeneralProtectionFault, u"General protection fault") //13
-PRINT_NAMED_INTERRUPT(PageFault, u"Page fault", false) //14
+PRINT_NAMED_INTERRUPT_HALT(GeneralProtectionFault, u"General protection fault") //13 0xD
+PRINT_NAMED_INTERRUPT(PageFault, u"Page fault", false) //14 0xE
 //15 is reserved
 PRINT_NAMED_INTERRUPT(x87FloatingPointException, u"x87 Floating point exception", true) //16
 PRINT_NAMED_INTERRUPT(AlignmentCheck, u"Alignment check", true) //17
 PRINT_NAMED_INTERRUPT(MachineCheck, u"Machine check", false) //18
 PRINT_NAMED_INTERRUPT(SIMDFloatingPointException, u"SIMD floating point exception", true) //19
-PRINT_NAMED_INTERRUPT(VirtualizationException, u"Virtualization exception", true) //20
+PRINT_NAMED_INTERRUPT(VirtualizationException, u"Virtualization exception", true) //20 0x14
 PRINT_NAMED_INTERRUPT(ControlProtectionException, u"Control protection exception", true) //21
 //22-31 are reserved
 NAMED_INTERRUPT(PITInterrupt) //32
@@ -223,15 +223,14 @@ void InitializeDefaultInterrupts(uint8_t* IDTPtr, unsigned int codeSelector)
     SET_NAMED_TRAP(10, InvalidTaskStateSegment) //10
     SET_NAMED_TRAP(11, SegmentNotPresent) //11
     SET_NAMED_TRAP(12, StackSegmentFault) //12
-    SET_NAMED_INTERRUPT(13, GeneralProtectionFault) //13
-    //SET_NAMED_TRAP(13, ISRWrapper) //13
-    SET_NAMED_TRAP(14, PageFault) //14
-    // 15 is reserved
+    SET_NAMED_INTERRUPT(13, GeneralProtectionFault) //13 0xD
+    SET_NAMED_TRAP(14, PageFault) //14 0xE
+    // 15 is reserved 0xF
     SET_NAMED_TRAP(16, x87FloatingPointException) //16
     SET_NAMED_TRAP(17, AlignmentCheck) //17
     SET_NAMED_TRAP(18, MachineCheck) //18
     SET_NAMED_TRAP(19, SIMDFloatingPointException) //19
-    SET_NAMED_TRAP(20, VirtualizationException) //20
+    SET_NAMED_TRAP(20, VirtualizationException) //20 0x14
     SET_NAMED_TRAP(21, ControlProtectionException) //21
     //22-31 are reserved
     SET_NAMED_INTERRUPT(32, PITInterrupt) //32
