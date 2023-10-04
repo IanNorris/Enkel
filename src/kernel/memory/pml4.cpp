@@ -346,6 +346,10 @@ void LogPrintNumeric(const char16_t* Start, uint64_t Value, const char16_t* Suff
 	char16_t Buffer[32];
 
 	SerialPrint(Start);
+	if(Base == 16)
+	{
+		SerialPrint(u"0x");
+	}
 	witoabuf(Buffer, Value, Base);
 	SerialPrint(Buffer);
 	SerialPrint(Suffix);
@@ -369,45 +373,11 @@ void BuildPML4(KernelBootData* bootData)
         }
     }
 
-    uint64_t MemoryAvailable = HighestAddress / (1 * 1024 * 1024);
-    const char16_t* MemoryAvailableUnit = u"MB";
-
-    if (MemoryAvailable > 1024)
-    {
-        MemoryAvailableUnit = u"GB";
-        MemoryAvailable /= 1024;
-    }
-
-    if (MemoryAvailable > 1024)
-    {
-        MemoryAvailableUnit = u"TB";
-        MemoryAvailable /= 1024;
-    }
-
-    ConsolePrint(u"Memory available: ");
-    witoabuf(Buffer, MemoryAvailable, 10);
-    ConsolePrint(Buffer);
-    ConsolePrint(MemoryAvailableUnit);
-    ConsolePrint(u"\n");
-
     const KernelMemoryLocation& stack = bootData->MemoryLayout.SpecialLocations[SpecialMemoryLocation_KernelStack];
     const KernelMemoryLocation& binary = bootData->MemoryLayout.SpecialLocations[SpecialMemoryLocation_KernelBinary];
     const KernelMemoryLocation& framebuffer = bootData->MemoryLayout.SpecialLocations[SpecialMemoryLocation_Framebuffer];
 
- /*  if(stack.PhysicalStart + stack.ByteSize > HighestAddress)
-    {
-        HighestAddress = ((stack.PhysicalStart + stack.ByteSize + (PAGE_SIZE-1))) & PAGE_MASK;
-    }
-
-    if(binary.PhysicalStart + binary.ByteSize > HighestAddress)
-    {
-        HighestAddress = ((binary.PhysicalStart + binary.ByteSize + (PAGE_SIZE-1))) & PAGE_MASK;
-    }
-
-    if(framebuffer.PhysicalStart + framebuffer.ByteSize > HighestAddress)
-    {
-        HighestAddress = ((framebuffer.PhysicalStart + framebuffer.ByteSize + (PAGE_SIZE-1))) & PAGE_MASK;
-    }*/
+	uint64_t HighestAddressUntrimmmed = HighestAddress;
 
 	//Chop off any straggling bits so we get full pages only
 	HighestAddress &= PAGE_MASK;
@@ -418,6 +388,8 @@ void BuildPML4(KernelBootData* bootData)
     PreparePML4FreeList();
  
     _ASSERTF((uint64_t)&PML4 > binary.VirtualStart && (uint64_t)&PML4 < binary.VirtualStart + binary.ByteSize, "PML4 is not inside the kernel virtual range");
+
+	uint64_t freeMemory = 0;
 
     for (uint32_t entry = 0; entry < memoryLayout.Entries; entry++)
     {
@@ -430,9 +402,6 @@ void BuildPML4(KernelBootData* bootData)
 		SerialPrint("Type: ");
 		SerialPrint(MemoryMapTypeToString((EFI_MEMORY_TYPE)Desc.Type));
 		SerialPrint(", ");
-
-		LogPrintNumeric(u"FromV: ", Desc.VirtualStart, u", ");
-		LogPrintNumeric(u"ToV: ", Desc.VirtualStart + (Desc.NumberOfPages * PAGE_SIZE), u", ");
 
 		LogPrintNumeric(u"FromP: ", Desc.PhysicalStart, u", ");
 		LogPrintNumeric(u"ToP: ", Desc.PhysicalStart + (Desc.NumberOfPages * PAGE_SIZE), u", ");
@@ -460,6 +429,18 @@ void BuildPML4(KernelBootData* bootData)
 
 		SerialPrint("\n");
 
+		uint64_t Size = Desc.NumberOfPages * EFI_PAGE_SIZE;
+
+		bool IsReserved = 
+				Desc.Type == EfiACPIMemoryNVS
+			|| Desc.Type == EfiBootServicesData
+			|| Desc.Type == EfiBootServicesCode
+			|| Desc.Type == EfiRuntimeServicesCode
+			|| Desc.Type == EfiRuntimeServicesData
+			|| Desc.Type == EfiACPIReclaimMemory
+			|| Desc.Type == EfiUnusableMemory
+			|| Desc.Type == EfiReservedMemoryType;
+
         if (!IsFree)
         {
             uint64_t Start = Desc.PhysicalStart;
@@ -472,28 +453,91 @@ void BuildPML4(KernelBootData* bootData)
 				VirtualStart = Desc.VirtualStart = Desc.PhysicalStart;
 			}
 
-            uint64_t Size = Desc.NumberOfPages * EFI_PAGE_SIZE;
-
-            bool IsReserved = 
-                   Desc.Type == EfiACPIMemoryNVS
-                || Desc.Type == EfiBootServicesData
-                || Desc.Type == EfiBootServicesCode
-                || Desc.Type == EfiRuntimeServicesCode
-                || Desc.Type == EfiRuntimeServicesData
-                || Desc.Type == EfiACPIReclaimMemory
-				|| Desc.Type == EfiUnusableMemory
-                || Desc.Type == EfiReservedMemoryType;
-
 			bool IsReadOnly = Desc.Type == EfiACPIReclaimMemory || Desc.Type == EfiACPIMemoryNVS || Desc.Type == EfiUnusableMemory;
 			bool IsExecutable = Desc.Type == EfiRuntimeServicesCode || Desc.Type == EfiMemoryMapType_Kernel;
 
             MapPages(VirtualStart, Start, Size, !IsReadOnly, IsExecutable, IsReserved ? MemoryState::RangeState::Reserved : MemoryState::RangeState::Used);
         }
+
+		if(!IsReserved)
+		{
+			freeMemory += Size;
+		}
+    }
+
+	//Now we've built the map we need to find any gaps in the mapping.
+	//Any gaps will be unaddressable.
+	uint64_t StartP = 0x1000;
+	while(StartP != HighestAddressUntrimmmed)
+    {
+		bool found = false;
+		for (uint32_t entry = 0; entry < memoryLayout.Entries; entry++)
+    	{
+			EFI_MEMORY_DESCRIPTOR& Desc = *((EFI_MEMORY_DESCRIPTOR*)((UINT8*)memoryLayout.Map + (entry * memoryLayout.DescriptorSize)));
+			if(StartP == Desc.PhysicalStart)
+			{
+				StartP = Desc.PhysicalStart + (Desc.NumberOfPages * EFI_PAGE_SIZE);
+				found = true;
+				break;
+			}
+		}
+
+		if(!found)
+		{
+			uint64_t lowest = ~0ULL;
+
+			for (uint32_t entry = 0; entry < memoryLayout.Entries; entry++)
+			{
+				EFI_MEMORY_DESCRIPTOR& Desc = *((EFI_MEMORY_DESCRIPTOR*)((UINT8*)memoryLayout.Map + (entry * memoryLayout.DescriptorSize)));
+				if(Desc.PhysicalStart > StartP && Desc.PhysicalStart < lowest)
+				{
+					lowest = Desc.PhysicalStart;
+				}
+			}
+
+			if(lowest == ~0ULL)
+			{
+				_ASSERTF(false, "Unexpected memory map mismatch");
+			}
+
+			PhysicalMemoryState.TagRange(StartP, lowest, MemoryState::RangeState::Free);
+
+			LogPrintNumeric(u"Unmapped range from: ", StartP, u"");
+			LogPrintNumeric(u" to: ", lowest, u"");
+
+			LogPrintNumeric(u" (", (lowest-StartP), u" bytes)\n");
+
+			freeMemory += (lowest-StartP);
+			
+			StartP = lowest;
+		}
     }
 
 	uint64_t allocatedFrameBufferSize = (framebuffer.ByteSize + (PAGE_SIZE-1)) & PAGE_MASK;
 
-    MapPages(framebuffer.VirtualStart, framebuffer.PhysicalStart, allocatedFrameBufferSize, true, false /*executable*/, MemoryState::RangeState::Used);
+    MapPages(framebuffer.VirtualStart, framebuffer.PhysicalStart, allocatedFrameBufferSize, true, false /*executable*/, MemoryState::RangeState::Reserved);
+	freeMemory -= allocatedFrameBufferSize;
+
+	uint64_t MemoryAvailable = freeMemory / (1 * 1024 * 1024);
+    const char16_t* MemoryAvailableUnit = u"MB";
+
+    if (MemoryAvailable > 1024)
+    {
+        MemoryAvailableUnit = u"GB";
+        MemoryAvailable /= 1024;
+    }
+
+    if (MemoryAvailable > 1024)
+    {
+        MemoryAvailableUnit = u"TB";
+        MemoryAvailable /= 1024;
+    }
+
+    ConsolePrint(u"Memory available: ");
+    witoabuf(Buffer, MemoryAvailable, 10);
+    ConsolePrint(Buffer);
+    ConsolePrint(MemoryAvailableUnit);
+    ConsolePrint(u"\n");
 }
 
 void BuildAndLoadPML4(KernelBootData* bootData)

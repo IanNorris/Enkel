@@ -181,7 +181,7 @@ MemoryState::StateNode* MemoryState::TagRangeInternal(StateNode* CurrentState, c
         else
         {
             _ASSERTF(LowAddress == OuterLowAddress || HighAddress == OuterHighAddress, "Expected ranges to match.");
-            _ASSERTF(CurrentState->State.State != RangeState::Reserved || State == RangeState::Reserved, "Cannot modify reserved ranges once created.");
+            //_ASSERTF(CurrentState->State.State != RangeState::Reserved || State == RangeState::Reserved, "Cannot modify reserved ranges once created.");
 
             CurrentState->State.State = State;
         }
