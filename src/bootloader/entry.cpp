@@ -341,6 +341,16 @@ bool SetResolution(EFI_BOOT_SERVICES* bootServices, KernelBootData& bootData, in
 	bootData.Framebuffer.Height = GraphicsOutput->Mode[0].Info->VerticalResolution;
 	bootData.Framebuffer.Pitch = GraphicsOutput->Mode[0].Info->PixelsPerScanLine * 4;
 
+	//Reserve the framebuffer pages in the memory map
+	/*uint64_t FramebufferPageOffset = FrameBufferBase & (EFI_PAGE_SIZE-1);
+	uint64_t TablePage = FrameBufferBase & ~(EFI_PAGE_SIZE-1);
+	const int TablePageCount = (((bootData.Framebuffer.Pitch * bootData.Framebuffer.Height) + FramebufferPageOffset + EFI_PAGE_SIZE) & ~(EFI_PAGE_SIZE-1)) / EFI_PAGE_SIZE;
+	EFI_STATUS allocStatus = bootServices->AllocatePages(AllocateAddress, (EFI_MEMORY_TYPE)EfiMemoryMapType_Framebuffer, TablePageCount, &TablePage);
+	if(allocStatus != EFI_SUCCESS)
+	{
+		Halt(allocStatus, u"Unable to allocate framebuffer pages");
+	}*/
+
 	return true;
 }
 
