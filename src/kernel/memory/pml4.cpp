@@ -79,11 +79,19 @@ bool PML4Set = false;
 
 extern MemoryState PhysicalMemoryState;
 extern MemoryState VirtualMemoryState;
+void* NextFreePageTableEntriesBlock;
 
-void PreparePML4FreeList()
+const int NextPagingBlockSize = 0x1000;
+
+void AllocateNextFreePageTableEntries()
 {
-    memset(&PML4, 0, sizeof(PML4));
-    memset(InitialPageTableEntries, 0, sizeof(InitialPageTableEntries));
+	NextFreePageTableEntriesBlock = VirtualAlloc(sizeof(SPagingStructurePage) * NextPagingBlockSize);
+	memset(NextFreePageTableEntriesBlock, 0, sizeof(SPagingStructurePage) * NextPagingBlockSize);
+}
+
+void PreparePML4FreeList(void* NextBlock)
+{
+    memset(NextBlock, 0, sizeof(InitialPageTableEntries));
 
     // Link all entries together to form the free list
     for (int i = STATIC_PAGE_ENTRIES - 1; i >= 0; i--)
@@ -95,6 +103,21 @@ void PreparePML4FreeList()
 
 SPagingStructurePage* GetPML4FreePage()
 {
+	if(PagingFreePageHead == nullptr)
+	{
+		SPagingStructurePage* NextPageSet = (SPagingStructurePage*)NextFreePageTableEntriesBlock;
+
+		// Link all entries together to form the free list
+		for (int i = NextPagingBlockSize - 1; i >= 0; i--)
+		{
+			NextPageSet[i].Next = PagingFreePageHead;
+			PagingFreePageHead = &NextPageSet[i];
+		}
+
+		//Make sure we've got another ready to go
+		AllocateNextFreePageTableEntries();
+	}
+
 	SPagingStructurePage* Result = PagingFreePageHead;
 	PagingFreePageHead = PagingFreePageHead->Next;
 
@@ -385,7 +408,8 @@ void BuildPML4(KernelBootData* bootData)
 	PhysicalMemoryState.Init(HighestAddress);
 	VirtualMemoryState.Init(((~0ULL) & ~(PAGE_SIZE-1)) & PAGE_MASK); //Limit set by x86-64 architecture.
 
-    PreparePML4FreeList();
+	memset(&PML4, 0, sizeof(PML4));
+    PreparePML4FreeList(InitialPageTableEntries);
  
     _ASSERTF((uint64_t)&PML4 > binary.VirtualStart && (uint64_t)&PML4 < binary.VirtualStart + binary.ByteSize, "PML4 is not inside the kernel virtual range");
 
@@ -441,21 +465,21 @@ void BuildPML4(KernelBootData* bootData)
 			|| Desc.Type == EfiUnusableMemory
 			|| Desc.Type == EfiReservedMemoryType;
 
+		uint64_t Start = Desc.PhysicalStart;
+		uint64_t End = Desc.PhysicalStart + Desc.NumberOfPages * EFI_PAGE_SIZE;
+		uint64_t VirtualStart = Desc.VirtualStart;
+		uint64_t VirtualEnd = VirtualStart + Desc.NumberOfPages * EFI_PAGE_SIZE;
+
+		if(VirtualStart == 0)
+		{
+			VirtualStart = Desc.VirtualStart = Desc.PhysicalStart;
+		}
+
+		bool IsReadOnly = Desc.Type == EfiACPIReclaimMemory || Desc.Type == EfiACPIMemoryNVS || Desc.Type == EfiUnusableMemory;
+		bool IsExecutable = Desc.Type == EfiRuntimeServicesCode || Desc.Type == EfiMemoryMapType_Kernel;
+
         if (!IsFree)
         {
-            uint64_t Start = Desc.PhysicalStart;
-            uint64_t End = Desc.PhysicalStart + Desc.NumberOfPages * EFI_PAGE_SIZE;
-            uint64_t VirtualStart = Desc.VirtualStart;
-            uint64_t VirtualEnd = VirtualStart + Desc.NumberOfPages * EFI_PAGE_SIZE;
-
-			if(VirtualStart == 0)
-			{
-				VirtualStart = Desc.VirtualStart = Desc.PhysicalStart;
-			}
-
-			bool IsReadOnly = Desc.Type == EfiACPIReclaimMemory || Desc.Type == EfiACPIMemoryNVS || Desc.Type == EfiUnusableMemory;
-			bool IsExecutable = Desc.Type == EfiRuntimeServicesCode || Desc.Type == EfiMemoryMapType_Kernel;
-
             MapPages(VirtualStart, Start, Size, !IsReadOnly, IsExecutable, IsReserved ? MemoryState::RangeState::Reserved : MemoryState::RangeState::Used);
         }
 
@@ -540,6 +564,39 @@ void BuildPML4(KernelBootData* bootData)
     ConsolePrint(u"\n");
 }
 
+void MemCheck(KernelBootData* bootData)
+{
+	ConsolePrint(u"Memcheck...\n");
+	KernelMemoryLayout& memoryLayout = bootData->MemoryLayout;
+	for (uint32_t entry = 0; entry < memoryLayout.Entries; entry++)
+    {
+        EFI_MEMORY_DESCRIPTOR& Desc = *((EFI_MEMORY_DESCRIPTOR*)((UINT8*)memoryLayout.Map + (entry * memoryLayout.DescriptorSize)));
+	
+		bool IsFree =  Desc.Type == EfiConventionalMemory
+					|| Desc.Type == EfiBootServicesCode
+					|| Desc.Type == EfiBootServicesData;
+
+		uint64_t Start = Desc.PhysicalStart;
+		uint64_t End = Desc.PhysicalStart + Desc.NumberOfPages * EFI_PAGE_SIZE;
+		uint64_t VirtualStart = Desc.VirtualStart;
+		uint64_t VirtualEnd = VirtualStart + Desc.NumberOfPages * EFI_PAGE_SIZE;
+		uint64_t Size = Desc.NumberOfPages * EFI_PAGE_SIZE;
+
+		bool IsReadOnly = Desc.Type == EfiACPIReclaimMemory || Desc.Type == EfiACPIMemoryNVS || Desc.Type == EfiUnusableMemory;
+
+        if (IsFree)
+		{
+			if(!IsReadOnly)
+			{
+				MapPages(VirtualStart, Start, Size, true, false, MemoryState::RangeState::Used);
+				volatile uint64_t* WriteTarget = (uint64_t*)VirtualStart;
+				*WriteTarget = 0xCDCDCDCDCDCDCDCD;
+				MapPages(VirtualStart, Start, Size, false, false, MemoryState::RangeState::Free);
+			}
+		}
+    }
+}
+
 void BuildAndLoadPML4(KernelBootData* bootData)
 {
     PML4Set = false;
@@ -550,4 +607,8 @@ void BuildAndLoadPML4(KernelBootData* bootData)
     PML4Set = true;
 
     ConsolePrint(u"Now in long mode!...\n");
+
+	AllocateNextFreePageTableEntries();
+
+	MemCheck(bootData);
 }
