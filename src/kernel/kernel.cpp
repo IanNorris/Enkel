@@ -217,6 +217,46 @@ void RPMallocUnmap(void* address, size_t size, size_t offset, size_t release)
 	_ASSERTF(false, "Not implemented");
 }
 
+void FinalizeRuntimeServices()
+{
+	uint32_t runtimeEntries = 0;
+	for (uint32_t entry = 0; entry < GBootData.MemoryLayout.Entries; entry++)
+    {
+        EFI_MEMORY_DESCRIPTOR& Desc = *((EFI_MEMORY_DESCRIPTOR*)((UINT8*)GBootData.MemoryLayout.Map + (entry * GBootData.MemoryLayout.DescriptorSize)));
+		if(Desc.Attribute & EFI_MEMORY_RUNTIME)
+		{
+			runtimeEntries++;
+		}
+	}
+
+	//EFI_MEMORY_DESCRIPTOR* entries = (EFI_MEMORY_DESCRIPTOR*)rpmalloc(sizeof(EFI_MEMORY_DESCRIPTOR) * runtimeEntries);
+	EFI_MEMORY_DESCRIPTOR* entries = (EFI_MEMORY_DESCRIPTOR*)VirtualAlloc( ((sizeof(EFI_MEMORY_DESCRIPTOR) * runtimeEntries) + 4096) & ~EFI_PAGE_MASK );
+
+	int runtimeEntry = 0;
+	for (uint32_t entry = 0; entry < GBootData.MemoryLayout.Entries; entry++)
+    {
+        EFI_MEMORY_DESCRIPTOR& Desc = *((EFI_MEMORY_DESCRIPTOR*)((UINT8*)GBootData.MemoryLayout.Map + (entry * GBootData.MemoryLayout.DescriptorSize)));
+	
+		if(Desc.Attribute & EFI_MEMORY_RUNTIME)
+		{
+			entries[runtimeEntry] = Desc;
+			runtimeEntry++;
+		}
+    }
+
+	EFI_STATUS runtimeServicesAddressMapStatus = GBootData.RuntimeServices->SetVirtualAddressMap(sizeof(EFI_MEMORY_DESCRIPTOR) * runtimeEntries, sizeof(EFI_MEMORY_DESCRIPTOR), EFI_MEMORY_DESCRIPTOR_VERSION, entries);
+	if(runtimeServicesAddressMapStatus != EFI_SUCCESS)
+	{
+		char16_t Buffer[16];
+		ConsolePrint(u"SetVirtualAddressMap error: 0x");
+		witoabuf(Buffer, (int)runtimeServicesAddressMapStatus, 16);
+		ConsolePrint(Buffer);
+		ConsolePrint(u"\r\n");
+
+		_ASSERTF(false, "Unable to transition to virtual address map for runtime services.");
+	}
+}
+
 extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootData * BootData)
 {
 	OnKernelMainHook();
@@ -235,7 +275,7 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 	}
 
 	EnterLongMode(&GBootData);
-
+	
 	InitializeTLS();
 
 	rpmalloc_config_t rpmConfig;
@@ -251,21 +291,7 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 
 	CRTInit();
 
-	//uint8_t* buffer = (uint8_t*)rpmalloc(128);
-	//buffer[3] = 0;
-
-	//This still doesn't work...
-	/*EFI_STATUS runtimeServicesAddressMapStatus = GBootData.RuntimeServices->SetVirtualAddressMap(GBootData.MemoryLayout.MapSize, GBootData.MemoryLayout.DescriptorSize, GBootData.MemoryLayout.DescriptorVersion, GBootData.MemoryLayout.Map);
-	if(runtimeServicesAddressMapStatus != EFI_SUCCESS)
-	{
-		char16_t Buffer[16];
-		ConsolePrint(u"SetVirtualAddressMap error: 0x");
-		witoabuf(Buffer, (int)runtimeServicesAddressMapStatus, 16);
-		ConsolePrint(Buffer);
-		ConsolePrint(u"\r\n");
-
-		_ASSERTF(false, "Unable to transition to virtual address map for runtime services.");
-	}*/
+	FinalizeRuntimeServices();
 
 	InitPIC();
 	InitApic(GBootData.Rsdt, GBootData.Xsdt);
