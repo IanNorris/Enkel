@@ -15,24 +15,23 @@ bool EnableSerialOutput = false;
 
 void InitializeSerial0()
 {
-    const uint16_t port = 0x3F8;
-    OutPort(port + 1, 0x00); // Disable all interrupts
-    OutPort(port + 3, 0x80); // Enable DLAB (set baud rate divisor)
-    OutPort(port + 0, 0x03); // Set divisor to 3 (low byte) 38400 baud
-    OutPort(port + 1, 0x00); //                  (high byte)
-    OutPort(port + 3, 0x03); // 8 bits, no parity, one stop bit
-    OutPort(port + 2, 0xC7); // Enable FIFO, clear them, with 14-byte threshold
-	OutPort(port + 4, 0x0B); // Enable FIFO, clear them, with 14-byte threshold
-    OutPort(port + 4, 0x1E); // Enable loopback
-	OutPort(port + 0, '!'); // Write a test value
+	const uint16_t port = 0x3F8;
+    OutPort(port + 1, 0x00);  // Disable all interrupts
+    OutPort(port + 3, 0x80);  // Enable DLAB (set baud rate divisor)
+    OutPort(port + 0, 0x03);  // Set divisor to 3 (low byte) 38400 baud
+    OutPort(port + 1, 0x00);  // (high byte)
+    OutPort(port + 3, 0x03);  // 8 bits, no parity, one stop bit
 
-	if(InPort(port) == '!')
+	// Read back line control register to verify
+    uint8_t lcr = InPort(port + 3);
+    if (lcr == 0x03)
 	{
 		EnableSerialOutput = true;
 	}
 	else
 	{
 		EnableSerialOutput = false;
+		ConsolePrint(u"COM1 not detected.\n");
 	}
 
 	OutPort(port + 4, 0x0F); // Disable loopback
@@ -59,8 +58,6 @@ void WriteSerial0(uint8_t character)
 {
 	if(EnableSerialOutput)
 	{
-		const uint16_t port = 0x3F8;
-
 		if(character == '\n')
 		{
 			WriteSerial0Int('\r');
