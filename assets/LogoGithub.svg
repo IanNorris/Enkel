@@ -9,7 +9,7 @@
      id="defs1" />
   <style>
     .foreground {
-      fill: var(--color-btn-text, #0f2530);
+      fill: var(--fg-color, #888888);
       stroke: none;
     }
   </style>
