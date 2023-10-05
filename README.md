@@ -2,6 +2,8 @@
 
 ## What is it?
 
+![The Enkel logo. A vector swirl with a rounded box around it.](assets\LogoGithub.svg)
+
 This is a hobby OS project to learn about operating system development, expand my exposure to low level concepts, and give myself an excuse to write some non-trivial assembly. Also because I thought it might be fun.
 
 The goal is to build an UEFI-only 64-bit kernel and environment. I'll keep going until I get bored. It has not been boring so far.
