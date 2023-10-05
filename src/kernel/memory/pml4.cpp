@@ -7,6 +7,7 @@
 #include "kernel/memory/state.h"
 #include "common/string.h"
 #include "utilities/termination.h"
+#include "kernel/init/tls.h"
 
 struct SPagingStructurePage
 {
@@ -79,7 +80,7 @@ bool PML4Set = false;
 
 extern MemoryState PhysicalMemoryState;
 extern MemoryState VirtualMemoryState;
-void* NextFreePageTableEntriesBlock;
+void* NextFreePageTableEntriesBlock = nullptr;
 
 const int NextPagingBlockSize = 0x1000;
 
@@ -87,6 +88,9 @@ void AllocateNextFreePageTableEntries()
 {
 	NextFreePageTableEntriesBlock = VirtualAlloc(sizeof(SPagingStructurePage) * NextPagingBlockSize);
 	memset(NextFreePageTableEntriesBlock, 0, sizeof(SPagingStructurePage) * NextPagingBlockSize);
+
+	PhysicalMemoryState.InitDynamic();
+	VirtualMemoryState.InitDynamic();
 }
 
 void PreparePML4FreeList(void* NextBlock)
@@ -115,6 +119,7 @@ SPagingStructurePage* GetPML4FreePage()
 		}
 
 		//Make sure we've got another ready to go
+		//this will likely immediately consume several of the entries we've just created.
 		AllocateNextFreePageTableEntries();
 	}
 
@@ -396,7 +401,6 @@ void BuildPML4(KernelBootData* bootData)
         }
     }
 
-    const KernelMemoryLocation& stack = bootData->MemoryLayout.SpecialLocations[SpecialMemoryLocation_KernelStack];
     const KernelMemoryLocation& binary = bootData->MemoryLayout.SpecialLocations[SpecialMemoryLocation_KernelBinary];
     const KernelMemoryLocation& framebuffer = bootData->MemoryLayout.SpecialLocations[SpecialMemoryLocation_Framebuffer];
 
@@ -466,9 +470,7 @@ void BuildPML4(KernelBootData* bootData)
 			|| Desc.Type == EfiReservedMemoryType;
 
 		uint64_t Start = Desc.PhysicalStart;
-		uint64_t End = Desc.PhysicalStart + Desc.NumberOfPages * EFI_PAGE_SIZE;
 		uint64_t VirtualStart = Desc.VirtualStart;
-		uint64_t VirtualEnd = VirtualStart + Desc.NumberOfPages * EFI_PAGE_SIZE;
 
 		if(VirtualStart == 0)
 		{
@@ -566,8 +568,13 @@ void BuildPML4(KernelBootData* bootData)
 
 void MemCheck(KernelBootData* bootData)
 {
+	uint64_t HighestAddressWritten = 0;
+
 	ConsolePrint(u"Memcheck...\n");
 	KernelMemoryLayout& memoryLayout = bootData->MemoryLayout;
+
+	uint64_t TargetVirtualPage = VirtualMemoryState.FindMinimumSizeFreeBlock(PAGE_SIZE);
+
 	for (uint32_t entry = 0; entry < memoryLayout.Entries; entry++)
     {
         EFI_MEMORY_DESCRIPTOR& Desc = *((EFI_MEMORY_DESCRIPTOR*)((UINT8*)memoryLayout.Map + (entry * memoryLayout.DescriptorSize)));
@@ -577,9 +584,6 @@ void MemCheck(KernelBootData* bootData)
 					|| Desc.Type == EfiBootServicesData;
 
 		uint64_t Start = Desc.PhysicalStart;
-		uint64_t End = Desc.PhysicalStart + Desc.NumberOfPages * EFI_PAGE_SIZE;
-		uint64_t VirtualStart = Desc.VirtualStart;
-		uint64_t VirtualEnd = VirtualStart + Desc.NumberOfPages * EFI_PAGE_SIZE;
 		uint64_t Size = Desc.NumberOfPages * EFI_PAGE_SIZE;
 
 		bool IsReadOnly = Desc.Type == EfiACPIReclaimMemory || Desc.Type == EfiACPIMemoryNVS || Desc.Type == EfiUnusableMemory;
@@ -588,13 +592,30 @@ void MemCheck(KernelBootData* bootData)
 		{
 			if(!IsReadOnly)
 			{
-				MapPages(VirtualStart, Start, Size, true, false, MemoryState::RangeState::Used);
-				volatile uint64_t* WriteTarget = (uint64_t*)VirtualStart;
-				*WriteTarget = 0xCDCDCDCDCDCDCDCD;
-				MapPages(VirtualStart, Start, Size, false, false, MemoryState::RangeState::Free);
+				for(uint64_t page = 0; page < Size / PAGE_SIZE; page++)
+				{
+					uint64_t PhysicalOffset = Start + (page * PAGE_SIZE);
+					volatile uint64_t* WriteTarget = (uint64_t*)TargetVirtualPage;
+
+					if(PhysicalMemoryState.GetPageState(PhysicalOffset) == MemoryState::RangeState::Free)
+					{
+						MapPages(TargetVirtualPage, PhysicalOffset, PAGE_SIZE, true, false, MemoryState::RangeState::Used);
+						*WriteTarget = 0xCDCDCDCDCDCDCDCD;
+						if((uint64_t)WriteTarget > HighestAddressWritten)
+						{
+							HighestAddressWritten = (uint64_t)WriteTarget;
+						}
+						MapPages(TargetVirtualPage, PhysicalOffset, PAGE_SIZE, false, false, MemoryState::RangeState::Free);
+					}
+				}
+				
 			}
 		}
     }
+
+	VirtualFree((void*)TargetVirtualPage, PAGE_SIZE);
+
+	LogPrintNumeric(u"Highest memcheck: ", HighestAddressWritten, u"\n");
 }
 
 void BuildAndLoadPML4(KernelBootData* bootData)
@@ -607,8 +628,4 @@ void BuildAndLoadPML4(KernelBootData* bootData)
     PML4Set = true;
 
     ConsolePrint(u"Now in long mode!...\n");
-
-	AllocateNextFreePageTableEntries();
-
-	MemCheck(bootData);
 }

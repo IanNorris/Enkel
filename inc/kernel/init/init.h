@@ -2,4 +2,7 @@
 
 #include "kernel/init/bootload.h"
 
-void EnterLongMode(KernelBootData* bootData);
+void InitInterrupts(KernelBootData* bootData);
+void InitVirtualMemory(KernelBootData* bootData);
+void InitRPMalloc();
+

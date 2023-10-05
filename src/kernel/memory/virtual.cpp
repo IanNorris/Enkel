@@ -21,6 +21,9 @@ void* VirtualAlloc(uint64_t ByteSize)
 
     MapPages(VirtualAddress, PhysicalAddress, ByteSize, true, false, MemoryState::RangeState::Used);
 
+	//This should always succeed as we're setting the page as writable
+	* (volatile uint64_t*)VirtualAddress = 0x0;
+
     return (void*)VirtualAddress;
 }
 

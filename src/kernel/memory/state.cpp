@@ -5,6 +5,7 @@
 #include "memory/memory.h"
 #include "kernel/memory/state.h"
 #include "common/string.h"
+#include "rpmalloc.h"
 
 MemoryState PhysicalMemoryState;
 MemoryState VirtualMemoryState;
@@ -32,6 +33,11 @@ void MemoryState::Init(const uint64_t highestAddress)
 	StateLeafFreeHead = nullptr;
 	StateBranchFreeHead = nullptr;
 	HighestAddress = highestAddress;
+	UsedBranches = 0;
+	UsedLeaves = 0;
+
+	NextStateLeafFreeHead = nullptr;
+	NextStateBranchFreeHead = nullptr;
 
 	static_assert(sizeof(InitialLeafEntries) == sizeof(StateNode) * 4096, "Table size doesn't match expected");
 
@@ -55,6 +61,22 @@ void MemoryState::Init(const uint64_t highestAddress)
     StateRoot = GetFreeBranchState();
     StateRoot->SetAddress(highestAddress);
     StateRoot->State.State = RangeState::Free;
+}
+
+void MemoryState::InitDynamic()
+{
+	AllocateNewLeafPage();
+	AllocateNewBranchPage();
+}
+
+void MemoryState::AllocateNewLeafPage()
+{
+	NextStateLeafFreeHead = (StateNode*)rpmalloc(sizeof(StateNode) * InitialLeafTableEntries);
+}
+
+void MemoryState::AllocateNewBranchPage()
+{
+	NextStateBranchFreeHead = (BranchStateNode*)rpmalloc(sizeof(BranchStateNode) * InitialBranchTableEntries);
 }
 
 MemoryState::StateNode* MemoryState::TagRangeInternal(StateNode* CurrentState, const uintptr_t LowAddress, const uintptr_t HighAddress, const RangeState State, const uintptr_t OuterLowAddress, const uintptr_t OuterHighAddress)
@@ -194,7 +216,7 @@ uintptr_t MemoryState::FindMinimumSizeFreeBlockInternal(StateNode* CurrentState,
 {
 	uintptr_t Address = CurrentState->GetAddress();
 
-    if (CurrentState->State.State == RangeState::Branch)
+    if (CurrentState->State.State == MemoryState::RangeState::Branch)
     {
 		BranchStateNode* BranchState = (BranchStateNode*)CurrentState;
 
@@ -222,7 +244,7 @@ uintptr_t MemoryState::FindMinimumSizeFreeBlockInternal(StateNode* CurrentState,
 
 		return 0;
     }
-	else if (CurrentState->State.State == RangeState::Free)
+	else if (CurrentState->State.State == MemoryState::RangeState::Free)
     {
 		uint64_t Largest = GetLargestFree(CurrentState, OuterLowAddress, Address);
 		if(Largest >= MinSize)
@@ -232,4 +254,31 @@ uintptr_t MemoryState::FindMinimumSizeFreeBlockInternal(StateNode* CurrentState,
 	}
     
 	return 0;
+}
+
+MemoryState::RangeState MemoryState::GetPageState(const uint64_t Address)
+{
+	return GetPageStateInternal(StateRoot, Address);
+}
+
+MemoryState::RangeState MemoryState::GetPageStateInternal(StateNode* CurrentState, const uint64_t Address)
+{
+	if (CurrentState->State.State == RangeState::Branch)
+    {
+		BranchStateNode* BranchState = (BranchStateNode*)CurrentState;
+
+		uintptr_t Mid = BranchState->GetAddress();
+		if(Address < Mid)
+		{
+			return GetPageStateInternal(BranchState->Left, Address);
+		}
+		else
+		{
+			return GetPageStateInternal(BranchState->Right, Address);
+		}
+	}
+	else
+	{
+		return CurrentState->State.State;
+	}
 }

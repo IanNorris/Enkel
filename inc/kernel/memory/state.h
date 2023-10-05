@@ -66,6 +66,10 @@ public:
 	};
 
 	void Init(const uint64_t HighestAddress);
+	void InitDynamic();
+
+	void AllocateNewLeafPage();
+	void AllocateNewBranchPage();
 
 	void TagRange(const uintptr_t LowAddress, const uintptr_t HighAddress, const RangeState State)
 	{
@@ -77,15 +81,26 @@ public:
 		return FindMinimumSizeFreeBlockInternal(StateRoot, MinSize, 0ULL, HighestAddress);
 	}
 
+	RangeState GetPageState(const uint64_t Address);
+
 private:
 
 	StateNode* TagRangeInternal(StateNode* CurrentState, const uintptr_t LowAddress, const uintptr_t HighAddress, const RangeState State, const uintptr_t OuterLowAddress, const uintptr_t OuterHighAddress);
 	uintptr_t FindMinimumSizeFreeBlockInternal(StateNode* CurrentState, uint64_t MinSize, const uintptr_t OuterLowAddress, const uintptr_t OuterHighAddress);
+	RangeState GetPageStateInternal(StateNode* CurrentState, const uint64_t Address);
 
 	BranchStateNode* GetFreeBranchState()
 	{
+		if(StateBranchFreeHead == nullptr)
+		{
+			StateBranchFreeHead = NextStateBranchFreeHead;
+			AllocateNewBranchPage();
+		}
+
 		BranchStateNode* Result = StateBranchFreeHead;
 		StateBranchFreeHead = (BranchStateNode*)StateBranchFreeHead->Address;
+
+		UsedBranches++;
 
 		return Result;
 	}
@@ -96,12 +111,22 @@ private:
 
 		State->Address = (uintptr_t)StateBranchFreeHead;
 		StateBranchFreeHead = State;
+
+		UsedBranches--;
 	}
 
 	StateNode* GetFreeLeafState()
 	{
+		if(StateLeafFreeHead == nullptr)
+		{
+			StateLeafFreeHead = NextStateLeafFreeHead;
+			AllocateNewLeafPage();
+		}
+
 		StateNode* Result = StateLeafFreeHead;
 		StateLeafFreeHead = (StateNode*)StateLeafFreeHead->Address;
+
+		UsedLeaves++;
 
 		return Result;
 	}
@@ -112,6 +137,8 @@ private:
 
 		State->Address = (uintptr_t)StateLeafFreeHead;
 		StateLeafFreeHead = State;
+
+		UsedLeaves--;
 	}
 
 	uint64_t GetRemaining(StateNode* Node, const uintptr_t OuterLowAddress, const uintptr_t OuterHighAddress)
@@ -155,11 +182,16 @@ private:
 	{
 		if(BranchState->Right->State.State != RangeState::Branch && BranchState->Left->State.State == BranchState->Right->State.State)
 		{
+			StateNode* Left = BranchState->Left;
+			StateNode* Right = BranchState->Right;
+
 			StateNode* NewNode = GetFreeLeafState();
 			NewNode->SetAddress(OuterHighAddress);
 			NewNode->State.State = BranchState->Left->State.State;
 
 			FreeStateBranch(BranchState);
+			FreeLeafState(Left);
+			FreeLeafState(Right);
 
 			return NewNode;
 		}
@@ -189,7 +221,12 @@ private:
 	StateNode InitialLeafEntries[InitialLeafTableEntries];
 	BranchStateNode InitialBranchEntries[InitialBranchTableEntries];
 
+	StateNode* NextStateLeafFreeHead;
+	BranchStateNode* NextStateBranchFreeHead;
+
 	uint64_t HighestAddress;
+	uint64_t UsedBranches;
+	uint64_t UsedLeaves;
 
 	static_assert(sizeof(StateNode) == 8, "Leaf state not expected size");
 	static_assert(sizeof(BranchStateNode) == 40, "Branch state not expected size");

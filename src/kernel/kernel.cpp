@@ -8,6 +8,7 @@
 #include "kernel/init/interrupts.h"
 #include "memory/memory.h"
 #include "memory/virtual.h"
+#include "rpmalloc.h"
 
 extern "C"
 {
@@ -192,31 +193,6 @@ InitializeFullAcpica (void)
     return (AE_OK);
 }
 
-#include "rpnew.h"
-
-void OnRPMallocError(const char* message)
-{
-	char16_t Buffer[256];
-	char16_t* BufferPtr = Buffer;
-	while((*BufferPtr++ = *message) != 0 && (BufferPtr - Buffer < 255));
-
-	*BufferPtr = '\0';
-
-	ConsolePrint(Buffer);
-
-	_ASSERTF(false, "RPMalloc failed");
-}
-
-void* RPMallocMap(size_t size, size_t* offset)
-{
-	return VirtualAlloc(size);
-}
-
-void RPMallocUnmap(void* address, size_t size, size_t offset, size_t release)
-{
-	_ASSERTF(false, "Not implemented");
-}
-
 void FinalizeRuntimeServices()
 {
 	uint32_t runtimeEntries = 0;
@@ -229,8 +205,7 @@ void FinalizeRuntimeServices()
 		}
 	}
 
-	//EFI_MEMORY_DESCRIPTOR* entries = (EFI_MEMORY_DESCRIPTOR*)rpmalloc(sizeof(EFI_MEMORY_DESCRIPTOR) * runtimeEntries);
-	EFI_MEMORY_DESCRIPTOR* entries = (EFI_MEMORY_DESCRIPTOR*)VirtualAlloc( ((sizeof(EFI_MEMORY_DESCRIPTOR) * runtimeEntries) + 4096) & ~EFI_PAGE_MASK );
+	EFI_MEMORY_DESCRIPTOR* entries = (EFI_MEMORY_DESCRIPTOR*)rpmalloc(sizeof(EFI_MEMORY_DESCRIPTOR) * runtimeEntries);
 
 	int runtimeEntry = 0;
 	for (uint32_t entry = 0; entry < GBootData.MemoryLayout.Entries; entry++)
@@ -255,6 +230,8 @@ void FinalizeRuntimeServices()
 
 		_ASSERTF(false, "Unable to transition to virtual address map for runtime services.");
 	}
+
+	rpfree(entries);
 }
 
 extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootData * BootData)
@@ -274,24 +251,12 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 		ConsolePrint(u"DEBUGGER ATTACHED!\n");
 	}
 
-	EnterLongMode(&GBootData);
-	
-	InitializeTLS();
-
-	rpmalloc_config_t rpmConfig;
-	memset(&rpmConfig, 0, sizeof(rpmConfig));
-
-	rpmConfig.memory_map = &RPMallocMap;
-	rpmConfig.memory_unmap = &RPMallocUnmap;
-	rpmConfig.error_callback = &OnRPMallocError;
-	rpmConfig.page_size = 4096;
-
-	rpmalloc_initialize_config(&rpmConfig);
-	rpmalloc_thread_initialize();
+	InitInterrupts(&GBootData);
+	InitVirtualMemory(&GBootData);
 
 	CRTInit();
 
-	FinalizeRuntimeServices();
+	//FinalizeRuntimeServices();
 
 	InitPIC();
 	InitApic(GBootData.Rsdt, GBootData.Xsdt);

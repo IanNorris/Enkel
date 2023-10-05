@@ -1,14 +1,17 @@
 #include "kernel/init/bootload.h"
 #include "kernel/init/gdt.h"
+#include "kernel/init/init.h"
 #include "kernel/init/interrupts.h"
 #include "kernel/init/long_mode.h"
+#include "kernel/init/tls.h"
 #include "kernel/memory/pml4.h"
 #include "kernel/console/console.h"
 #include "common/string.h"
+#include "rpmalloc.h"
 
-void EnterLongMode(KernelBootData* bootData)
+void InitInterrupts(KernelBootData* bootData)
 {
-    //Disable interrupts because we won't be able to handle these until we initialize the GDT and the interrupt handlers.
+	//Disable interrupts because we won't be able to handle these until we initialize the GDT and the interrupt handlers.
 	//NOTE: We can't debug between these because the selector won't be valid yet
     DisableInterrupts();
 
@@ -18,9 +21,10 @@ void EnterLongMode(KernelBootData* bootData)
     ConsolePrint(u"Initializing IDT...\n");
 	uint8_t* TableOffset = (uint8_t*)bootData->MemoryLayout.SpecialLocations[SpecialMemoryLocation_Tables].VirtualStart;
     size_t IDTTableSize = InitIDT(TableOffset, codeSelector);
+}
 
-	TableOffset += IDTTableSize;
-
+void InitVirtualMemory(KernelBootData* bootData)
+{
 	ConsolePrint(u"Initializing GDT...\n");
 	uint8_t* GDTOffset = (uint8_t*)bootData->MemoryLayout.SpecialLocations[SpecialMemoryLocation_APBootstrap].VirtualStart + 512;
     InitGDT(GDTOffset);
@@ -34,4 +38,11 @@ void EnterLongMode(KernelBootData* bootData)
     //thanks to being booted via EFI. So We just need to give our new PML4 table to the CPU.
 
     BuildAndLoadPML4(bootData);
+
+	InitializeTLS();
+	InitRPMalloc();
+
+	AllocateNextFreePageTableEntries();
+
+	MemCheck(bootData);
 }
