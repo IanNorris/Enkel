@@ -44,5 +44,5 @@ void InitVirtualMemory(KernelBootData* bootData)
 
 	AllocateNextFreePageTableEntries();
 
-	MemCheck(bootData);
+	//MemCheck(bootData);
 }

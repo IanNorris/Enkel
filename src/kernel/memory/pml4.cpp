@@ -542,25 +542,71 @@ void BuildPML4(KernelBootData* bootData)
     MapPages(framebuffer.VirtualStart, framebuffer.PhysicalStart, allocatedFrameBufferSize, true, false /*executable*/, MemoryState::RangeState::Reserved);
 	freeMemory -= allocatedFrameBufferSize;
 
-	uint64_t MemoryAvailable = freeMemory / (1 * 1024 * 1024);
-    const char16_t* MemoryAvailableUnit = u"MB";
-
-    if (MemoryAvailable > 1024)
-    {
-        MemoryAvailableUnit = u"GB";
-        MemoryAvailable /= 1024;
-    }
-
-    if (MemoryAvailable > 1024)
-    {
-        MemoryAvailableUnit = u"TB";
-        MemoryAvailable /= 1024;
-    }
-
     ConsolePrint(u"Memory available: ");
-    witoabuf(Buffer, MemoryAvailable, 10);
-    ConsolePrint(Buffer);
-    ConsolePrint(MemoryAvailableUnit);
+
+	//This convoluted mess prints a decimal value of the memory in the system
+	//with attached units. Eg 1.980GB or 3.999TB.
+	const int KB = 1 * 1024;
+	int precision = 2;
+	bool unitFixed = false;
+	bool dotPrinted = false;
+	const char16_t* MemoryAvailableUnit = u"KB";
+
+	while(precision != 0)
+	{
+		uint64_t MemoryAvailable = freeMemory / KB;
+		uint64_t Units = KB;
+
+		if (MemoryAvailable > 1024)
+		{
+			if(!unitFixed)
+			{
+				MemoryAvailableUnit = u"MB";
+			}
+			MemoryAvailable /= 1024;
+			Units *= 1024;
+		}
+
+		if (MemoryAvailable > 1024)
+		{
+			if(!unitFixed)
+			{
+				MemoryAvailableUnit = u"GB";
+			}
+			MemoryAvailable /= 1024;
+			Units *= 1024;
+		}
+		
+		if (MemoryAvailable > 1024)
+		{
+			if(!unitFixed)
+			{
+				MemoryAvailableUnit = u"TB";
+			}
+			MemoryAvailable /= 1024;
+			Units *= 1024;
+		}
+
+		if(MemoryAvailable == 0)
+		{
+			break;
+		}
+
+		if(unitFixed && !dotPrinted)
+		{
+			ConsolePrint(u".");
+			dotPrinted = true;
+		}
+
+		witoabuf(Buffer, MemoryAvailable, 10);
+		ConsolePrint(Buffer);
+		unitFixed = true;
+
+		freeMemory -= (MemoryAvailable * Units);
+		precision--;
+	}
+
+	ConsolePrint(MemoryAvailableUnit);
     ConsolePrint(u"\n");
 }
 
