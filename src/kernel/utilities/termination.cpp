@@ -81,7 +81,7 @@ void __attribute__((used, noinline)) PrintStackTrace(int maxFrames)
 	}
 }
 
-void KERNEL_NORETURN AssertionFailed(const char* expression, const char* message, const char* filename, size_t lineNumber)
+void KERNEL_NORETURN AssertionFailed(const char* expression, const char* message, const char* filename, size_t lineNumber, uint64_t v1, uint64_t v2, uint64_t v3)
 {
     char16_t messageBuffer[2048];
 
@@ -128,7 +128,25 @@ void KERNEL_NORETURN AssertionFailed(const char* expression, const char* message
     ConsolePrintAtPosWithColor(messageBuffer, StartX, StartY, OriginX, Text);
     StartY += Font->Common->LineHeight;
 
-	ConsolePrint(u"\n\n\n\n\n\n\nStack trace:\n");
+	StartX = OriginX;
+    ConsolePrintAtPosWithColor(u"Value1: 0x", StartX, StartY, OriginX, Label);
+    witoabuf(messageBuffer, v1, 16);
+    ConsolePrintAtPosWithColor(messageBuffer, StartX, StartY, OriginX, Text);
+    StartY += Font->Common->LineHeight;
+
+	StartX = OriginX;
+    ConsolePrintAtPosWithColor(u"Value2: 0x", StartX, StartY, OriginX, Label);
+    witoabuf(messageBuffer, v2, 16);
+    ConsolePrintAtPosWithColor(messageBuffer, StartX, StartY, OriginX, Text);
+    StartY += Font->Common->LineHeight;
+
+	StartX = OriginX;
+    ConsolePrintAtPosWithColor(u"Value3: 0x", StartX, StartY, OriginX, Label);
+    witoabuf(messageBuffer, v3, 16);
+    ConsolePrintAtPosWithColor(messageBuffer, StartX, StartY, OriginX, Text);
+    StartY += Font->Common->LineHeight;
+
+	ConsolePrint(u"\n\n\n\n\n\n\n\n\n\nStack trace:\n");
 
 	PrintStackTrace(60);
 

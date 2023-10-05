@@ -17,7 +17,8 @@
 #define KERNEL_API __attribute__((sysv_abi))
 #define KERNEL_NORETURN __attribute__((noreturn))
 
-extern "C" void AssertionFailed(const char* expression, const char* message, const char* filename, size_t lineNumber);
+extern "C" void AssertionFailed(const char* expression, const char* message, const char* filename, size_t lineNumber, uint64_t v1, uint64_t v2, uint64_t v3);
 
 #define _ASSERT(x) _ASSERTF(x, nullptr)
-#define _ASSERTF(x, message) if( !(x) ) { AssertionFailed(#x, message, __FILE__, __LINE__); }
+#define _ASSERTF(x, message) if( !(x) ) { AssertionFailed(#x, message, __FILE__, __LINE__, 0, 0, 0); }
+#define _ASSERTFV(x, message, v1, v2, v3) if( !(x) ) { AssertionFailed(#x, message, __FILE__, __LINE__, v1, v2, v3); }
