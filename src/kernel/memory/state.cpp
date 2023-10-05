@@ -27,7 +27,7 @@ MemoryState VirtualMemoryState;
 // If you encounter a leaf node (ie anything except a branch), the Address pointer
 // now contains the upper bound of the allocation from the parent's lower bound.
 
-void MemoryState::Init(const uint64_t highestAddress)
+void MemoryState::Init(int systemIndex, const uint64_t highestAddress)
 {
 	StateRoot = nullptr;
 	StateLeafFreeHead = nullptr;
@@ -35,6 +35,7 @@ void MemoryState::Init(const uint64_t highestAddress)
 	HighestAddress = highestAddress;
 	UsedBranches = 0;
 	UsedLeaves = 0;
+	SystemIndex = systemIndex;
 
 	NextStateLeafFreeHead = nullptr;
 	NextStateBranchFreeHead = nullptr;
@@ -81,10 +82,10 @@ void MemoryState::AllocateNewBranchPage()
 
 MemoryState::StateNode* MemoryState::TagRangeInternal(StateNode* CurrentState, const uintptr_t LowAddress, const uintptr_t HighAddress, const RangeState State, const uintptr_t OuterLowAddress, const uintptr_t OuterHighAddress)
 {
-	_ASSERTF(OuterHighAddress - OuterLowAddress > 0, "About to create an empty block");
+	_ASSERTFV(OuterHighAddress - OuterLowAddress > 0, "About to create an empty block", OuterHighAddress, OuterLowAddress, SystemIndex);
 
-    _ASSERTF(OuterLowAddress <= LowAddress, "Requested address is out of range");
-    _ASSERTF(HighAddress <= OuterHighAddress, "Requested address is out of range");
+    _ASSERTFV(OuterLowAddress <= LowAddress, "Requested address is out of range", OuterLowAddress, LowAddress, SystemIndex);
+    _ASSERTFV(HighAddress <= OuterHighAddress, "Requested address is out of range", HighAddress, OuterHighAddress, SystemIndex);
 
 	uintptr_t Address = CurrentState->GetAddress();
 
@@ -92,8 +93,8 @@ MemoryState::StateNode* MemoryState::TagRangeInternal(StateNode* CurrentState, c
     {
 		BranchStateNode* BranchState = (BranchStateNode*)CurrentState;
 
-        _ASSERTF(OuterLowAddress <= Address, "Requested address is out of range");
-        _ASSERTF(Address < OuterHighAddress, "Requested address is out of range");
+        _ASSERTFV(OuterLowAddress <= Address, "Requested address is out of range", OuterLowAddress, Address, SystemIndex);
+        _ASSERTFV(Address < OuterHighAddress, "Requested address is out of range", Address, OuterHighAddress, SystemIndex);
 
         if (LowAddress < Address && HighAddress <= Address)
         {
@@ -124,7 +125,8 @@ MemoryState::StateNode* MemoryState::TagRangeInternal(StateNode* CurrentState, c
     }
     else
     {
-		_ASSERTF(Address >= LowAddress && Address >= HighAddress, "Address out of bounds");
+		_ASSERTFV(Address >= LowAddress, "Address out of bounds", Address, LowAddress, SystemIndex);
+		_ASSERTFV(Address >= HighAddress, "Address out of bounds", Address, HighAddress, SystemIndex);
 
         // We're on a leaf node. Check if we need to split it.
         if (!(LowAddress == OuterLowAddress && HighAddress == Address))
@@ -165,9 +167,9 @@ MemoryState::StateNode* MemoryState::TagRangeInternal(StateNode* CurrentState, c
 				ConsolePrint(u"\n");
 			}
 
-			_ASSERTF(MidPoint == NewLeft->GetAddress(), "Mismatch on expected block bounds");
+			_ASSERTFV(MidPoint == NewLeft->GetAddress(), "Mismatch on expected block bounds", MidPoint, NewLeft->GetAddress(), SystemIndex);
 
-			_ASSERTF(Address == OuterHighAddress || (OuterHighAddress & PAGE_MASK) == (~0ULL & PAGE_MASK), "Right block should touch the outer bound");
+			_ASSERTFV(Address == OuterHighAddress || (OuterHighAddress & PAGE_MASK) == (~0ULL & PAGE_MASK), "Right block should touch the outer bound", Address, OuterHighAddress, SystemIndex);
 			StateNode* NewRight = GetFreeLeafState();
             NewBranch->Right = NewRight;
             NewRight->SetAddress(Address);
@@ -178,31 +180,31 @@ MemoryState::StateNode* MemoryState::TagRangeInternal(StateNode* CurrentState, c
 
 			CurrentState = NewBranch;
 
-			_ASSERTF(MidPoint == NewBranch->Left->GetAddress(), "Mismatch on expected block bounds");
+			_ASSERTFV(MidPoint == NewBranch->Left->GetAddress(), "Mismatch on expected block bounds", MidPoint, NewBranch->Left->GetAddress(), SystemIndex);
 
             // Now that the node is split, recurse on the appropriate child node
             if (LowAddress < MidPoint && HighAddress <= MidPoint)
             {
-				_ASSERTF(OuterLowAddress < MidPoint, "About to create zero block");
-				_ASSERTF(MidPoint == NewBranch->Left->GetAddress(), "Mismatch on expected block bounds");
+				_ASSERTFV(OuterLowAddress < MidPoint, "About to create zero block", OuterLowAddress, MidPoint, SystemIndex);
+				_ASSERTFV(MidPoint == NewBranch->Left->GetAddress(), "Mismatch on expected block bounds", MidPoint, NewBranch->Left->GetAddress(), SystemIndex);
                 NewBranch->Left = TagRangeInternal(NewBranch->Left, LowAddress, HighAddress, State, OuterLowAddress, MidPoint);
             }
             else if (LowAddress >= MidPoint && HighAddress > MidPoint)
             {
-				_ASSERTF(MidPoint < Address, "About to create zero block");
+				_ASSERTFV(MidPoint < Address, "About to create zero block", MidPoint, Address, SystemIndex);
                 NewBranch->Right = TagRangeInternal(NewBranch->Right, LowAddress, HighAddress, State, MidPoint, Address);
             }
             else
             {
-                _ASSERTF(false, "Incorrect branch state");
+                _ASSERTFV(false, "Incorrect branch state", 0, 0, SystemIndex);
             }
 
 			StateNode* NewNode = UpdateNode(NewBranch, OuterLowAddress, OuterHighAddress);
-			_ASSERTF(NewNode == NewBranch, "Unexpected node merge");
+			_ASSERTFV(NewNode == NewBranch, "Unexpected node merge", 0, 0, SystemIndex);
         }
         else
         {
-            _ASSERTF(LowAddress == OuterLowAddress || HighAddress == OuterHighAddress, "Expected ranges to match.");
+            _ASSERTFV(LowAddress == OuterLowAddress || HighAddress == OuterHighAddress, "Expected ranges to match.", LowAddress, HighAddress, SystemIndex);
             //_ASSERTF(CurrentState->State.State != RangeState::Reserved || State == RangeState::Reserved, "Cannot modify reserved ranges once created.");
 
             CurrentState->State.State = State;

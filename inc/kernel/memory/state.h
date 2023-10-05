@@ -65,7 +65,7 @@ public:
 
 	};
 
-	void Init(const uint64_t HighestAddress);
+	void Init(int SystemIndex, const uint64_t HighestAddress);
 	void InitDynamic();
 
 	void AllocateNewLeafPage();
@@ -227,6 +227,8 @@ private:
 	uint64_t HighestAddress;
 	uint64_t UsedBranches;
 	uint64_t UsedLeaves;
+
+	int SystemIndex; //This is for identifying what system were in when debugging
 
 	static_assert(sizeof(StateNode) == 8, "Leaf state not expected size");
 	static_assert(sizeof(BranchStateNode) == 40, "Branch state not expected size");

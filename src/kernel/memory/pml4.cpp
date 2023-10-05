@@ -409,8 +409,8 @@ void BuildPML4(KernelBootData* bootData)
 	//Chop off any straggling bits so we get full pages only
 	HighestAddress &= PAGE_MASK;
 
-	PhysicalMemoryState.Init(HighestAddress);
-	VirtualMemoryState.Init(PAGE_MASK); //Limit set by x86-64 architecture.
+	PhysicalMemoryState.Init(0, HighestAddress);
+	VirtualMemoryState.Init(1, PAGE_MASK); //Limit set by x86-64 architecture.
 
 	memset(&PML4, 0, sizeof(PML4));
     PreparePML4FreeList(InitialPageTableEntries);
