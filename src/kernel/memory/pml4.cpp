@@ -526,14 +526,12 @@ void BuildPML4(KernelBootData* bootData)
 				_ASSERTF(false, "Unexpected memory map mismatch");
 			}
 
-			PhysicalMemoryState.TagRange(StartP, lowest, MemoryState::RangeState::Free);
+			PhysicalMemoryState.TagRange(StartP, lowest, MemoryState::RangeState::Reserved);
 
 			LogPrintNumeric(u"Unmapped range from: ", StartP, u"");
 			LogPrintNumeric(u" to: ", lowest, u"");
 
 			LogPrintNumeric(u" (", (lowest-StartP), u" bytes)\n");
-
-			freeMemory += (lowest-StartP);
 			
 			StartP = lowest;
 		}
@@ -592,7 +590,7 @@ void MemCheck(KernelBootData* bootData)
 		{
 			if(!IsReadOnly)
 			{
-				for(uint64_t page = 0; page < Size / PAGE_SIZE; page++)
+				for(uint64_t page = 0; page < Size / PAGE_SIZE; page+=10)
 				{
 					uint64_t PhysicalOffset = Start + (page * PAGE_SIZE);
 					volatile uint64_t* WriteTarget = (uint64_t*)TargetVirtualPage;
@@ -613,6 +611,8 @@ void MemCheck(KernelBootData* bootData)
 		}
     }
 
+	//Point it somewhere because our last free has meant we're not pointing to a physical page
+	MapPages(TargetVirtualPage, 0, PAGE_SIZE, true, false, MemoryState::RangeState::Used);
 	VirtualFree((void*)TargetVirtualPage, PAGE_SIZE);
 
 	LogPrintNumeric(u"Highest memcheck: ", HighestAddressWritten, u"\n");
