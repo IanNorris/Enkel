@@ -8,7 +8,7 @@
 
 #define PAGE_BITS 12
 #define PAGE_SIZE 4096
-#define PAGE_MASK 0x1FFFFFFFFF000
+#define PAGE_MASK 0xFFFFFFFFF000
 
 class MemoryState
 {
