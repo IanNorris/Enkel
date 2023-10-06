@@ -13,6 +13,7 @@ FONT_NAME := Jura
 FONT_ROOT := ../../fonts
 FONT_CPP_FILES := $(FONT_ROOT)/$(FONT_NAME).cpp $(FONT_ROOT)/$(FONT_NAME)_0.cpp
 FONT_H_FILES := $(FONT_ROOT)/$(FONT_NAME).h  $(FONT_ROOT)/$(FONT_NAME)_0.h
+EMBEDDED_IMAGE_FILES := ../../assets/SplashLogo.tga
 EMBEDDED_IMAGE_CPP_FILES := ../../assets/SplashLogo.cpp
 EMBEDDED_IMAGE_H_FILES := ../../assets/SplashLogo.h
 TOOLS := ../../tools
@@ -138,13 +139,10 @@ override HEADER_DEPS := $(CPPFILES:.cpp=.cpp.d) $(CFILES:.c=.c.d) $(ASFILES:.S=.
 
 # Default target.
 .PHONY: force all
-all: vendor $(VENDOR_ROOT)/acpica_out/acpica.a $(NASMBINFILES) $(KERNEL) $(FONT_CPP_FILES) $(EMBEDDED_IMAGE_CPP_FILES) kernel_build.cpptemp.o $(FONT_H_FILES) $(EMBEDDED_IMAGE_H_FILES) $(NASMFILES)
+all: vendor $(VENDOR_ROOT)/acpica_out/acpica.a $(NASMBINFILES) $(KERNEL) kernel_build.cpptemp.o $(NASMFILES) $(FONT_CPP_FILES) $(FONT_H_FILES) $(EMBEDDED_IMAGE_CPP_FILES) $(EMBEDDED_IMAGE_H_FILES)
 
 vendor:
 	make -C $(VENDOR_ROOT)
-
-$(FONT_CPP_FILES) $(FONT_H_FILES): fonts
-$(EMBEDDED_IMAGE_CPP_FILES) $(EMBEDDED_IMAGE_H_FILES): assets
 
 $(VENDOR_ROOT)/acpica_out/acpica.a:
 	make -C $(VENDOR_ROOT)/acpica_out
@@ -157,11 +155,11 @@ kernel_build.cpptemp.o:
 	echo "const char16_t* KernelBuildId = u\"$(shell git rev-parse HEAD | cut -c 1-8) $(shell date '+%FT %T')\";\n" > kernel_build.cpptemp
 	$(CC) -x c++ $(CFLAGS) $(CPPFLAGS) -c kernel_build.cpptemp -o kernel_build.cpptemp.o
 
-fonts: 
+$(FONT_CPP_FILES) $(FONT_H_FILES):
 	$(MAKE) -C ../../fonts
 
-assets:
-	$(MAKE) -C ../../fonts
+$(EMBEDDED_IMAGE_CPP_FILES) $(EMBEDDED_IMAGE_H_FILES): $(EMBEDDED_IMAGE_FILES)
+	$(MAKE) -C ../../assets
 
 # Link rules for the final kernel executable.
 $(KERNEL): $(VENDOR_ROOT)/acpica_out/acpica.a $(NASMBINFILES:.asmb=.asmb.o) $(OBJ) $(CPPFILES) $(CFILES) $(LDTEMPLATE) $(NASMFILES) uefi-headers kernel_build.cpptemp.o
