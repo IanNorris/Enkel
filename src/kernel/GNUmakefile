@@ -12,7 +12,9 @@ override DEBUG_FLAGS := -g3 -O0 -D_DEBUG -DACPI_DEBUG_OUTPUT
 FONT_NAME := Jura
 FONT_ROOT := ../../fonts
 FONT_CPP_FILES := $(FONT_ROOT)/$(FONT_NAME).cpp $(FONT_ROOT)/$(FONT_NAME)_0.cpp
-FONT_H_FILES := $(FONT_ROOT)/$(FONT_NAME).h  $(FONT_ROOT)/$(FONT_NAME)_0.h 
+FONT_H_FILES := $(FONT_ROOT)/$(FONT_NAME).h  $(FONT_ROOT)/$(FONT_NAME)_0.h
+EMBEDDED_IMAGE_CPP_FILES := ../../assets/SplashLogo.cpp
+EMBEDDED_IMAGE_H_FILES := ../../assets/SplashLogo.h
 TOOLS := ../../tools
 
 LDTEMPLATE := linker.ld
@@ -125,7 +127,7 @@ override SFLAGS += \
 
 # Use "find" to glob all *.c, *.S, and *.asm files in the tree and obtain the
 # object and header dependency file names.
-override CPPFILES := $(shell find -L . -type f -name '*.cpp') $(FONT_CPP_FILES)
+override CPPFILES := $(shell find -L . -type f -name '*.cpp') $(FONT_CPP_FILES) $(EMBEDDED_IMAGE_CPP_FILES)
 override CFILES := $(RPMALLOC_C_FILES)
 override ASFILES := $(shell find -L . -type f -name '*.S')
 override NASMFILES := $(shell find -L . -type f -name '*.asm')
@@ -136,12 +138,13 @@ override HEADER_DEPS := $(CPPFILES:.cpp=.cpp.d) $(CFILES:.c=.c.d) $(ASFILES:.S=.
 
 # Default target.
 .PHONY: force all
-all: vendor $(VENDOR_ROOT)/acpica_out/acpica.a $(NASMBINFILES) $(KERNEL) $(FONT_CPP_FILES) kernel_build.cpptemp.o $(FONT_H_FILES) $(NASMFILES)
+all: vendor $(VENDOR_ROOT)/acpica_out/acpica.a $(NASMBINFILES) $(KERNEL) $(FONT_CPP_FILES) $(EMBEDDED_IMAGE_CPP_FILES) kernel_build.cpptemp.o $(FONT_H_FILES) $(EMBEDDED_IMAGE_H_FILES) $(NASMFILES)
 
 vendor:
 	make -C $(VENDOR_ROOT)
 
 $(FONT_CPP_FILES) $(FONT_H_FILES): fonts
+$(EMBEDDED_IMAGE_CPP_FILES) $(EMBEDDED_IMAGE_H_FILES): assets
 
 $(VENDOR_ROOT)/acpica_out/acpica.a:
 	make -C $(VENDOR_ROOT)/acpica_out
@@ -155,6 +158,9 @@ kernel_build.cpptemp.o:
 	$(CC) -x c++ $(CFLAGS) $(CPPFLAGS) -c kernel_build.cpptemp -o kernel_build.cpptemp.o
 
 fonts: 
+	$(MAKE) -C ../../fonts
+
+assets:
 	$(MAKE) -C ../../fonts
 
 # Link rules for the final kernel executable.

@@ -390,3 +390,7 @@ gdb.txt
 ap.bin
 temp/
 *.lst
+
+#Generated code
+assets/*.cpp
+assets/*.h

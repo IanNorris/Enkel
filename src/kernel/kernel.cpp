@@ -6,9 +6,11 @@
 #include "kernel/init/pic.h"
 #include "kernel/init/tls.h"
 #include "kernel/init/interrupts.h"
+#include "kernel/texture/render.h"
 #include "memory/memory.h"
 #include "memory/virtual.h"
 #include "rpmalloc.h"
+#include "../../assets/SplashLogo.h"
 
 extern "C"
 {
@@ -241,6 +243,9 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 	GBootData = *BootData;
 
 	DefaultConsoleInit(GBootData.Framebuffer, BMFontColor{ 0x0, 0x20, 0x80 }, BMFontColor{ 0x8c, 0xFF, 0x0 });
+
+	//RenderTGA(&GBootData.Framebuffer, SplashLogo_tga_data, GBootData.Framebuffer.Width, 0, AlignImage::Right, AlignImage::Top, true);
+	RenderTGA(&GBootData.Framebuffer, SplashLogo_tga_data, GBootData.Framebuffer.Width / 2, GBootData.Framebuffer.Height / 2, AlignImage::Middle, AlignImage::Middle, true);
 
 	ConsolePrint(u"Starting Enkel (Revision ");
 	ConsolePrint(KernelBuildId);
