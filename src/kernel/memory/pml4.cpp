@@ -395,7 +395,7 @@ void BuildPML4(KernelBootData* bootData)
         const EFI_MEMORY_DESCRIPTOR& Desc = *((EFI_MEMORY_DESCRIPTOR*)((UINT8*)memoryLayout.Map + (entry * memoryLayout.DescriptorSize)));
 
         uintptr_t End = Desc.PhysicalStart + Desc.NumberOfPages * EFI_PAGE_SIZE;
-        if (End > HighestAddress && Desc.Type == EfiConventionalMemory)
+        if (End > HighestAddress)
         {
             HighestAddress = End;
         }
