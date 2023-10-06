@@ -100,11 +100,11 @@ void __attribute__((__noreturn__)) ExitToKernel(EFI_BOOT_SERVICES* bootServices,
 	uint64_t stackHigh = (uint64_t)stackRange.Data + stackSize;
 
 	//Need to ensure we end up in the code segment
-	uint64_t APBootstrapPage = 0x1000;
+	uint64_t APBootstrapPage = 0xC000;
 	EFI_STATUS APStatus = bootServices->AllocatePages(AllocateAddress, (EFI_MEMORY_TYPE)EfiMemoryMapType_APBootstrap, 1, &APBootstrapPage);
 	_ASSERTF(APStatus == EFI_SUCCESS, "Unable to allocate AP bootstrap");
 
-	uint64_t TablePage = 0x2000;
+	uint64_t TablePage = 0xA000;
 	const int TablePageCount = 2;
 	APStatus = bootServices->AllocatePages(AllocateAddress, (EFI_MEMORY_TYPE)EfiMemoryMapType_Tables, TablePageCount, &TablePage);
 	_ASSERTF(APStatus == EFI_SUCCESS, "Unable to allocate tables page");

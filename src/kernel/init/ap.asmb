@@ -1,5 +1,5 @@
 bits 16
-ORG 0x1000
+ORG 0xC000
 
 ; Here we go
 APEntry:
