@@ -12,11 +12,6 @@ void Halt(void)
     asm("hlt");
 }
 
-void DebugBreak()
-{
-	asm volatile("int $3");
-}
-
 void __attribute__((used, noinline, noreturn)) HaltPermanently(void)
 {
     //Stop interrupts
@@ -149,7 +144,4 @@ void KERNEL_NORETURN AssertionFailed(const char* expression, const char* message
 	ConsolePrint(u"\n\n\n\n\n\n\n\n\n\nStack trace:\n");
 
 	PrintStackTrace(60);
-
-	DebugBreak();
-    HaltPermanently();
 }
