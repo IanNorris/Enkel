@@ -128,12 +128,18 @@ MemoryState::StateNode* MemoryState::TagRangeInternal(StateNode* CurrentState, c
 		_ASSERTFV(Address >= LowAddress, "Address out of bounds", Address, LowAddress, SystemIndex);
 		_ASSERTFV(Address >= HighAddress, "Address out of bounds", Address, HighAddress, SystemIndex);
 
+		RangeState TargetState = CurrentState->State.State;
+		if(CurrentState->State.State != RangeState::Reserved)
+		{
+			TargetState = State;
+		}
+
         // We're on a leaf node. Check if we need to split it.
         if (!(LowAddress == OuterLowAddress && HighAddress == Address))
         {
 			//If the range we want is the same as what's already tagged
 			// and is wholly contained in our current block, we can just do nothing.
-			if(LowAddress >= OuterLowAddress && HighAddress <= Address && CurrentState->State.State == State)
+			if(LowAddress >= OuterLowAddress && HighAddress <= Address && CurrentState->State.State == TargetState)
 			{
 				return CurrentState;
 			}
@@ -187,27 +193,29 @@ MemoryState::StateNode* MemoryState::TagRangeInternal(StateNode* CurrentState, c
             {
 				_ASSERTFV(OuterLowAddress < MidPoint, "About to create zero block", OuterLowAddress, MidPoint, SystemIndex);
 				_ASSERTFV(MidPoint == NewBranch->Left->GetAddress(), "Mismatch on expected block bounds", MidPoint, NewBranch->Left->GetAddress(), SystemIndex);
-                NewBranch->Left = TagRangeInternal(NewBranch->Left, LowAddress, HighAddress, State, OuterLowAddress, MidPoint);
+                NewBranch->Left = TagRangeInternal(NewBranch->Left, LowAddress, HighAddress, TargetState, OuterLowAddress, MidPoint);
             }
             else if (LowAddress >= MidPoint && HighAddress > MidPoint)
             {
 				_ASSERTFV(MidPoint < Address, "About to create zero block", MidPoint, Address, SystemIndex);
-                NewBranch->Right = TagRangeInternal(NewBranch->Right, LowAddress, HighAddress, State, MidPoint, Address);
+                NewBranch->Right = TagRangeInternal(NewBranch->Right, LowAddress, HighAddress, TargetState, MidPoint, Address);
             }
             else
             {
                 _ASSERTFV(false, "Incorrect branch state", 0, 0, SystemIndex);
             }
 
+			_ASSERTF(!(NewBranch->Right->State.State != RangeState::Branch && NewBranch->Left->State.State == NewBranch->Right->State.State), "About to perform unexpected state merge");
+
 			StateNode* NewNode = UpdateNode(NewBranch, OuterLowAddress, OuterHighAddress);
-			_ASSERTFV(NewNode == NewBranch, "Unexpected node merge", 0, 0, SystemIndex);
+			_ASSERTFV(NewNode == NewBranch, "Unexpected node merge", (uint64_t)NewNode, (uint64_t)NewBranch, SystemIndex);
         }
         else
         {
             _ASSERTFV(LowAddress == OuterLowAddress || HighAddress == OuterHighAddress, "Expected ranges to match.", LowAddress, HighAddress, SystemIndex);
             //_ASSERTF(CurrentState->State.State != RangeState::Reserved || State == RangeState::Reserved, "Cannot modify reserved ranges once created.");
 
-            CurrentState->State.State = State;
+			CurrentState->State.State = TargetState;
         }
     }
 
