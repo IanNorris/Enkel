@@ -346,8 +346,7 @@ void
 AcpiOsFree (
     void                    *Mem)
 {
-	_ASSERTF(false, "Not implemented");
-    //k_free (Mem);
+	rpfree(Mem);
 }
 
 
@@ -481,7 +480,7 @@ AcpiOsReadPort (
     UINT32                  *Value,
     UINT32                  Width)
 {
-	_ASSERTF(false, "Not implemented");
+	NOT_IMPLEMENTED();
 /*
     switch (Width)
     {
@@ -535,7 +534,7 @@ AcpiOsWritePort (
     UINT32                  Value,
     UINT32                  Width)
 {
-	_ASSERTF(false, "Not implemented");
+	NOT_IMPLEMENTED();
 /*
     switch (Width)
     {
@@ -592,7 +591,7 @@ AcpiOsWritePciConfiguration (
     UINT64                  Value,
     UINT32                  Width)
 {
-	_ASSERTF(false, "Not implemented");
+	NOT_IMPLEMENTED();
 
     /*UINT32                  value32;
     pcie_bdf_t              bdf = PCIE_BDF (PciId->Bus, PciId->Device, PciId->Function);
@@ -656,7 +655,7 @@ AcpiOsReadPciConfiguration (
     UINT64                  *Value,
     UINT32                  Width)
 {
-	_ASSERTF(false, "Not implemented");
+	NOT_IMPLEMENTED();
 
     /*pcie_bdf_t bdf = PCIE_BDF (PciId->Bus, PciId->Device, PciId->Function);
 
@@ -825,7 +824,7 @@ AcpiOsMapMemory (
     uint8_t                 *VirtlAdd;
 
     LOG_DBG ("");
-	_ASSERTF(false, "Not implemented");
+	NOT_IMPLEMENTED();
 //    z_phys_map (&VirtlAdd, Where, Length, 0);
     return ((void *) VirtlAdd);
 }
@@ -852,7 +851,7 @@ AcpiOsUnmapMemory (
     ACPI_SIZE               Length)
 {
     LOG_DBG ("");
-	_ASSERTF(false, "Not implemented");
+	NOT_IMPLEMENTED();
     //z_phys_unmap (Where, Length);
 }
 
@@ -923,7 +922,7 @@ AcpiOsStall (
     UINT32                  Microseconds)
 {
     //k_busy_wait (Microseconds);
-	_ASSERTF (false, "Not implemented");
+	NOT_IMPLEMENTED();
 }
 
 
@@ -944,7 +943,7 @@ AcpiOsSleep (
     UINT64                  Milliseconds)
 {
     //k_msleep ((UINT32) Milliseconds);
-	_ASSERTF (false, "Not implemented");
+	NOT_IMPLEMENTED();
 }
 
 
@@ -970,7 +969,7 @@ AcpiOsEnterSleep (
     UINT32                  RegaValue,
     UINT32                  RegbValue)
 {
-    _ASSERTF (false, "function Not implemented");
+    NOT_IMPLEMENTED();
     return (AE_OK);
 }
 
@@ -1018,7 +1017,7 @@ AcpiOsInstallInterruptHandler (
     void                    *Context)
 {
     LOG_DBG ("");
-	_ASSERTF (false, "Not implemented");
+	NOT_IMPLEMENTED();
 	//TODO
     //irq_connect_dynamic (InterruptNumber, 3, (zephyr_irq_t) ServiceRoutine, Context,
     //    IRQ_TYPE_LOWEST_LEVEL_LOW);
@@ -1046,7 +1045,7 @@ AcpiOsRemoveInterruptHandler (
 {
 
     LOG_DBG ("");
-	_ASSERTF(false, "Not implemented");
+	NOT_IMPLEMENTED();
     //irq_disable (InterruptNumber);
     return (AE_OK);
 }
@@ -1199,7 +1198,7 @@ AcpiOsVprintf (
     const char              *Fmt,
     va_list                 Args)
 {
-	_ASSERTF(false, "Not implemented");
+	NOT_IMPLEMENTED();
 
    /* INT32                   Count = 0;
     UINT8                   Flags;
@@ -1236,7 +1235,7 @@ ACPI_STATUS
 AcpiOsPurgeCache (
     ACPI_CACHE_T            *Cache)
 {
-	_ASSERTF(false, "Not implemented");
+	NOT_IMPLEMENTED();
 
     return (AE_OK);
 }
@@ -1259,7 +1258,7 @@ ACPI_STATUS
 AcpiOsWaitCommandReady (
     void)
 {
-	_ASSERTF(false, "Not implemented");
+	NOT_IMPLEMENTED();
     return (AE_OK);
 
  /*   ACPI_STATUS             Status = AE_OK;
@@ -1322,7 +1321,7 @@ MpSaveGpioInfo (
     UINT16                  *PinList,
     char                    *DeviceName)
 {
-	_ASSERTF(false, "Not implemented");
+	NOT_IMPLEMENTED();
 }
 
 void
@@ -1331,7 +1330,7 @@ MpSaveSerialInfo (
     AML_RESOURCE            *Resource,
     char                    *DeviceName)
 {
-	_ASSERTF(false, "Not implemented");
+	NOT_IMPLEMENTED();
 }
 
 /*******************************************************************************
@@ -1350,7 +1349,7 @@ const AH_DEVICE_ID *
 AcpiAhMatchHardwareId (
     char                    *HardwareId)
 {
-	_ASSERTF(false, "Not implemented");
+	NOT_IMPLEMENTED();
 
     /*const AH_DEVICE_ID      *Info;
 
@@ -1437,7 +1436,7 @@ void
 AcpiOsWaitEventsComplete (
     void)
 {
-	_ASSERTF(false, "Not implemented");
+	NOT_IMPLEMENTED();
     return;
 }
 
@@ -1477,7 +1476,7 @@ ACPI_STATUS
 AcpiOsNotifyCommandComplete (
     void)
 {
-	_ASSERTF(false, "Not implemented");
+	NOT_IMPLEMENTED();
     /*if (AcpiGbl_DebuggerConfiguration == DEBUGGER_MULTI_THREADED)
     {
         AcpiOsReleaseMutex (AcpiGbl_DbCommandComplete);
@@ -1503,7 +1502,7 @@ AcpiOsInitializeDebugger (
 {
     ACPI_STATUS             Status;
 
-	_ASSERTF(false, "Not implemented");
+	NOT_IMPLEMENTED();
 
     /*// Create command signals
 
@@ -1560,7 +1559,7 @@ void
 AcpiOsTerminateDebugger (
     void)
 {
-	_ASSERTF(false, "Not implemented");
+	NOT_IMPLEMENTED();
 
     /*if (AcpiGbl_DbCommandSignalsInitialized)
     {
@@ -1589,7 +1588,7 @@ AcpiAhMatchUuid (
     const AH_UUID           *Info;
     UINT8                   UuidBuffer[UUID_BUFFER_LENGTH];
 
-	_ASSERTF(false, "Not implemented");
+	NOT_IMPLEMENTED();
 /*
     // Walk the table of known ACPI-related UUIDs
 

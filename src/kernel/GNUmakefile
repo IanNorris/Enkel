@@ -5,7 +5,7 @@ override MAKEFLAGS += -rR
 # Change as needed.
 override KERNEL := enkel.elf
 
-override DEBUG_FLAGS := -g3 -O0 -D_DEBUG -DACPI_DEBUG_OUTPUT
+override DEBUG_FLAGS := -g3 -O0 -D_DEBUG -DACPI_DEBUG_OUTPUT -DENABLE_STATISTICS=1
 #override DEBUG_FLAGS := -O3
 
 # The name of the font
@@ -67,7 +67,6 @@ override CFLAGS += \
 	-D__ENKEL__ \
 	-DARCH_64BIT \
 	-DRPMALLOC_CONFIGURABLE=1 \
-	-DRPMALLOC_FIRST_CLASS_HEAPS=0 \
     -Wall \
     -Wextra \
 	-Wno-unused-parameter \
@@ -172,10 +171,10 @@ $(KERNEL): $(VENDOR_ROOT)/acpica_out/acpica.a $(NASMBINFILES:.asmb=.asmb.o) $(OB
 
 # Compilation rules for *.cpp files.
 %.cpp.o: %.cpp
-	$(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@
+	$(CC) $(CPPFLAGS) -c $< -o $@
 
 %.c.o: %.c
-	$(CC) $(CFLAGS) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $@
 
 # Compilation rules for *.S files.
 %.S.o: %.S

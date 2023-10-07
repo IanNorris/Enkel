@@ -25,7 +25,7 @@ void* RPMallocMap(size_t size, size_t* offset)
 
 void RPMallocUnmap(void* address, size_t size, size_t offset, size_t release)
 {
-	_ASSERTF(false, "Not implemented");
+	NOT_IMPLEMENTED();
 }
 
 void InitRPMalloc()
