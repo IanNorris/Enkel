@@ -73,7 +73,7 @@ EFI_STATUS __attribute__((__noreturn__)) efi_main(EFI_HANDLE imageHandle, EFI_SY
 		Halt(0, u"XSDT is null");
 	}
 
-	EFI_ACPI_SDT_HEADER* Rsdt = (EFI_ACPI_SDT_HEADER*)Acpi2Descriptor->RsdtAddress;
+	EFI_ACPI_2_0_ROOT_SYSTEM_DESCRIPTION_POINTER* Rsdt = (EFI_ACPI_2_0_ROOT_SYSTEM_DESCRIPTION_POINTER*)Acpi2Descriptor;
 	if(Rsdt == nullptr)
 	{
 		Halt(0, u"RSDT is null");

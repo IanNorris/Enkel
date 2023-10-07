@@ -47,4 +47,4 @@ enum class LocalApicOffsets : uint32_t
 };
 
 
-void InitApic(EFI_ACPI_SDT_HEADER* Rsdt, EFI_ACPI_DESCRIPTION_HEADER* Xsdt);
+void InitApic(EFI_ACPI_2_0_ROOT_SYSTEM_DESCRIPTION_POINTER* Rsdt, EFI_ACPI_DESCRIPTION_HEADER* Xsdt);

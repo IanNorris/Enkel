@@ -63,7 +63,7 @@ struct KernelBootData
 	EFI_GRAPHICS_OUTPUT_PROTOCOL* GraphicsOutput;
 	EFI_RUNTIME_SERVICES* RuntimeServices;
 	EFI_ACPI_DESCRIPTION_HEADER* Xsdt;
-	EFI_ACPI_SDT_HEADER* Rsdt;
+	EFI_ACPI_2_0_ROOT_SYSTEM_DESCRIPTION_POINTER* Rsdt;
 	FramebufferLayout Framebuffer;
 };
 

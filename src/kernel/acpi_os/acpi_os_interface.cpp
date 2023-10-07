@@ -168,12 +168,125 @@ extern "C"
 
 #define LOG_DBG(msg)
 
-extern uint32_t GRdsp;
-
 static bool EnableDebugLogging;
 
 static ACPI_PHYSICAL_ADDRESS RsdpPhyAdd;
 
+#include "kernel/init/bootload.h"
+
+extern KernelBootData GBootData;
+
+
+
+static void sys_out8(uint8_t data, uint16_t port)
+{
+        __asm__ volatile("outb %b0, %w1" :: "a"(data), "Nd"(port));
+}
+ 
+static uint8_t sys_in8(uint16_t port)
+{
+        uint8_t ret;
+ 
+        __asm__ volatile("inb %w1, %b0" : "=a"(ret) : "Nd"(port));
+ 
+        return ret;
+}
+ 
+static void sys_out16(uint16_t data, uint16_t port)
+{
+        __asm__ volatile("outw %w0, %w1" :: "a"(data), "Nd"(port));
+}
+ 
+static uint16_t sys_in16(uint16_t port)
+{
+        uint16_t ret;
+ 
+        __asm__ volatile("inw %w1, %w0" : "=a"(ret) : "Nd"(port));
+ 
+        return ret;
+}
+ 
+static void sys_out32(uint32_t data, uint16_t port)
+{
+        __asm__ volatile("outl %0, %w1" :: "a"(data), "Nd"(port));
+}
+ 
+static uint32_t sys_in32(uint16_t port)
+{
+        uint32_t ret;
+ 
+        __asm__ volatile("inl %w1, %0" : "=a"(ret) : "Nd"(port));
+ 
+        return ret;
+}
+ 
+static void sys_write8(uint8_t data, uint64_t addr)
+{
+        __asm__ volatile("movb %0, %1"
+                         :
+                         : "q"(data), "m" (*(volatile uint8_t *)(uintptr_t) addr)
+                         : "memory");
+}
+ 
+static uint8_t sys_read8(uint64_t addr)
+{
+        uint8_t ret;
+ 
+        __asm__ volatile("movb %1, %0"
+                         : "=q"(ret)
+                         : "m" (*(volatile uint8_t *)(uintptr_t) addr)
+                         : "memory");
+ 
+        return ret;
+}
+ 
+static void sys_write16(uint16_t data, uint64_t addr)
+{
+        __asm__ volatile("movw %0, %1"
+                         :
+                         : "r"(data), "m" (*(volatile uint16_t *)(uintptr_t) addr)
+                         : "memory");
+}
+ 
+static uint16_t sys_read16(uint64_t addr)
+{
+        uint16_t ret;
+ 
+        __asm__ volatile("movw %1, %0"
+                         : "=r"(ret)
+                         : "m" (*(volatile uint16_t *)(uintptr_t) addr)
+                         : "memory");
+ 
+        return ret;
+}
+ 
+static void sys_write32(uint32_t data, uint64_t addr)
+{
+        __asm__ volatile("movl %0, %1"
+                         :
+                         : "r"(data), "m" (*(volatile uint32_t *)(uintptr_t) addr)
+                         : "memory");
+}
+ 
+static uint32_t sys_read32(uint64_t addr)
+{
+        uint32_t ret;
+ 
+        __asm__ volatile("movl %1, %0"
+                         : "=r"(ret)
+                         : "m" (*(volatile uint32_t *)(uintptr_t) addr)
+                         : "memory");
+ 
+        return ret;
+}
+ 
+static void sys_set_bit(uint64_t addr, unsigned int bit)
+{
+        __asm__ volatile("btsl %1, %0"
+                         : "+m" (*(volatile uint8_t *) (addr))
+                         : "Ir" (bit)
+                         : "memory");
+}
 
 
 /******************************************************************************
@@ -480,8 +593,6 @@ AcpiOsReadPort (
     UINT32                  *Value,
     UINT32                  Width)
 {
-	NOT_IMPLEMENTED();
-/*
     switch (Width)
     {
     case 8:
@@ -508,7 +619,7 @@ AcpiOsReadPort (
     default:
 
         return (AE_BAD_PARAMETER);
-    }*/
+    }
 
     return (AE_OK);
 }
@@ -534,8 +645,6 @@ AcpiOsWritePort (
     UINT32                  Value,
     UINT32                  Width)
 {
-	NOT_IMPLEMENTED();
-/*
     switch (Width)
     {
     case 8:
@@ -563,7 +672,6 @@ AcpiOsWritePort (
 
         return (AE_BAD_PARAMETER);
     }
-*/
 
     return (AE_OK);
 }
@@ -796,8 +904,7 @@ AcpiOsGetRootPointer (
 		return RsdpPhyAdd;
 	}
 
-	//TODO
-	RsdpPhyAdd = (ACPI_PHYSICAL_ADDRESS)GRdsp;
+	RsdpPhyAdd = (ACPI_PHYSICAL_ADDRESS)GetPhysicalAddress((uint64_t)GBootData.Rsdt);
 
 	return RsdpPhyAdd;
 }
@@ -821,12 +928,10 @@ AcpiOsMapMemory (
     ACPI_PHYSICAL_ADDRESS   Where,
     ACPI_SIZE               Length)
 {
-    uint8_t                 *VirtlAdd;
-
     LOG_DBG ("");
-	NOT_IMPLEMENTED();
-//    z_phys_map (&VirtlAdd, Where, Length, 0);
-    return ((void *) VirtlAdd);
+
+	uint64_t offset = (Where - (Where & PAGE_MASK));
+	return PhysicalAlloc(Where & PAGE_MASK, ((Length + offset) + PAGE_SIZE) & PAGE_MASK) + offset;
 }
 #endif
 
@@ -851,8 +956,11 @@ AcpiOsUnmapMemory (
     ACPI_SIZE               Length)
 {
     LOG_DBG ("");
-	NOT_IMPLEMENTED();
-    //z_phys_unmap (Where, Length);
+
+	uint64_t whereAddr = (uint64_t)Where;
+	
+	uint64_t offset = (whereAddr - (whereAddr & PAGE_MASK));
+	PhysicalFree((void*)(whereAddr & PAGE_MASK), ((Length + offset) + PAGE_SIZE) & PAGE_MASK);
 }
 
 
@@ -1198,7 +1306,8 @@ AcpiOsVprintf (
     const char              *Fmt,
     va_list                 Args)
 {
-	NOT_IMPLEMENTED();
+	SerialPrint(Fmt);
+	//NOT_IMPLEMENTED();
 
    /* INT32                   Count = 0;
     UINT8                   Flags;
