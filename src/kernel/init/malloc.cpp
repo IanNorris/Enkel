@@ -39,5 +39,4 @@ void InitRPMalloc()
 	rpmConfig.page_size = 4096;
 
 	rpmalloc_initialize_config(&rpmConfig);
-	rpmalloc_thread_initialize();
 }
