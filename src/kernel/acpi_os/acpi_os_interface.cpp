@@ -153,6 +153,7 @@
 #include "kernel/init/gdt.h"
 #include "kernel/init/pic.h"
 #include "kernel/init/msr.h"
+#include "kernel/init/interrupts.h"
 #include "kernel/console/console.h"
 #include "memory/physical.h"
 #include "kernel/scheduling/time.h"
@@ -1125,11 +1126,8 @@ AcpiOsInstallInterruptHandler (
     void                    *Context)
 {
     LOG_DBG ("");
-	NOT_IMPLEMENTED();
-	//TODO
-    //irq_connect_dynamic (InterruptNumber, 3, (zephyr_irq_t) ServiceRoutine, Context,
-    //    IRQ_TYPE_LOWEST_LEVEL_LOW);
-    //irq_enable (InterruptNumber);
+
+	SetInterruptHandler(InterruptNumber, ServiceRoutine, Context);
     return (AE_OK);
 }
 
@@ -1153,8 +1151,7 @@ AcpiOsRemoveInterruptHandler (
 {
 
     LOG_DBG ("");
-	NOT_IMPLEMENTED();
-    //irq_disable (InterruptNumber);
+    ClearInterruptHandler(InterruptNumber);
     return (AE_OK);
 }
 
@@ -1344,7 +1341,7 @@ ACPI_STATUS
 AcpiOsPurgeCache (
     ACPI_CACHE_T            *Cache)
 {
-	NOT_IMPLEMENTED();
+	//NOT_IMPLEMENTED();
 
     return (AE_OK);
 }
