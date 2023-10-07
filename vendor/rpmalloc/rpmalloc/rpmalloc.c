@@ -617,18 +617,18 @@ static uintptr_t _rpmalloc_main_thread_id;
 //! Configuration
 static rpmalloc_config_t _memory_config;
 //! Memory page size
-static size_t _memory_page_size;
+size_t _memory_page_size;
 //! Shift to divide by page size
 static size_t _memory_page_size_shift;
 //! Granularity at which memory pages are mapped by OS
-static size_t _memory_map_granularity;
+size_t _memory_map_granularity;
 #if RPMALLOC_CONFIGURABLE
 //! Size of a span of memory pages
-static size_t _memory_span_size;
+size_t _memory_span_size;
 //! Shift to divide by span size
 static size_t _memory_span_size_shift;
 //! Mask to get to start of a memory span
-static uintptr_t _memory_span_mask;
+uintptr_t _memory_span_mask;
 #else
 //! Hardwired span size
 #define _memory_span_size _memory_default_span_size

@@ -28,12 +28,14 @@ void* VirtualAlloc(uint64_t ByteSize)
     return (void*)VirtualAddress;
 }
 
-void VirtualFree(void* Address, uint64_t ByteSize)
+bool VirtualFree(void* Address, uint64_t ByteSize)
 {
     uint64_t PhysicalAddress = GetPhysicalAddress((uint64_t)Address);
     uint64_t VirtualAddress = (uint64_t)Address;
 
     MapPages(VirtualAddress, PhysicalAddress, ByteSize, false, false, MemoryState::RangeState::Free);
+
+	return true;
 }
 
 void VirtualProtect(void* Address, uint64_t ByteSize, MemoryProtection ProtectFlags, PageFlags pageFlags)
