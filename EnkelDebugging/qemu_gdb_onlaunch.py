@@ -143,9 +143,7 @@ def MainScript():
     AsmBreakpoint("DebugHook_ISR_InvalidOpcode")
     AsmBreakpoint("DebugHook_ISR_Breakpoint")
 
-    # Any page fault right now is bad news because we can't handle them
-    print("Setting ISR PF hook")
-    AsmBreakpointWithError("DebugHook_ISR_PageFault")
+    AsmBreakpointWithError("AccessViolationException")
     
     print("Setup complete!")
     gdb.execute("continue")

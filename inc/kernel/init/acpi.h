@@ -6,3 +6,6 @@ extern "C"
 }
 
 ACPI_MODULE_NAME("enkel")
+
+ACPI_STATUS InitializeAcpica (void);
+void WalkAcpiTree();

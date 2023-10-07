@@ -42,154 +42,6 @@ extern "C" void CRTInit()
 	}
 }
 
-/******************************************************************************
- *
- * Example ACPICA handler and handler installation
- *
- *****************************************************************************/
-
-static void
-NotifyHandler (
-    ACPI_HANDLE                 Device,
-    UINT32                      Value,
-    void                        *Context)
-{
-
-    ACPI_INFO (("Received a notify 0x%X", Value));
-}
-
-
-static ACPI_STATUS
-RegionInit (
-    ACPI_HANDLE                 RegionHandle,
-    UINT32                      Function,
-    void                        *HandlerContext,
-    void                        **RegionContext)
-{
-
-    if (Function == ACPI_REGION_DEACTIVATE)
-    {
-        *RegionContext = NULL;
-    }
-    else
-    {
-        *RegionContext = RegionHandle;
-    }
-
-    return (AE_OK);
-}
-
-
-static ACPI_STATUS
-RegionHandler (
-    UINT32                      Function,
-    ACPI_PHYSICAL_ADDRESS       Address,
-    UINT32                      BitWidth,
-    UINT64                      *Value,
-    void                        *HandlerContext,
-    void                        *RegionContext)
-{
-
-    ACPI_INFO (("Received a region access"));
-
-    return (AE_OK);
-}
-
-
-static ACPI_STATUS
-InstallHandlers (void)
-{
-    ACPI_STATUS             Status;
-
-
-    /* Install global notify handler */
-
-    Status = AcpiInstallNotifyHandler (ACPI_ROOT_OBJECT,
-        ACPI_SYSTEM_NOTIFY, NotifyHandler, NULL);
-    if (ACPI_FAILURE (Status))
-    {
-        ACPI_EXCEPTION ((AE_INFO, Status, "While installing Notify handler"));
-        return (Status);
-    }
-
-    Status = AcpiInstallAddressSpaceHandler (ACPI_ROOT_OBJECT,
-        ACPI_ADR_SPACE_SYSTEM_MEMORY, RegionHandler, RegionInit, NULL);
-    if (ACPI_FAILURE (Status))
-    {
-        ACPI_EXCEPTION ((AE_INFO, Status, "While installing an OpRegion handler"));
-        return (Status);
-    }
-
-    return (AE_OK);
-}
-
-
-
-static ACPI_STATUS
-InitializeFullAcpica (void)
-{
-    ACPI_STATUS             Status;
-
-
-    /* Initialize the ACPICA subsystem */
-
-    Status = AcpiInitializeSubsystem ();
-    if (ACPI_FAILURE (Status))
-    {
-        ACPI_EXCEPTION ((AE_INFO, Status, "While initializing ACPICA"));
-        return (Status);
-    }
-
-    /* Initialize the ACPICA Table Manager and get all ACPI tables */
-
-    ACPI_INFO (("Loading ACPI tables"));
-
-    Status = AcpiInitializeTables (NULL, 16, FALSE);
-    if (ACPI_FAILURE (Status))
-    {
-        ACPI_EXCEPTION ((AE_INFO, Status, "While initializing Table Manager"));
-        return (Status);
-    }
-
-    /* Install local handlers */
-
-    Status = InstallHandlers ();
-    if (ACPI_FAILURE (Status))
-    {
-        ACPI_EXCEPTION ((AE_INFO, Status, "While installing handlers"));
-        return (Status);
-    }
-
-    /* Initialize the ACPI hardware */
-
-    Status = AcpiEnableSubsystem (ACPI_FULL_INITIALIZATION);
-    if (ACPI_FAILURE (Status))
-    {
-        ACPI_EXCEPTION ((AE_INFO, Status, "While enabling ACPICA"));
-        return (Status);
-    }
-
-    /* Create the ACPI namespace from ACPI tables */
-
-    Status = AcpiLoadTables ();
-    if (ACPI_FAILURE (Status))
-    {
-        ACPI_EXCEPTION ((AE_INFO, Status, "While loading ACPI tables"));
-        return (Status);
-    }
-
-    /* Complete the ACPI namespace object initialization */
-
-    Status = AcpiInitializeObjects (ACPI_FULL_INITIALIZATION);
-    if (ACPI_FAILURE (Status))
-    {
-        ACPI_EXCEPTION ((AE_INFO, Status, "While initializing ACPICA objects"));
-        return (Status);
-    }
-
-    return (AE_OK);
-}
-
 void FinalizeRuntimeServices()
 {
 	uint32_t runtimeEntries = 0;
@@ -264,7 +116,9 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 	ACPI_DEBUG_INITIALIZE ();
 #endif
 
-	InitializeFullAcpica();
+	InitializeAcpica();
+
+	WalkAcpiTree();
 	
 	ConsolePrint(u"Ready!\n");
 	//HaltPermanently();
