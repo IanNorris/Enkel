@@ -10,6 +10,15 @@
 #include "kernel/init/msr.h"
 #include "common/string.h"
 
+#define PAGE_FAULT_PRESENT (1 << 0)
+#define PAGE_FAULT_WRITE (1 << 1)
+#define PAGE_FAULT_USER (1 << 2)
+#define PAGE_FAULT_RESERVED_WRITE (1 << 3)
+#define PAGE_FAULT_EXECUTE (1 << 4)
+#define PAGE_FAULT_PROTECTION_KEY (1 << 5)
+#define PAGE_FAULT_SHADOW_STACK (1 << 6)
+#define PAGE_FAULT_SOFTWARE_GUARD_EXTENSION (1 << 15)
+
 extern "C"
 {
 	GDTPointer IDTLimits;
@@ -32,6 +41,110 @@ void __attribute__((used,noinline)) DebuggerHook()
 bool IsDebuggerPresent()
 {
     return GIsDebuggerPresent;
+}
+
+#define STOP() 			\
+	DebuggerHook(); 	\
+	if (IsDebuggerPresent())\
+	{DebugBreak();} 	\
+	else{HaltPermanently();}
+
+void AccessViolationCommon(uint64_t rip, uint64_t cr2, uint64_t errorCode)
+{
+	char16_t Buffer[32];
+
+	if(errorCode & PAGE_FAULT_SHADOW_STACK)
+	{
+		ConsolePrint(u"Shadow stack violation ");
+	}
+	else if(cr2 == 0)
+	{
+		ConsolePrint(u"Null pointer exception ");
+	}
+	else
+	{
+		ConsolePrint(u"Access violation ");
+	}
+
+	if(errorCode & PAGE_FAULT_EXECUTE)
+	{
+		ConsolePrint(u"executing ");
+	}
+	else if(errorCode & PAGE_FAULT_WRITE)
+	{
+		ConsolePrint(u"writing ");
+	}
+	else
+	{
+		ConsolePrint(u"reading ");
+	}
+
+	if(errorCode & PAGE_FAULT_PRESENT)
+	{
+		ConsolePrint(u"unpaged ");
+	}
+
+	if(errorCode & PAGE_FAULT_USER)
+	{
+		ConsolePrint(u"user ");
+	}
+	else
+	{
+		ConsolePrint(u"kernel ");
+	}
+
+	if(errorCode & PAGE_FAULT_RESERVED_WRITE)
+	{
+		ConsolePrint(u"RESERVED WRITE ");
+	}
+
+	if(errorCode & PAGE_FAULT_PROTECTION_KEY)
+	{
+		ConsolePrint(u"PROTECTION KEY ");
+	}
+
+	if(errorCode & PAGE_FAULT_SOFTWARE_GUARD_EXTENSION)
+	{
+		ConsolePrint(u"SGX ");
+	}
+
+	ConsolePrint(u"(error 0x");
+	witoabuf(Buffer, errorCode, 16);
+	ConsolePrint(Buffer);
+	ConsolePrint(u")\n");
+
+	ConsolePrint(u" address 0x");
+	witoabuf(Buffer, cr2, 16);
+	ConsolePrint(Buffer);
+	ConsolePrint(u"\n");
+
+	ConsolePrint(u"\nRIP: 0x");
+	witoabuf(Buffer, rip, 16);
+	ConsolePrint(Buffer);
+
+    PrintStackTrace(30);
+}
+
+void __attribute__((used,noinline)) AccessViolationException(uint64_t rip, uint64_t cr2, uint64_t errorCode)
+{
+	AccessViolationCommon(rip, cr2, errorCode);
+	STOP();
+}
+
+DEFINE_NAMED_INTERRUPT(PageFault)(uint64_t rip, uint64_t cr2, uint64_t errorCode, uint32_t interruptNumber)
+{
+	//Paging will go here eventually
+
+	AccessViolationException(rip, cr2, errorCode);
+
+	OutPort(0x20, 0x20);
+}
+
+DEFINE_NAMED_INTERRUPT(Breakpoint)(uint64_t rip, uint64_t cr2, uint64_t errorCode, uint32_t interruptNumber)
+{
+	STOP();
+
+	OutPort(0x20, 0x20);
 }
 
 //GCC bug! If this is not tagged with noinline, if this function can be inlined it
@@ -68,17 +181,17 @@ void __attribute__((used,noinline)) InterruptDummy(const char16_t* message, int6
         DebuggerHook();
     }
 
-    if (debuggerPresent)
-    {
-
-    }
-    else
-    {
-        if (terminate)
-        {
-            HaltPermanently();
-        }
-    }
+	if(terminate)
+	{
+		if (debuggerPresent)
+		{
+			DebugBreak();
+		}
+		else
+		{
+			HaltPermanently();
+		}
+	}
 }
 
 #define PRINT_INTERRUPT(n) extern "C" void __attribute__((naked)) ISR_Unused##n(void); extern "C" void KERNEL_API __attribute__((used,noinline)) ISR_Int_Unused##n(uint64_t rip, uint64_t cr2, uint64_t errorCode, uint32_t interruptNumber){ InterruptDummy(u"Interrupt " #n, rip, cr2, errorCode, interruptNumber, false, false); }
@@ -91,7 +204,7 @@ void __attribute__((used,noinline)) InterruptDummy(const char16_t* message, int6
 PRINT_NAMED_INTERRUPT(DivideByZero, u"Divide by 0", true) //0
 PRINT_NAMED_INTERRUPT_HALT(SingleStep, u"Single step") //1
 PRINT_NAMED_INTERRUPT_HALT(NonMaskableInterrupt, u"Non-maskable Interrupt") //2
-PRINT_NAMED_INTERRUPT(Breakpoint, u"Breakpoint", true) //3
+NAMED_INTERRUPT(Breakpoint) //3
 PRINT_NAMED_INTERRUPT_HALT(Overflow, u"Overflow") //4
 PRINT_NAMED_INTERRUPT_HALT(BoundRangeExceeded, u"Bound range exceeded") //5
 PRINT_NAMED_INTERRUPT_HALT(InvalidOpcode, u"Invalid opcode") //6
@@ -102,7 +215,7 @@ PRINT_NAMED_INTERRUPT(InvalidTaskStateSegment, u"Invalid task state segment", tr
 PRINT_NAMED_INTERRUPT_HALT(SegmentNotPresent, u"Segment not present") //11
 PRINT_NAMED_INTERRUPT_HALT(StackSegmentFault, u"Stack segment fault") //12
 PRINT_NAMED_INTERRUPT_HALT(GeneralProtectionFault, u"General protection fault") //13 0xD
-PRINT_NAMED_INTERRUPT(PageFault, u"Page fault", false) //14 0xE
+NAMED_INTERRUPT(PageFault) //14 0xE
 //15 is reserved
 PRINT_NAMED_INTERRUPT(x87FloatingPointException, u"x87 Floating point exception", true) //16
 PRINT_NAMED_INTERRUPT(AlignmentCheck, u"Alignment check", true) //17

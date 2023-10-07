@@ -101,6 +101,22 @@ extern "C" void AssertionFailed(const char* expression, const char* message, con
 	Halt(HALT_ASSERT, nullptr);
 }
 
+void __attribute__((used,noinline)) DebuggerHook()
+{
+    //Need some instructions to insert an interrupt into
+    asm volatile("nop;nop;nop;nop;");
+}
+
+void __attribute__((used, noinline, noreturn)) HaltPermanently(void)
+{
+    //Stop interrupts
+    asm("cli");
+    while(true)
+    {
+        asm("hlt");
+    }
+}
+
 bool CompareGuids(const EFI_GUID& Guid1, const EFI_GUID& Guid2)
 {
 	if(!(Guid1.Data1 == Guid2.Data1

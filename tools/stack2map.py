@@ -56,6 +56,8 @@ def process_input_file(map_data, input_file_path):
                     print(f"#0x{index}: 0x{offset:x} ({name}+0x{offset_diff:x})")
                 else:
                     print(f"#0x{index}: 0x{offset:x} (Unknown)")
+        else:
+            print(line.strip())
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Process an LD map file and an input file to map function addresses.')

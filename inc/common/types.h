@@ -17,7 +17,10 @@
 #define KERNEL_API __attribute__((sysv_abi))
 #define KERNEL_NORETURN __attribute__((noreturn))
 
-#define DebugBreak() asm volatile("int $3")
+void KERNEL_NORETURN HaltPermanently(void);
+void __attribute__((used,noinline)) DebuggerHook();
+
+#define DebugBreak() { DebuggerHook(); asm volatile("int $3"); HaltPermanently(); }
 
 extern "C" void AssertionFailed(const char* expression, const char* message, const char* filename, size_t lineNumber, uint64_t v1, uint64_t v2, uint64_t v3);
 
