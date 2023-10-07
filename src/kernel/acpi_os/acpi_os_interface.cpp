@@ -1078,7 +1078,7 @@ AcpiOsEnterSleep (
     UINT32                  RegaValue,
     UINT32                  RegbValue)
 {
-    NOT_IMPLEMENTED();
+    //NOT_IMPLEMENTED();
     return (AE_OK);
 }
 

@@ -11,12 +11,7 @@
 #include "memory/virtual.h"
 #include "rpmalloc.h"
 #include "../../assets/SplashLogo.h"
-
-extern "C"
-{
-#include "acpi.h"
-}
-ACPI_MODULE_NAME("enkel")
+#include "kernel/init/acpi.h"
 
 KernelBootData GBootData;
 

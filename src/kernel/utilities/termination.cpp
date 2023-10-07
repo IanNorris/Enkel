@@ -145,3 +145,13 @@ void KERNEL_NORETURN AssertionFailed(const char* expression, const char* message
 
 	PrintStackTrace(60);
 }
+
+ACPI_STATUS Shutdown(void)
+{
+    ACPI_STATUS status = AcpiEnterSleepStatePrep(ACPI_STATE_S5);
+    if (ACPI_FAILURE(status)) {
+        return status;
+    }
+
+    return AcpiEnterSleepState(ACPI_STATE_S5);
+}
