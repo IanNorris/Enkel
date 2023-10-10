@@ -2,7 +2,7 @@
 #include "kernel/texture/render.h"
 #include "kernel/texture/tga.h"
 
-#include "qrcode.h"
+#include "qrcodegen.h"
 
 void RenderTGA(FramebufferLayout* Framebuffer, const unsigned char* imageBuffer, int32_t StartX, int32_t StartY, AlignImage AlignX, AlignImage AlignY, bool transparent)
 {
@@ -82,33 +82,46 @@ void RenderTGA(FramebufferLayout* Framebuffer, const unsigned char* imageBuffer,
 	}
 }
 
-void RenderQR(FramebufferLayout* Framebuffer, const QRCode* QR, uint32_t StartX, uint32_t StartY, uint32_t PixelsPerModule, bool BlackModules)
+bool RenderQR(FramebufferLayout* Framebuffer, const char* Data, uint32_t StartX, uint32_t StartY, uint32_t PixelsPerModule, bool BlackModules)
 {
+	uint8_t qr0[qrcodegen_BUFFER_LEN_MAX];
+	uint8_t tempBuffer[qrcodegen_BUFFER_LEN_MAX];
+	bool ok = qrcodegen_encodeText(Data, tempBuffer, qr0, qrcodegen_Ecc_LOW, qrcodegen_VERSION_MIN, qrcodegen_VERSION_MAX, qrcodegen_Mask_AUTO, true);
+	if (!ok)
+	{
+		_ASSERTF(false, "Failed to generate QR code");
+		return false;
+	}
+
+	int size = qrcodegen_getSize(qr0);
+	
 	uint32_t* FramebufferU32 = (uint32_t*)Framebuffer->Base;
 	uint32_t FramebufferQuadPitch = Framebuffer->Pitch / 4;
 
 	uint32_t ModuleColour = BlackModules ? 0x0 : 0xFFFFFFFF;
 
-	for (uint32_t y = 0; y < QR->size; y++)
-	{
-		for (uint32_t x = 0; x < QR->size; x++)
-		{
-			uint32_t posX = x * PixelsPerModule;
-			uint32_t posY = y * PixelsPerModule;
-			
-			bool Set = qrcode_getModule((QRCode*)QR, x, y);
+	int borderwidth = 1;
 
-			if(Set)
+	for (int32_t y = -borderwidth; y < size + borderwidth; y++)
+	{
+		for (int32_t x = -borderwidth; x < size + borderwidth; x++)
+		{
+			int32_t posX = (x * PixelsPerModule) + borderwidth;
+			int32_t posY = (y * PixelsPerModule) + borderwidth;
+			
+			bool Valid = x >= 0 && x < size && y >= 0 && y < size;
+			bool Set = Valid &&qrcodegen_getModule(qr0, x, y);
+
+			for (uint32_t moduleY = 0; moduleY < PixelsPerModule; moduleY++)
 			{
-				for (uint32_t moduleY = 0; moduleY < PixelsPerModule; moduleY++)
+				for (uint32_t moduleX = 0; moduleX < PixelsPerModule; moduleX++)
 				{
-					for (uint32_t moduleX = 0; moduleX < PixelsPerModule; moduleX++)
-					{
-						uint32_t OutputPos = ((posY + moduleY + StartY) * FramebufferQuadPitch) + posX + moduleX + StartX;
-						FramebufferU32[OutputPos] = ModuleColour;
-					}
+					uint32_t OutputPos = ((posY + moduleY + StartY) * FramebufferQuadPitch) + posX + moduleX + StartX;
+					FramebufferU32[OutputPos] = Set ? ModuleColour : ~ModuleColour;
 				}
 			}
 		}
 	}
+
+	return true;
 }

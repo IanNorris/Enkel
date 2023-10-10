@@ -13,7 +13,5 @@ enum class AlignImage
 	Bottom = 2,
 };
 
-struct QRCode;
-
 void RenderTGA(FramebufferLayout* Framebuffer, const unsigned char* imageBuffer, int32_t StartX, int32_t StartY, AlignImage AlignX, AlignImage AlignY, bool transparent);
-void RenderQR(FramebufferLayout* Framebuffer, const QRCode* QR, uint32_t StartX, uint32_t StartY, uint32_t PixelsPerModule, bool BlackModules);
+bool RenderQR(FramebufferLayout* Framebuffer, const char* Data, uint32_t StartX, uint32_t StartY, uint32_t PixelsPerModule, bool BlackModules);

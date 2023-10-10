@@ -33,7 +33,7 @@ endef
 VENDOR_ROOT := ../../vendor
 
 RPMALLOC_C_FILES := $(VENDOR_ROOT)/rpmalloc/rpmalloc/rpmalloc.c $(VENDOR_ROOT)/rpmalloc/rpmalloc/malloc.c
-QRCODE_C_FILES := $(VENDOR_ROOT)/QRCode/src/qrcode.c
+QRCODE_C_FILES := $(VENDOR_ROOT)/QR-Code-generator/c/qrcodegen.c
 
 # It is highly recommended to use a custom built cross toolchain to build a kernel.
 # We are only using "cc" as a placeholder here. It may work by using
@@ -94,7 +94,7 @@ override CFLAGS += \
     -I $(VENDOR_ROOT)/uefi-headers/Include/X64 \
 	-I $(VENDOR_ROOT)/acpica/source/include \
 	-I $(VENDOR_ROOT)/rpmalloc/rpmalloc \
-	-I $(VENDOR_ROOT)/QRCode/src/
+	-I $(VENDOR_ROOT)/QR-Code-generator/c/
 
 # Internal C preprocessor flags that should not be changed by the user.
 override CPPFLAGS := \
