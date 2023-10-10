@@ -2,6 +2,8 @@
 #include "kernel/texture/render.h"
 #include "kernel/texture/tga.h"
 
+#include "qrcode.h"
+
 void RenderTGA(FramebufferLayout* Framebuffer, const unsigned char* imageBuffer, int32_t StartX, int32_t StartY, AlignImage AlignX, AlignImage AlignY, bool transparent)
 {
 	const TGAHeader& header = *(const TGAHeader*)imageBuffer;
@@ -75,6 +77,37 @@ void RenderTGA(FramebufferLayout* Framebuffer, const unsigned char* imageBuffer,
 			{
 				uint32_t OutputPos = (((height-y) + StartY) * FramebufferQuadPitch) + x + StartX;
 				FramebufferU32[OutputPos] = TextureChannel;
+			}
+		}
+	}
+}
+
+void RenderQR(FramebufferLayout* Framebuffer, const QRCode* QR, uint32_t StartX, uint32_t StartY, uint32_t PixelsPerModule, bool BlackModules)
+{
+	uint32_t* FramebufferU32 = (uint32_t*)Framebuffer->Base;
+	uint32_t FramebufferQuadPitch = Framebuffer->Pitch / 4;
+
+	uint32_t ModuleColour = BlackModules ? 0x0 : 0xFFFFFFFF;
+
+	for (uint32_t y = 0; y < QR->size; y++)
+	{
+		for (uint32_t x = 0; x < QR->size; x++)
+		{
+			uint32_t posX = x * PixelsPerModule;
+			uint32_t posY = y * PixelsPerModule;
+			
+			bool Set = qrcode_getModule((QRCode*)QR, x, y);
+
+			if(Set)
+			{
+				for (uint32_t moduleY = 0; moduleY < PixelsPerModule; moduleY++)
+				{
+					for (uint32_t moduleX = 0; moduleX < PixelsPerModule; moduleX++)
+					{
+						uint32_t OutputPos = ((posY + moduleY + StartY) * FramebufferQuadPitch) + posX + moduleX + StartX;
+						FramebufferU32[OutputPos] = ModuleColour;
+					}
+				}
 			}
 		}
 	}
