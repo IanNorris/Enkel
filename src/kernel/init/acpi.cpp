@@ -325,12 +325,6 @@ ACPI_STATUS AcpiDeviceTreeCallback (
 	SerialPrint(" Type: ");
 	SerialPrint(Type);
 	SerialPrint("\n");
-	
-    if (ACPI_SUCCESS(AcpiEvaluateObject(Object, nullptr, NULL, &hidBuffer))) {
-        SerialPrint(" Value: ");
-        SerialPrint((const char *) hidBuffer.Pointer);
-        ACPI_FREE(hidBuffer.Pointer);
-    }
 
 	// Evaluate _HID
     if (ACPI_SUCCESS(AcpiEvaluateObject(Object, "_HID", NULL, &hidBuffer))) {
