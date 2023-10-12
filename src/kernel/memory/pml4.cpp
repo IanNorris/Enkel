@@ -448,8 +448,6 @@ void BuildPML4(KernelBootData* bootData)
 
 		bool IsReserved = 
 				Desc.Type == EfiACPIMemoryNVS
-			|| Desc.Type == EfiBootServicesData
-			|| Desc.Type == EfiBootServicesCode
 			|| Desc.Type == EfiRuntimeServicesCode
 			|| Desc.Type == EfiRuntimeServicesData
 			|| Desc.Type == EfiACPIReclaimMemory
