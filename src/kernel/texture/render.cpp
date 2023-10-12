@@ -86,7 +86,7 @@ bool RenderQR(FramebufferLayout* Framebuffer, const char* Data, uint32_t StartX,
 {
 	uint8_t qr0[qrcodegen_BUFFER_LEN_MAX];
 	uint8_t tempBuffer[qrcodegen_BUFFER_LEN_MAX];
-	bool ok = qrcodegen_encodeText(Data, tempBuffer, qr0, qrcodegen_Ecc_LOW, qrcodegen_VERSION_MIN, qrcodegen_VERSION_MAX, qrcodegen_Mask_AUTO, true);
+	bool ok = qrcodegen_encodeText(Data, tempBuffer, qr0, qrcodegen_Ecc_MEDIUM, qrcodegen_VERSION_MIN, qrcodegen_VERSION_MAX, qrcodegen_Mask_AUTO, true);
 	if (!ok)
 	{
 		_ASSERTF(false, "Failed to generate QR code");
@@ -100,7 +100,7 @@ bool RenderQR(FramebufferLayout* Framebuffer, const char* Data, uint32_t StartX,
 
 	uint32_t ModuleColour = BlackModules ? 0x0 : 0xFFFFFFFF;
 
-	int borderwidth = 3;
+	int borderwidth = 2;
 
 	for (int32_t y = -borderwidth; y < size + borderwidth; y++)
 	{

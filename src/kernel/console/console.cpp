@@ -53,12 +53,19 @@ int TotalBytesWritten = 0;
 
 void WriteSerial0Int(uint8_t character)
 {
-	const uint16_t port = 0x3F8;
+	if(EnableSerialOutput)
+	{
+		const uint16_t port = 0x3F8;
 
-	//Wait until we've transmitted
-	while ((InPort(port + 5) & 0x20) == 0);
+		//Wait until we've transmitted
+		while ((InPort(port + 5) & 0x20) == 0)
+		{
+			asm("pause");
+		}
 
-	OutPort(port, character);
+		OutPort(port, character);
+	}
+
 	LastChar = character;
 	TotalBytesWritten++;
 
@@ -71,21 +78,18 @@ void WriteSerial0Int(uint8_t character)
 
 void WriteSerial0(uint8_t character)
 {
-	if(EnableSerialOutput)
+	if(character == '\n')
 	{
-		if(character == '\n')
-		{
-			WriteSerial0Int('\r');
-			WriteSerial0Int('\n');
-		}
-		else if(character == '\r')
-		{
-			
-		}
-		else
-		{
-			WriteSerial0Int(character);
-		}
+		WriteSerial0Int('\r');
+		WriteSerial0Int('\n');
+	}
+	else if(character == '\r')
+	{
+		
+	}
+	else
+	{
+		WriteSerial0Int(character);
 	}
 }
 
@@ -245,4 +249,32 @@ void ConsolePrint(const char16_t* String, Console* Console)
 
 	Console->CurrentX = X;
 	Console->CurrentY = Y;
+}
+
+void ConsolePrintNumeric(const char16_t* Start, uint64_t Value, const char16_t* Suffix, int Base)
+{
+	char16_t Buffer[32];
+
+	ConsolePrint(Start);
+	if(Base == 16)
+	{
+		ConsolePrint(u"0x");
+	}
+	witoabuf(Buffer, Value, Base);
+	ConsolePrint(Buffer);
+	ConsolePrint(Suffix);
+}
+
+void LogPrintNumeric(const char16_t* Start, uint64_t Value, const char16_t* Suffix, int Base)
+{
+	char16_t Buffer[32];
+
+	SerialPrint(Start);
+	if(Base == 16)
+	{
+		SerialPrint(u"0x");
+	}
+	witoabuf(Buffer, Value, Base);
+	SerialPrint(Buffer);
+	SerialPrint(Suffix);
 }

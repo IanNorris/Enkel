@@ -8,6 +8,7 @@
 #include "common/string.h"
 #include "utilities/termination.h"
 #include "kernel/init/tls.h"
+#include "utilities/qrdump.h"
 
 struct SPagingStructurePage
 {
@@ -369,20 +370,6 @@ const char16_t* MemoryMapTypeToString(EFI_MEMORY_TYPE Type)
 	}
 }
 
-void LogPrintNumeric(const char16_t* Start, uint64_t Value, const char16_t* Suffix, int Base = 16)
-{
-	char16_t Buffer[32];
-
-	SerialPrint(Start);
-	if(Base == 16)
-	{
-		SerialPrint(u"0x");
-	}
-	witoabuf(Buffer, Value, Base);
-	SerialPrint(Buffer);
-	SerialPrint(Suffix);
-}
-
 void BuildPML4(KernelBootData* bootData)
 {
     char16_t Buffer[32];
@@ -467,7 +454,9 @@ void BuildPML4(KernelBootData* bootData)
 			|| Desc.Type == EfiRuntimeServicesData
 			|| Desc.Type == EfiACPIReclaimMemory
 			|| Desc.Type == EfiUnusableMemory
-			|| Desc.Type == EfiReservedMemoryType;
+			|| Desc.Type == EfiReservedMemoryType
+			|| Desc.Type == EfiMemoryMappedIO
+			|| Desc.Attribute & EFI_MEMORY_RUNTIME;
 
 		uint64_t Start = Desc.PhysicalStart;
 		uint64_t VirtualStart = Desc.VirtualStart;
@@ -477,7 +466,7 @@ void BuildPML4(KernelBootData* bootData)
 			VirtualStart = Desc.VirtualStart = Desc.PhysicalStart;
 		}
 
-		bool IsReadOnly = Desc.Type == EfiACPIReclaimMemory || Desc.Type == EfiACPIMemoryNVS || Desc.Type == EfiUnusableMemory;
+		bool IsReadOnly = Desc.Type == EfiACPIReclaimMemory || Desc.Type == EfiACPIMemoryNVS || Desc.Type == EfiUnusableMemory || Desc.Attribute & EFI_MEMORY_RO;
 		bool IsExecutable = Desc.Type == EfiRuntimeServicesCode || Desc.Type == EfiMemoryMapType_Kernel;
 
         if (!IsFree)
@@ -485,7 +474,7 @@ void BuildPML4(KernelBootData* bootData)
             MapPages(VirtualStart, Start, Size, !IsReadOnly, IsExecutable, IsReserved ? MemoryState::RangeState::Reserved : MemoryState::RangeState::Used);
         }
 
-		if(!IsReserved)
+		if(!IsReserved && IsFree)
 		{
 			freeMemory += Size;
 		}
@@ -666,8 +655,16 @@ void MemCheck(KernelBootData* bootData)
 
 void BuildAndLoadPML4(KernelBootData* bootData)
 {
+	//char PML4Output[10000];
+	//PML4Output[0] = '\0';
+	//SetSerialTargetBuffer(PML4Output);
+
     PML4Set = false;
     BuildPML4(bootData);
+
+	//QRDump(PML4Output);
+	//SetSerialTargetBuffer(nullptr);
+	//HaltPermanently();
 
     ConsolePrint(u"Loading PML4...\n");
     LoadPageMapLevel4((uint64_t)&PML4);

@@ -43,3 +43,6 @@ void DefaultConsoleInit(const FramebufferLayout& Framebuffer, BMFontColor Backgr
 void ConsolePrintAtPosWithColor(const char16_t* String, int32_t& X, int32_t& Y, int32_t ReturnX, BMFontColor ForegroundColor, Console* Console = nullptr);
 void ConsolePrintAtPos(const char16_t* String, int32_t& X, int32_t& Y, int32_t ReturnX, Console* Console = nullptr);
 void ConsolePrint(const char16_t* String, Console* Console = nullptr);
+
+void ConsolePrintNumeric(const char16_t* Start, uint64_t Value, const char16_t* Suffix, int Base = 16);
+void LogPrintNumeric(const char16_t* Start, uint64_t Value, const char16_t* Suffix, int Base = 16);

@@ -42,7 +42,7 @@ static void CompressData(const unsigned char* Input, unsigned int InputSize, uns
     zStream.zfree = QRZlibFree;
     zStream.opaque = &zlibBuffer;
 
-    int ret = deflateInit(&zStream, Z_DEFAULT_COMPRESSION);
+    int ret = deflateInit(&zStream, Z_BEST_COMPRESSION);
     _ASSERTFV(ret == Z_OK, "Zlib deflateInit failed", ret, 0, 0);
 
     zStream.avail_in = InputSize;
@@ -74,5 +74,5 @@ void QRDump(const char* Data)
 	int written = Base45_encode(Encoded, 10*1000, (const char*)Output, OutputSize);
 	Encoded[written] = '\0';
 
-	RenderQR(&GBootData.Framebuffer, Encoded, 50, 50, 5, true);
+	RenderQR(&GBootData.Framebuffer, Encoded, 200, 50, 5, true);
 }

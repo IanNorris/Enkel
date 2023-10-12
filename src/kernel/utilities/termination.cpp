@@ -144,6 +144,7 @@ void KERNEL_NORETURN AssertionFailed(const char* expression, const char* message
 	ConsolePrint(u"\n\n\n\n\n\n\n\n\n\nStack trace:\n");
 
 	PrintStackTrace(60);
+	while(true);
 }
 
 ACPI_STATUS Shutdown(void)
