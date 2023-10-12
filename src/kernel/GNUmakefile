@@ -34,6 +34,7 @@ VENDOR_ROOT := ../../vendor
 
 RPMALLOC_C_FILES := $(VENDOR_ROOT)/rpmalloc/rpmalloc/rpmalloc.c $(VENDOR_ROOT)/rpmalloc/rpmalloc/malloc.c
 QRCODE_C_FILES := $(VENDOR_ROOT)/QR-Code-generator/c/qrcodegen.c
+ZLIB_C_FILES := $(VENDOR_ROOT)/zlib/adler32.c $(VENDOR_ROOT)/zlib/compress.c $(VENDOR_ROOT)/zlib/crc32.c $(VENDOR_ROOT)/zlib/deflate.c $(VENDOR_ROOT)/zlib/infback.c $(VENDOR_ROOT)/zlib/inffast.c $(VENDOR_ROOT)/zlib/inflate.c $(VENDOR_ROOT)/zlib/inftrees.c $(VENDOR_ROOT)/zlib/trees.c $(VENDOR_ROOT)/zlib/uncompr.c $(VENDOR_ROOT)/zlib/zutil.c
 
 # It is highly recommended to use a custom built cross toolchain to build a kernel.
 # We are only using "cc" as a placeholder here. It may work by using
@@ -94,7 +95,8 @@ override CFLAGS += \
     -I $(VENDOR_ROOT)/uefi-headers/Include/X64 \
 	-I $(VENDOR_ROOT)/acpica/source/include \
 	-I $(VENDOR_ROOT)/rpmalloc/rpmalloc \
-	-I $(VENDOR_ROOT)/QR-Code-generator/c/
+	-I $(VENDOR_ROOT)/QR-Code-generator/c/ \
+	-I $(VENDOR_ROOT)/zlib/
 
 # Internal C preprocessor flags that should not be changed by the user.
 override CPPFLAGS := \
@@ -129,7 +131,7 @@ override SFLAGS += \
 # Use "find" to glob all *.c, *.S, and *.asm files in the tree and obtain the
 # object and header dependency file names.
 override CPPFILES := $(shell find -L . -type f -name '*.cpp') $(FONT_CPP_FILES) $(EMBEDDED_IMAGE_CPP_FILES)
-override CFILES := $(RPMALLOC_C_FILES) $(QRCODE_C_FILES)
+override CFILES := $(RPMALLOC_C_FILES) $(QRCODE_C_FILES) $(ZLIB_C_FILES)
 override ASFILES := $(shell find -L . -type f -name '*.S')
 override NASMFILES := $(shell find -L . -type f -name '*.asm')
 override NASMBINFILES := $(shell find -L . -type f -name '*.asmb')

@@ -82,7 +82,7 @@ int Base45_encode(char* dest, size_t destLength, const char* input, size_t lengt
 	size_t requiredLength = length / 2 * 3 + length % 2 * 2 + 1;
 
     if (destLength < requiredLength) {
-        return BASE45_MEMORY_ERROR;
+        return -BASE45_MEMORY_ERROR;
     }
 
     size_t i = 0;
@@ -109,7 +109,7 @@ int Base45_encode(char* dest, size_t destLength, const char* input, size_t lengt
 
         if (encode_status != BASE45_OK) {
             dest = NULL;
-            return encode_status;
+            return -encode_status;
         }
 
         // add leading zeroes if required
@@ -123,5 +123,6 @@ int Base45_encode(char* dest, size_t destLength, const char* input, size_t lengt
         i += size;
     }
 
-    return BASE45_OK;
+    return requiredLength-1;
 }
+

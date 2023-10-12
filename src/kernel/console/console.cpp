@@ -13,8 +13,17 @@ Console GDefaultConsole;
 
 bool EnableSerialOutput = false;
 
+char* TargetBuffer = nullptr;
+
+void SetSerialTargetBuffer(char* NewTargetBuffer)
+{
+	TargetBuffer = NewTargetBuffer;
+}
+
 void InitializeSerial0()
 {
+	TargetBuffer = nullptr;
+
 	const uint16_t port = 0x3F8;
     OutPort(port + 1, 0x00);  // Disable all interrupts
     OutPort(port + 3, 0x80);  // Enable DLAB (set baud rate divisor)
@@ -52,6 +61,12 @@ void WriteSerial0Int(uint8_t character)
 	OutPort(port, character);
 	LastChar = character;
 	TotalBytesWritten++;
+
+	if(TargetBuffer)
+	{
+		*TargetBuffer++ = character;
+		*TargetBuffer = '\0';
+	}
 }
 
 void WriteSerial0(uint8_t character)

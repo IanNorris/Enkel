@@ -28,6 +28,8 @@ struct Console
 	uint32_t CurrentRow;
 };
 
+void SetSerialTargetBuffer(char* NewTargetBuffer);
+
 void SerialPrint(const char* String);
 void SerialPrint(const char16_t* String);
 

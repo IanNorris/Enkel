@@ -100,7 +100,7 @@ bool RenderQR(FramebufferLayout* Framebuffer, const char* Data, uint32_t StartX,
 
 	uint32_t ModuleColour = BlackModules ? 0x0 : 0xFFFFFFFF;
 
-	int borderwidth = 1;
+	int borderwidth = 3;
 
 	for (int32_t y = -borderwidth; y < size + borderwidth; y++)
 	{
