@@ -74,5 +74,5 @@ void QRDump(const char* Data)
 	int written = Base45_encode(Encoded, 10*1000, (const char*)Output, OutputSize);
 	Encoded[written] = '\0';
 
-	RenderQR(&GBootData.Framebuffer, Encoded, 200, 50, 5, true);
+	RenderQR(&GBootData.Framebuffer, Encoded, 200, 50, 7, true);
 }

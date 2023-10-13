@@ -27,6 +27,12 @@ enum EfiMemoryMapType
 	EfiMemoryMapType_Framebuffer = EfiRuntimeServicesData,
 };
 
+#define ENKEL_MEMORY_FLAG_STACK    		0x100000ULL
+#define ENKEL_MEMORY_FLAG_TABLES   		0x200000ULL
+#define ENKEL_MEMORY_FLAG_BOOTSTRAP  	0x400000ULL
+#define ENKEL_MEMORY_FLAG_FRAMEBUFFER  	0x800000ULL
+#define ENKEL_MEMORY_FLAG_BINARY		0x1000000ULL
+
 enum SpecialMemoryLocation
 {
 	SpecialMemoryLocation_KernelBinary,

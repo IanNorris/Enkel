@@ -389,7 +389,10 @@ void BuildPML4(KernelBootData* bootData)
     }
 
     const KernelMemoryLocation& binary = bootData->MemoryLayout.SpecialLocations[SpecialMemoryLocation_KernelBinary];
+	const KernelMemoryLocation& bootstrap = bootData->MemoryLayout.SpecialLocations[SpecialMemoryLocation_APBootstrap];
     const KernelMemoryLocation& framebuffer = bootData->MemoryLayout.SpecialLocations[SpecialMemoryLocation_Framebuffer];
+	const KernelMemoryLocation& stack = bootData->MemoryLayout.SpecialLocations[SpecialMemoryLocation_KernelStack];
+	const KernelMemoryLocation& tables = bootData->MemoryLayout.SpecialLocations[SpecialMemoryLocation_Tables];
 
 	uint64_t HighestAddressUntrimmmed = HighestAddress;
 
@@ -414,6 +417,27 @@ void BuildPML4(KernelBootData* bootData)
 					|| Desc.Type == EfiBootServicesCode
 					|| Desc.Type == EfiBootServicesData;
 
+		if(Desc.PhysicalStart == stack.PhysicalStart)
+		{
+			Desc.Attribute |= ENKEL_MEMORY_FLAG_STACK;
+		}
+		else if(Desc.PhysicalStart == tables.PhysicalStart)
+		{
+			Desc.Attribute |= ENKEL_MEMORY_FLAG_TABLES;
+		}
+		else if(Desc.PhysicalStart == bootstrap.PhysicalStart)
+		{
+			Desc.Attribute |= ENKEL_MEMORY_FLAG_BOOTSTRAP;
+		}
+		else if(Desc.PhysicalStart == (binary.PhysicalStart & PAGE_MASK))
+		{
+			Desc.Attribute |= ENKEL_MEMORY_FLAG_BINARY;
+		}
+		else if((framebuffer.PhysicalStart & PAGE_MASK) >= Desc.PhysicalStart && (framebuffer.PhysicalStart & PAGE_MASK) <= (Desc.PhysicalStart + (Desc.NumberOfPages * EFI_PAGE_SIZE)))
+		{
+			Desc.Attribute |= ENKEL_MEMORY_FLAG_FRAMEBUFFER;
+		}
+
 		SerialPrint("Type: ");
 		SerialPrint(MemoryMapTypeToString((EFI_MEMORY_TYPE)Desc.Type));
 		SerialPrint(", ");
@@ -425,22 +449,27 @@ void BuildPML4(KernelBootData* bootData)
 		LogPrintNumeric(u"Bytes: ", Desc.NumberOfPages * PAGE_SIZE, u", ");
 
 		bool PrevBit = false;
-		if(Desc.Attribute & EFI_MEMORY_UC){ if(PrevBit){ SerialPrint("|"); } SerialPrint("EFI_MEMORY_UC"); PrevBit = true; }
-		if(Desc.Attribute & EFI_MEMORY_WC){ if(PrevBit){ SerialPrint("|"); } SerialPrint("EFI_MEMORY_WC"); PrevBit = true; }
-		if(Desc.Attribute & EFI_MEMORY_WT){ if(PrevBit){ SerialPrint("|"); } SerialPrint("EFI_MEMORY_WT"); PrevBit = true; }
-		if(Desc.Attribute & EFI_MEMORY_WB){ if(PrevBit){ SerialPrint("|"); } SerialPrint("EFI_MEMORY_WB"); PrevBit = true; }
-		if(Desc.Attribute & EFI_MEMORY_UCE){ if(PrevBit){ SerialPrint("|"); } SerialPrint("EFI_MEMORY_UCE"); PrevBit = true; }
-		if(Desc.Attribute & EFI_MEMORY_WP){ if(PrevBit){ SerialPrint("|"); } SerialPrint("EFI_MEMORY_WP"); PrevBit = true; }
-		if(Desc.Attribute & EFI_MEMORY_RP){ if(PrevBit){ SerialPrint("|"); } SerialPrint("EFI_MEMORY_RP"); PrevBit = true; }
-		if(Desc.Attribute & EFI_MEMORY_XP){ if(PrevBit){ SerialPrint("|"); } SerialPrint("EFI_MEMORY_XP"); PrevBit = true; }
-		if(Desc.Attribute & EFI_MEMORY_NV){ if(PrevBit){ SerialPrint("|"); } SerialPrint("EFI_MEMORY_NV"); PrevBit = true; }
-		if(Desc.Attribute & EFI_MEMORY_MORE_RELIABLE){ if(PrevBit){ SerialPrint("|"); } SerialPrint("EFI_MEMORY_MORE_RELIABLE"); PrevBit = true; }
-		if(Desc.Attribute & EFI_MEMORY_RO){ if(PrevBit){ SerialPrint("|"); } SerialPrint("EFI_MEMORY_RO"); PrevBit = true; }
-		if(Desc.Attribute & UEFI_MEMORY_SP){ if(PrevBit){ SerialPrint("|"); } SerialPrint("UEFI_MEMORY_SP"); PrevBit = true; }
-		if(Desc.Attribute & UEFI_MEMORY_CPU_CRYPTO){ if(PrevBit){ SerialPrint("|"); } SerialPrint("UEFI_MEMORY_CPU_CRYPTO"); PrevBit = true; }
-		if(Desc.Attribute & EFI_MEMORY_RUNTIME){ if(PrevBit){ SerialPrint("|"); } SerialPrint("EFI_MEMORY_RUNTIME"); PrevBit = true; }
-		if(Desc.Attribute & UEFI_MEMORY_ISA_VALID){ if(PrevBit){ SerialPrint("|"); } SerialPrint("UEFI_MEMORY_ISA_VALID"); PrevBit = true; }
-		if(Desc.Attribute & UEFI_MEMORY_ISA_MASK){ if(PrevBit){ SerialPrint("|"); } SerialPrint("UEFI_MEMORY_ISA_MASK"); PrevBit = true; }
+		if(Desc.Attribute & EFI_MEMORY_UC){ if(PrevBit){ SerialPrint("|"); } SerialPrint("UC"); PrevBit = true; }
+		if(Desc.Attribute & EFI_MEMORY_WC){ if(PrevBit){ SerialPrint("|"); } SerialPrint("WC"); PrevBit = true; }
+		if(Desc.Attribute & EFI_MEMORY_WT){ if(PrevBit){ SerialPrint("|"); } SerialPrint("WT"); PrevBit = true; }
+		if(Desc.Attribute & EFI_MEMORY_WB){ if(PrevBit){ SerialPrint("|"); } SerialPrint("WB"); PrevBit = true; }
+		if(Desc.Attribute & EFI_MEMORY_UCE){ if(PrevBit){ SerialPrint("|"); } SerialPrint("UCE"); PrevBit = true; }
+		if(Desc.Attribute & EFI_MEMORY_WP){ if(PrevBit){ SerialPrint("|"); } SerialPrint("WP"); PrevBit = true; }
+		if(Desc.Attribute & EFI_MEMORY_RP){ if(PrevBit){ SerialPrint("|"); } SerialPrint("RP"); PrevBit = true; }
+		if(Desc.Attribute & EFI_MEMORY_XP){ if(PrevBit){ SerialPrint("|"); } SerialPrint("XP"); PrevBit = true; }
+		if(Desc.Attribute & EFI_MEMORY_NV){ if(PrevBit){ SerialPrint("|"); } SerialPrint("NV"); PrevBit = true; }
+		if(Desc.Attribute & EFI_MEMORY_MORE_RELIABLE){ if(PrevBit){ SerialPrint("|"); } SerialPrint("RELIABLE"); PrevBit = true; }
+		if(Desc.Attribute & EFI_MEMORY_RO){ if(PrevBit){ SerialPrint("|"); } SerialPrint("RO"); PrevBit = true; }
+		if(Desc.Attribute & UEFI_MEMORY_SP){ if(PrevBit){ SerialPrint("|"); } SerialPrint("SP"); PrevBit = true; }
+		if(Desc.Attribute & UEFI_MEMORY_CPU_CRYPTO){ if(PrevBit){ SerialPrint("|"); } SerialPrint("CRYPTO"); PrevBit = true; }
+		if(Desc.Attribute & EFI_MEMORY_RUNTIME){ if(PrevBit){ SerialPrint("|"); } SerialPrint("RUNTIME"); PrevBit = true; }
+		if(Desc.Attribute & UEFI_MEMORY_ISA_VALID){ if(PrevBit){ SerialPrint("|"); } SerialPrint("ISA_VALID"); PrevBit = true; }
+		if(Desc.Attribute & UEFI_MEMORY_ISA_MASK){ if(PrevBit){ SerialPrint("|"); } SerialPrint("ISA_MASK"); PrevBit = true; }
+		if(Desc.Attribute & ENKEL_MEMORY_FLAG_STACK){ if(PrevBit){ SerialPrint("|"); } SerialPrint("E_STACK"); PrevBit = true; }
+		if(Desc.Attribute & ENKEL_MEMORY_FLAG_TABLES){ if(PrevBit){ SerialPrint("|"); } SerialPrint("E_TABLES"); PrevBit = true; }
+		if(Desc.Attribute & ENKEL_MEMORY_FLAG_BOOTSTRAP){ if(PrevBit){ SerialPrint("|"); } SerialPrint("E_BOOTSTRAP"); PrevBit = true; }
+		if(Desc.Attribute & ENKEL_MEMORY_FLAG_FRAMEBUFFER){ if(PrevBit){ SerialPrint("|"); } SerialPrint("E_FRAMEBUFFER"); PrevBit = true; }
+		if(Desc.Attribute & ENKEL_MEMORY_FLAG_BINARY){ if(PrevBit){ SerialPrint("|"); } SerialPrint("E_BINARY"); PrevBit = true; }
 
 		SerialPrint("\n");
 
@@ -651,18 +680,24 @@ void MemCheck(KernelBootData* bootData)
 	LogPrintNumeric(u"Highest memcheck: ", HighestAddressWritten, u"\n");
 }
 
+#define PRINT_PML4 0
+
 void BuildAndLoadPML4(KernelBootData* bootData)
 {
-	//char PML4Output[10000];
-	//PML4Output[0] = '\0';
-	//SetSerialTargetBuffer(PML4Output);
+#if PRINT_PML4
+	char PML4Output[10000];
+	PML4Output[0] = '\0';
+	SetSerialTargetBuffer(PML4Output);
+#endif
 
     PML4Set = false;
     BuildPML4(bootData);
 
-	//QRDump(PML4Output);
-	//SetSerialTargetBuffer(nullptr);
-	//HaltPermanently();
+#if PRINT_PML4
+	QRDump(PML4Output);
+	SetSerialTargetBuffer(nullptr);
+	HaltPermanently();
+#endif
 
     ConsolePrint(u"Loading PML4...\n");
     LoadPageMapLevel4((uint64_t)&PML4);
