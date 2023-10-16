@@ -613,7 +613,7 @@ void BuildPML4(KernelBootData* bootData)
 
 	uint64_t allocatedFrameBufferSize = (framebuffer.ByteSize + (PAGE_SIZE-1)) & PAGE_MASK;
 
-    MapPages(framebuffer.VirtualStart, framebuffer.PhysicalStart, allocatedFrameBufferSize, true, false /*executable*/, MemoryState::RangeState::Reserved);
+    MapPages(framebuffer.VirtualStart, PhysicalFramebuffer, allocatedFrameBufferSize, true, false /*executable*/, MemoryState::RangeState::Reserved);
 	freeMemory -= allocatedFrameBufferSize;
 
     ConsolePrint(u"Memory available: ");
