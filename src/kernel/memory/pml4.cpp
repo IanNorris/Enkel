@@ -53,6 +53,7 @@ struct SPagingStructurePage
 #define PAGE_WAS_ACCESSED (1ULL<<5)
 #define PAGE_IS_DIRTY (1ULL<<6)
 #define PAGE_PAT (1ULL<<7)
+#define PAGE_2MB (1ULL<<7)
 #define PAGE_GLOBAL (1ULL<<8)
 #define NOT_EXECUTABLE (1ULL << 63)
 
@@ -140,7 +141,7 @@ void FreePML4Page(SPagingStructurePage* Page)
 	PagingFreePageHead = Page;
 }
 
-uint64_t GetPhysicalAddress(uint64_t virtualAddress)
+uint64_t GetPhysicalAddress(uint64_t virtualAddress, bool live)
 {
     // Calculate indices
     uint64_t pml4Index = (virtualAddress >> 39) & 0x1FF;
@@ -148,43 +149,62 @@ uint64_t GetPhysicalAddress(uint64_t virtualAddress)
     uint64_t pdIndex = (virtualAddress >> 21) & 0x1FF;
     uint64_t ptIndex = (virtualAddress >> 12) & 0x1FF;
 
+	SPagingStructurePage* ActiveMap = live ? (SPagingStructurePage*)(GetCR3() & PML4AddressMask) : &PML4;
+
     // Access PML4
-    if (!(PML4.Entries[pml4Index] & PRESENT))
+	uint64_t PML4Entry = ActiveMap->Entries[pml4Index];
+    if (!(PML4Entry & PRESENT))
     {
         return INVALID_ADDRESS;
     }
 
-    SPagingStructurePage* PDPT = (SPagingStructurePage*)(PML4.Entries[pml4Index] & PML4AddressMask);
+    SPagingStructurePage* PDPT = (SPagingStructurePage*)(PML4Entry & PML4AddressMask);
 
     // Access PDPT
-    if (!(PDPT->Entries[pdptIndex] & PRESENT))
+	uint64_t PDPTEntry = PDPT->Entries[pdptIndex];
+    if (!(PDPTEntry & PRESENT))
     {
         return INVALID_ADDRESS;
     }
 
-    SPagingStructurePage* PD = (SPagingStructurePage*)(PDPT->Entries[pdptIndex] & PML4AddressMask);
+    SPagingStructurePage* PD = (SPagingStructurePage*)(PDPTEntry & PML4AddressMask);
 
     // Access PD
+	uint64_t PDEntry = PD->Entries[pdIndex];
     if (!(PD->Entries[pdIndex] & PRESENT))
     {
         return INVALID_ADDRESS;
     }
 
-    SPagingStructurePage* PT = (SPagingStructurePage*)(PD->Entries[pdIndex] & PML4AddressMask);
+	if(PDEntry & PAGE_2MB)
+	{
+		// Get the physical address
+		uint64_t physicalAddress = PDEntry & PML4AddressMask;
 
-    // Access PT
-    if (!(PT->Entries[ptIndex] & PRESENT))
-    {
-        return INVALID_ADDRESS;
-    }
+		// Add the offset within the page
+		physicalAddress += (virtualAddress & (PAGE_SIZE_2MB-1));
 
-    // Get the physical address
-    uint64_t physicalAddress = PT->Entries[ptIndex] & PML4AddressMask;
+		return physicalAddress;
+	}
+	else
+	{
+		SPagingStructurePage* PT = (SPagingStructurePage*)(PDEntry & PML4AddressMask);
 
-    // Add the offset within the page
-    physicalAddress += (virtualAddress & (PAGE_SIZE-1));
+		// Access PT
+		uint64_t PTEntry = PT->Entries[ptIndex];
+		if (!(PTEntry & PRESENT))
+		{
+			return INVALID_ADDRESS;
+		}
 
-    return physicalAddress;
+		// Get the physical address
+		uint64_t physicalAddress = PTEntry & PML4AddressMask;
+
+		// Add the offset within the page
+		physicalAddress += (virtualAddress & (PAGE_SIZE-1));
+
+		return physicalAddress;
+	}
 }
 
 void MapPages(uint64_t virtualAddress, uint64_t physicalAddress, uint64_t size, bool writable, bool executable, MemoryState::RangeState newState, PageFlags pageFlags)
@@ -293,7 +313,7 @@ void MapPages(uint64_t virtualAddress, uint64_t physicalAddress, uint64_t size, 
 
 			CHECK_PML4_RESERVED_BITS(PT->Entries[ptIndex], PM_RESERVED_MASK);
 
-            uint64_t newPhysicalAddress = GetPhysicalAddress(virtualAddress);
+            uint64_t newPhysicalAddress = GetPhysicalAddress(virtualAddress, false);
             _ASSERTF(physicalAddress == newPhysicalAddress, "Physical address mismatch.");
 
 			_ASSERTF(originalVirtualAddress == virtualAddress, "Virtual address mismatch.");
@@ -393,6 +413,18 @@ void BuildPML4(KernelBootData* bootData)
     const KernelMemoryLocation& framebuffer = bootData->MemoryLayout.SpecialLocations[SpecialMemoryLocation_Framebuffer];
 	const KernelMemoryLocation& stack = bootData->MemoryLayout.SpecialLocations[SpecialMemoryLocation_KernelStack];
 	const KernelMemoryLocation& tables = bootData->MemoryLayout.SpecialLocations[SpecialMemoryLocation_Tables];
+
+	#define PRINT_RANGE(block) LogPrintNumeric(u"Range of " #block u" From: ", block.PhysicalStart, u", "); LogPrintNumeric(u"To: ", block.PhysicalStart + block.ByteSize, u"\n")
+
+	uint64_t PhysicalFramebuffer = GetPhysicalAddress(framebuffer.VirtualStart);
+	LogPrintNumeric(u"Framebuffer Virtual from: ", stack.VirtualStart, u"\n");
+	LogPrintNumeric(u"Framebuffer Physical from: ", PhysicalFramebuffer, u"\n");
+
+	PRINT_RANGE(binary);
+	PRINT_RANGE(bootstrap);
+	PRINT_RANGE(framebuffer);
+	PRINT_RANGE(stack);
+	PRINT_RANGE(tables);
 
 	uint64_t HighestAddressUntrimmmed = HighestAddress;
 
@@ -509,7 +541,7 @@ void BuildPML4(KernelBootData* bootData)
 
 	//Now we've built the map we need to find any gaps in the mapping.
 	//Any gaps will be unaddressable.
-	uint64_t StartP = 0x1000;
+	uint64_t StartP = 0x0;
 	while(StartP != HighestAddressUntrimmmed)
     {
 		bool found = false;
@@ -528,12 +560,15 @@ void BuildPML4(KernelBootData* bootData)
 		{
 			uint64_t lowest = ~0ULL;
 
+			EFI_MEMORY_DESCRIPTOR* EntryDesc = nullptr;
+
 			for (uint32_t entry = 0; entry < memoryLayout.Entries; entry++)
 			{
 				EFI_MEMORY_DESCRIPTOR& Desc = *((EFI_MEMORY_DESCRIPTOR*)((UINT8*)memoryLayout.Map + (entry * memoryLayout.DescriptorSize)));
 				if(Desc.PhysicalStart > StartP && Desc.PhysicalStart < lowest)
 				{
 					lowest = Desc.PhysicalStart;
+					EntryDesc = &Desc;
 				}
 			}
 
@@ -547,7 +582,30 @@ void BuildPML4(KernelBootData* bootData)
 			LogPrintNumeric(u"Unmapped range from: ", StartP, u"");
 			LogPrintNumeric(u" to: ", lowest, u"");
 
-			LogPrintNumeric(u" (", (lowest-StartP), u" bytes)\n");
+			LogPrintNumeric(u" (", (lowest-StartP), u" bytes)");
+
+			if(EntryDesc->PhysicalStart == stack.PhysicalStart)
+			{
+				SerialPrint(u" STACK");
+			}
+			else if(EntryDesc->PhysicalStart == tables.PhysicalStart)
+			{
+				SerialPrint(u" TABLES");
+			}
+			else if(EntryDesc->PhysicalStart == bootstrap.PhysicalStart)
+			{
+				SerialPrint(u" BOOTSTRAP");
+			}
+			else if(EntryDesc->PhysicalStart == (binary.PhysicalStart & PAGE_MASK))
+			{
+				SerialPrint(u" BINARY");
+			}
+			else if((framebuffer.PhysicalStart & PAGE_MASK) >= EntryDesc->PhysicalStart && (framebuffer.PhysicalStart & PAGE_MASK) <= (EntryDesc->PhysicalStart + (EntryDesc->NumberOfPages * EFI_PAGE_SIZE)))
+			{
+				SerialPrint(u" FRAMEBUFFER");
+			}
+
+			SerialPrint(u"\n");
 			
 			StartP = lowest;
 		}
