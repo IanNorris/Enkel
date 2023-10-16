@@ -98,7 +98,11 @@ bool RenderQR(FramebufferLayout* Framebuffer, const char* Data, uint32_t StartX,
 	uint32_t* FramebufferU32 = (uint32_t*)Framebuffer->Base;
 	uint32_t FramebufferQuadPitch = Framebuffer->Pitch / 4;
 
-	uint32_t ModuleColour = BlackModules ? 0x0 : 0xFFFFFFFF;
+	const uint32_t Black = 0x22222222;
+	const uint32_t White = 0xDDDDDDDD;
+
+	uint32_t ModuleColour = BlackModules ? Black : White;
+	uint32_t BackgroundColour = BlackModules ? White : Black;
 
 	int borderwidth = 2;
 
@@ -117,7 +121,7 @@ bool RenderQR(FramebufferLayout* Framebuffer, const char* Data, uint32_t StartX,
 				for (uint32_t moduleX = 0; moduleX < PixelsPerModule; moduleX++)
 				{
 					uint32_t OutputPos = ((posY + moduleY + StartY) * FramebufferQuadPitch) + posX + moduleX + StartX;
-					FramebufferU32[OutputPos] = Set ? ModuleColour : ~ModuleColour;
+					FramebufferU32[OutputPos] = Set ? ModuleColour : BackgroundColour;
 				}
 			}
 		}
