@@ -93,7 +93,7 @@ void __attribute__((__noreturn__)) ExitToKernel(EFI_BOOT_SERVICES* bootServices,
 {
 	Allocation bootDataKernel = AllocatePages(EfiMemoryMapType_KernelBootData, sizeof(KernelBootData));
 
-	UINT64 stackSize = 256 * 1024;
+	UINT64 stackSize = 512 * 1024;
 
 	//We need a new block of memory that will become the kernel's stack
 	Allocation stackRange = AllocatePages(EfiMemoryMapType_KernelStack, stackSize);

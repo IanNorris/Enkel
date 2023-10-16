@@ -743,7 +743,7 @@ void MemCheck(KernelBootData* bootData)
 void BuildAndLoadPML4(KernelBootData* bootData)
 {
 #if PRINT_PML4
-	char PML4Output[10000];
+	char PML4Output[20000];
 	PML4Output[0] = '\0';
 	SetSerialTargetBuffer(PML4Output);
 #endif
@@ -754,7 +754,7 @@ void BuildAndLoadPML4(KernelBootData* bootData)
 #if PRINT_PML4
 	QRDump(PML4Output);
 	SetSerialTargetBuffer(nullptr);
-	HaltPermanently();
+	//HaltPermanently();
 #endif
 
     ConsolePrint(u"Loading PML4...\n");
