@@ -152,6 +152,7 @@
 #include "memory/virtual.h"
 #include "rpmalloc.h"
 #include "kernel/init/acpi.h"
+#include "common/string.h"
 
 void NotifyHandler (
     ACPI_HANDLE                 Device,
@@ -223,6 +224,32 @@ ACPI_STATUS InstallHandlers (void)
     return (AE_OK);
 }
 
+ACPI_MCFG_ALLOCATION* GAcpiMcfgAllocation;
+uint64_t GAciMcfgAllocationEntries;
+
+void InitializeMMIO()
+{
+	ACPI_TABLE_HEADER* Table;
+	ACPI_STATUS Status = AcpiGetTable("MCFG", 0, &Table);
+
+	if (ACPI_SUCCESS(Status))
+	{
+		// Cast to MCFG table structure
+		ACPI_TABLE_MCFG* McfgTable = (ACPI_TABLE_MCFG*) Table;
+
+		// Loop through the allocation structures
+		ACPI_MCFG_ALLOCATION* Alloc = (ACPI_MCFG_ALLOCATION*) (McfgTable + 1);
+
+		GAcpiMcfgAllocation = Alloc;
+		GAciMcfgAllocationEntries = (Table->Length - sizeof(ACPI_TABLE_MCFG)) / sizeof(ACPI_MCFG_ALLOCATION);
+	}
+	else
+	{
+		// Handle error
+		_ASSERTF(false, "Hardware does not support MMIO");
+	}
+}
+
 ACPI_STATUS InitializeAcpica (void)
 {
     ACPI_STATUS             Status;
@@ -284,7 +311,44 @@ ACPI_STATUS InitializeAcpica (void)
         return (Status);
     }
 
+	//Now read the PCI MMIO address
+	InitializeMMIO();
+
     return (AE_OK);
+}
+
+void PrintValue(ACPI_OBJECT* ObjectPtr)
+{
+	SerialPrint(" Value: ");
+	if (ObjectPtr->Type == ACPI_TYPE_STRING)
+	{	
+        SerialPrint(ObjectPtr->String.Pointer);
+    } 
+	else if (ObjectPtr->Type == ACPI_TYPE_INTEGER)
+	{
+        char16_t tempBuffer[16];
+        witoabuf(tempBuffer, (uint32_t)ObjectPtr->Integer.Value, 10);
+        SerialPrint(tempBuffer);
+    }
+	else
+	{
+        SerialPrint(" UnknownType ");
+    }
+	SerialPrint("\n");
+}
+
+void ReadAcpiBuffer(ACPI_HANDLE Object, const char* Name)
+{
+	ACPI_BUFFER buffer = {ACPI_ALLOCATE_BUFFER, NULL};
+
+	if (ACPI_SUCCESS(AcpiEvaluateObject(Object, (ACPI_STRING)Name, NULL, &buffer)))
+	{
+        SerialPrint(" ");
+		SerialPrint(Name);
+		SerialPrint(" ");
+		PrintValue((ACPI_OBJECT*)buffer.Pointer);
+        ACPI_FREE(buffer.Pointer);
+    }
 }
 
 extern "C" const char *
@@ -297,70 +361,45 @@ ACPI_STATUS AcpiDeviceTreeCallback (
     void                            *Context,
     void                            **ReturnValue)
 {
-    ACPI_BUFFER                     Buffer = {ACPI_ALLOCATE_BUFFER, NULL};
-	ACPI_BUFFER                     hidBuffer = {ACPI_ALLOCATE_BUFFER, NULL};
-    ACPI_BUFFER                     cidBuffer = {ACPI_ALLOCATE_BUFFER, NULL};
-    ACPI_BUFFER                     uidBuffer = {ACPI_ALLOCATE_BUFFER, NULL};
-    ACPI_DEVICE_INFO                *DeviceInfo;
-    ACPI_STATUS                     Status;
+    ACPI_DEVICE_INFO* DeviceInfo;
+    ACPI_STATUS Status;
 
     // Get the full pathname of this object
-    Status = AcpiGetName(Object, ACPI_FULL_PATHNAME, &Buffer);
+	ACPI_BUFFER NameBuffer = {ACPI_ALLOCATE_BUFFER, NULL};
+    Status = AcpiGetName(Object, ACPI_FULL_PATHNAME, &NameBuffer);
     if (ACPI_FAILURE(Status)) {
         return (Status);
     }
+
+	const char* Name = (const char*)NameBuffer.Pointer;
+	SerialPrint("Name: ");
+	SerialPrint(Name);
+	 ACPI_FREE(NameBuffer.Pointer);
 
     // Get the device info
     Status = AcpiGetObjectInfo(Object, &DeviceInfo);
     if (ACPI_FAILURE(Status)) {
-        ACPI_FREE(Buffer.Pointer);
         return (Status);
     }
 
-	const char* Name = (const char*)Buffer.Pointer;
 	const char* Type = AcpiUtGetTypeName(DeviceInfo->Type);
 
-	SerialPrint("Name: ");
-	SerialPrint(Name);
+	
 	SerialPrint(" Type: ");
 	SerialPrint(Type);
 	SerialPrint("\n");
 
-	// Evaluate _HID
-    if (ACPI_SUCCESS(AcpiEvaluateObject(Object, "_HID", NULL, &hidBuffer))) {
-        SerialPrint(" HID: ");
-        SerialPrint((const char *) hidBuffer.Pointer);
-        ACPI_FREE(hidBuffer.Pointer);
-    }
+	ReadAcpiBuffer(Object, "_HID");
+	ReadAcpiBuffer(Object, "_CID");
+	ReadAcpiBuffer(Object, "_UID");
+	ReadAcpiBuffer(Object, "_STR");
+	ReadAcpiBuffer(Object, "_SxD");
+	ReadAcpiBuffer(Object, "_SXDS");
+	ReadAcpiBuffer(Object, "_SxW");
+	ReadAcpiBuffer(Object, "_STA");
+	ReadAcpiBuffer(Object, "_SXWS");
+	ReadAcpiBuffer(Object, "_ADR");
 
-    // Evaluate _CID
-    if (ACPI_SUCCESS(AcpiEvaluateObject(Object, "_CID", NULL, &cidBuffer))) {
-        SerialPrint(" CID: ");
-        SerialPrint((const char *) cidBuffer.Pointer);
-        ACPI_FREE(cidBuffer.Pointer);
-    }
-
-    // Evaluate _UID
-    if (ACPI_SUCCESS(AcpiEvaluateObject(Object, "_UID", NULL, &uidBuffer))) {
-        SerialPrint(" UID: ");
-        SerialPrint((const char *) uidBuffer.Pointer);
-        ACPI_FREE(uidBuffer.Pointer);
-    }
-
-	// Try to evaluate the _STR method to get the device description
-    ACPI_BUFFER StrBuffer = {ACPI_ALLOCATE_BUFFER, NULL};
-    ACPI_STATUS StrStatus = AcpiEvaluateObject(Object, "_STR", NULL, &StrBuffer);
-
-    if (ACPI_SUCCESS(StrStatus) && StrBuffer.Pointer != NULL) {
-        char outputBuffer[256];
-
-		SerialPrint(" Description: ");
-		SerialPrint((const char *) StrBuffer.Pointer);
-
-        ACPI_FREE(StrBuffer.Pointer);
-    }
-
-    ACPI_FREE(Buffer.Pointer);
     ACPI_FREE(DeviceInfo);
 
     return (AE_OK);

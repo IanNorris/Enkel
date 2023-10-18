@@ -588,41 +588,34 @@ AcpiOsWriteMemory (
  *
  *****************************************************************************/
 
-ACPI_STATUS
-AcpiOsReadPort (
-    ACPI_IO_ADDRESS         Address,
-    UINT32                  *Value,
-    UINT32                  Width)
+ACPI_STATUS AcpiOsReadPort(
+    ACPI_IO_ADDRESS Address,
+    UINT32 *Value,
+    UINT32 Width)
 {
-    switch (Width)
-    {
-    case 8:
-
-        *((UINT8 *) Value) = *(UINT8 *)(Address);
-        break;
-
-    case 16:
-
-        *((UINT16 *) Value) = sys_in16 (Address);
-        break;
-
-    case 32:
-
-        *((UINT32 *) Value) = sys_in32 (Address);
-        break;
-
-    case 64:
-
-        *((UINT32 *) Value) = sys_in32 (Address);
-        *((UINT32 *) Value + 4) = sys_in32 (Address + 4);
-        break;
-
-    default:
-
-        return (AE_BAD_PARAMETER);
+    if (Value == nullptr) {
+        return 1;  // Error code
     }
 
-    return (AE_OK);
+    switch (Width) {
+    case 8:
+        *Value = static_cast<UINT32>(InPort(static_cast<uint16_t>(Address)));
+        break;
+    case 16:
+        *Value = static_cast<UINT32>(InPort(static_cast<uint16_t>(Address))) |
+                 (static_cast<UINT32>(InPort(static_cast<uint16_t>(Address + 1))) << 8);
+        break;
+    case 32:
+        *Value = static_cast<UINT32>(InPort(static_cast<uint16_t>(Address))) |
+                 (static_cast<UINT32>(InPort(static_cast<uint16_t>(Address + 1))) << 8) |
+                 (static_cast<UINT32>(InPort(static_cast<uint16_t>(Address + 2))) << 16) |
+                 (static_cast<UINT32>(InPort(static_cast<uint16_t>(Address + 3))) << 24);
+        break;
+    default:
+        return 2;  // Error code for unsupported width
+    }
+
+    return 0;  // Success code
 }
 
 
@@ -741,6 +734,35 @@ AcpiOsWritePciConfiguration (
     return (AE_OK);
 }
 
+extern ACPI_MCFG_ALLOCATION* GAcpiMcfgAllocation;
+extern uint64_t GAciMcfgAllocationEntries;
+
+UINT64 PciConfigRead(UINT8 bus, UINT8 device, UINT8 function, UINT8 offset)
+{
+    // Calculate the PCI Configuration Address
+    UINT64 pciOffset = static_cast<UINT64>(bus) << 20 |
+                       static_cast<UINT64>(device) << 15 |
+                       static_cast<UINT64>(function) << 12 |
+                       (offset & 0xFFC);
+
+	ACPI_MCFG_ALLOCATION* Alloc = GAcpiMcfgAllocation;
+	for (UINT64 Index = 0; Index < GAciMcfgAllocationEntries; ++Index, ++Alloc)
+	{
+		if(bus >= Alloc->StartBusNumber && bus <= Alloc->EndBusNumber)
+		{
+			volatile UINT32* configAddress = reinterpret_cast<volatile UINT32*>(Alloc->Address);
+    		return static_cast<UINT64>(configAddress[pciOffset >> 3]);
+		}
+	}
+
+	_ASSERTF(false, "Bus not found in MMIO");
+
+	return 0;
+
+    // Map the PCI configuration space to memory and read the value
+    
+}
+
 
 /******************************************************************************
  *
@@ -757,46 +779,33 @@ AcpiOsWritePciConfiguration (
  *
  *****************************************************************************/
 
-ACPI_STATUS
-AcpiOsReadPciConfiguration (
-    ACPI_PCI_ID             *PciId,
-    UINT32                  Register,
-    UINT64                  *Value,
-    UINT32                  Width)
+ACPI_STATUS AcpiOsReadPciConfiguration(
+    ACPI_PCI_ID *PciId,
+    UINT32 Register,
+    UINT64 *Value,
+    UINT32 Width)
 {
-	NOT_IMPLEMENTED();
-
-    /*pcie_bdf_t bdf = PCIE_BDF (PciId->Bus, PciId->Device, PciId->Function);
+    UINT64 readValue = PciConfigRead(PciId->Bus, PciId->Device, PciId->Function, Register);
 
     switch (Width)
     {
     case 8:
-
-        *((UINT8 *) Value) = (UINT8) pcie_conf_read (bdf, Register);
+        *reinterpret_cast<UINT8*>(Value) = static_cast<UINT8>(readValue);
         break;
-
     case 16:
-
-        *((UINT16 *) Value) = (UINT16) pcie_conf_read (bdf, Register);
+        *reinterpret_cast<UINT16*>(Value) = static_cast<UINT16>(readValue);
         break;
-
     case 32:
-
-        *((UINT32 *) Value) = (UINT32) pcie_conf_read (bdf, Register);
+        *reinterpret_cast<UINT32*>(Value) = static_cast<UINT32>(readValue);
         break;
-
     case 64:
-
-        *((UINT32 *) Value) = (UINT32) pcie_conf_read (bdf, Register);
-        *((UINT32 *) Value + 1) = (UINT32) pcie_conf_read (bdf, (Register + 4));
+        *Value = readValue;
         break;
-
     default:
+        return AE_BAD_PARAMETER;
+    }
 
-        return (AE_BAD_PARAMETER);
-    }*/
-
-    return (AE_OK);
+    return AE_OK;
 }
 
 
