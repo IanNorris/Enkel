@@ -143,7 +143,8 @@ def MainScript():
     AsmBreakpoint("DebugHook_ISR_InvalidOpcode")
     AsmBreakpoint("DebugHook_ISR_Breakpoint")
 
-    AsmBreakpointWithError("AccessViolationException")
+    #AsmBreakpointWithError("AccessViolationException")
+    AsmBreakpointWithError("DebugHook_ISR_PageFault")
     
     print("Setup complete!")
     gdb.execute("continue")
