@@ -670,6 +670,35 @@ AcpiOsWritePort (
     return (AE_OK);
 }
 
+extern ACPI_MCFG_ALLOCATION* GAcpiMcfgAllocation;
+extern uint64_t GAciMcfgAllocationEntries;
+
+volatile UINT64* PciConfigGetMMIOAddress(UINT8 bus, UINT8 device, UINT8 function, UINT8 offset)
+{
+    // Calculate the PCI Configuration Address
+    UINT64 pciOffset = static_cast<UINT64>(bus) << 20 |
+                       static_cast<UINT64>(device) << 15 |
+                       static_cast<UINT64>(function) << 12 |
+                       (offset & 0xFFC);
+
+	ACPI_MCFG_ALLOCATION* Alloc = GAcpiMcfgAllocation;
+	for (UINT64 Index = 0; Index < GAciMcfgAllocationEntries; ++Index, ++Alloc)
+	{
+		if(bus >= Alloc->StartBusNumber && bus <= Alloc->EndBusNumber)
+		{
+			volatile UINT32* configAddress = reinterpret_cast<volatile UINT32*>(Alloc->Address);
+			return (volatile UINT64*)&configAddress[pciOffset >> 3];
+		}
+	}
+
+	_ASSERTF(false, "Bus not found in MMIO");
+
+	return nullptr;
+
+    // Map the PCI configuration space to memory and read the value
+    
+}
+
 
 /******************************************************************************
  *
@@ -693,74 +722,32 @@ AcpiOsWritePciConfiguration (
     UINT64                  Value,
     UINT32                  Width)
 {
-	NOT_IMPLEMENTED();
-
-    /*UINT32                  value32;
-    pcie_bdf_t              bdf = PCIE_BDF (PciId->Bus, PciId->Device, PciId->Function);
-
+	volatile UINT64* TargetAddress = PciConfigGetMMIOAddress(PciId->Bus, PciId->Device, PciId->Function, Register);
 
     switch (Width)
     {
     case 8:
-
-        value32 = pcie_conf_read (bdf, Register);
-        value32 = (value32 & 0xffffff00) | (UINT8) Value;
-        pcie_conf_write (bdf, Register, value32);
+		*((volatile UINT8*)TargetAddress) = (*((UINT8*)TargetAddress) & 0xffffffffffffff00) | (UINT8) Value;
         break;
 
     case 16:
-
-        value32 = pcie_conf_read (bdf, Register);
-        value32 = (value32 & 0xffff0000) | (UINT16) Value;
-        pcie_conf_write (bdf, Register, value32);
+		*((volatile UINT16*)TargetAddress) = (*((UINT16*)TargetAddress) & 0xffffffffffff0000) | (UINT16) Value;
         break;
 
     case 32:
-
-        pcie_conf_write (bdf, Register, (UINT32) Value);
+		*((volatile UINT32*)TargetAddress) = (*((UINT32*)TargetAddress) & 0xffffffff00000000) | (UINT32) Value;
         break;
 
     case 64:
-
-        pcie_conf_write (bdf, Register, (UINT32) Value);
-        pcie_conf_write (bdf, (Register + 4), (UINT32) (Value >> 32));
+		*TargetAddress = Value;
         break;
 
     default:
 
         return (AE_BAD_PARAMETER);
-    }*/
+    }
 
     return (AE_OK);
-}
-
-extern ACPI_MCFG_ALLOCATION* GAcpiMcfgAllocation;
-extern uint64_t GAciMcfgAllocationEntries;
-
-UINT64 PciConfigRead(UINT8 bus, UINT8 device, UINT8 function, UINT8 offset)
-{
-    // Calculate the PCI Configuration Address
-    UINT64 pciOffset = static_cast<UINT64>(bus) << 20 |
-                       static_cast<UINT64>(device) << 15 |
-                       static_cast<UINT64>(function) << 12 |
-                       (offset & 0xFFC);
-
-	ACPI_MCFG_ALLOCATION* Alloc = GAcpiMcfgAllocation;
-	for (UINT64 Index = 0; Index < GAciMcfgAllocationEntries; ++Index, ++Alloc)
-	{
-		if(bus >= Alloc->StartBusNumber && bus <= Alloc->EndBusNumber)
-		{
-			volatile UINT32* configAddress = reinterpret_cast<volatile UINT32*>(Alloc->Address);
-    		return static_cast<UINT64>(configAddress[pciOffset >> 3]);
-		}
-	}
-
-	_ASSERTF(false, "Bus not found in MMIO");
-
-	return 0;
-
-    // Map the PCI configuration space to memory and read the value
-    
 }
 
 
@@ -785,21 +772,21 @@ ACPI_STATUS AcpiOsReadPciConfiguration(
     UINT64 *Value,
     UINT32 Width)
 {
-    UINT64 readValue = PciConfigRead(PciId->Bus, PciId->Device, PciId->Function, Register);
+	volatile UINT64* TargetAddress = PciConfigGetMMIOAddress(PciId->Bus, PciId->Device, PciId->Function, Register);
 
     switch (Width)
     {
     case 8:
-        *reinterpret_cast<UINT8*>(Value) = static_cast<UINT8>(readValue);
+        *reinterpret_cast<UINT8*>(Value) = static_cast<volatile UINT8>(*TargetAddress);
         break;
     case 16:
-        *reinterpret_cast<UINT16*>(Value) = static_cast<UINT16>(readValue);
+        *reinterpret_cast<UINT16*>(Value) = static_cast<volatile UINT16>(*TargetAddress);
         break;
     case 32:
-        *reinterpret_cast<UINT32*>(Value) = static_cast<UINT32>(readValue);
+        *reinterpret_cast<UINT32*>(Value) = static_cast<volatile UINT32>(*TargetAddress);
         break;
     case 64:
-        *Value = readValue;
+        *Value = *TargetAddress;
         break;
     default:
         return AE_BAD_PARAMETER;

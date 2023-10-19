@@ -343,11 +343,14 @@ void ReadAcpiBuffer(ACPI_HANDLE Object, const char* Name)
 
 	if (ACPI_SUCCESS(AcpiEvaluateObject(Object, (ACPI_STRING)Name, NULL, &buffer)))
 	{
-        SerialPrint(" ");
-		SerialPrint(Name);
-		SerialPrint(" ");
-		PrintValue((ACPI_OBJECT*)buffer.Pointer);
-        ACPI_FREE(buffer.Pointer);
+		if(buffer.Pointer)
+		{
+			SerialPrint(" ");
+			SerialPrint(Name);
+			SerialPrint(" ");
+			PrintValue((ACPI_OBJECT*)buffer.Pointer);
+			ACPI_FREE(buffer.Pointer);
+		}
     }
 }
 
@@ -389,7 +392,15 @@ ACPI_STATUS AcpiDeviceTreeCallback (
 	SerialPrint(Type);
 	SerialPrint("\n");
 
+	if(DeviceInfo->ClassCode.String)
+	{
+		SerialPrint("ClassCode: ");
+		SerialPrint(DeviceInfo->ClassCode.String);
+		SerialPrint("\n");
+	}
+
 	ReadAcpiBuffer(Object, "_HID");
+	ReadAcpiBuffer(Object, "_CLS");
 	ReadAcpiBuffer(Object, "_CID");
 	ReadAcpiBuffer(Object, "_UID");
 	ReadAcpiBuffer(Object, "_STR");
@@ -399,6 +410,20 @@ ACPI_STATUS AcpiDeviceTreeCallback (
 	ReadAcpiBuffer(Object, "_STA");
 	ReadAcpiBuffer(Object, "_SXWS");
 	ReadAcpiBuffer(Object, "_ADR");
+	ReadAcpiBuffer(Object, "_DDN");
+	ReadAcpiBuffer(Object, "_HRV");
+	ReadAcpiBuffer(Object, "_MLS");
+	ReadAcpiBuffer(Object, "_PLD");
+	ReadAcpiBuffer(Object, "_SUB");
+	ReadAcpiBuffer(Object, "_SUN");
+	ReadAcpiBuffer(Object, "_STR");
+	ReadAcpiBuffer(Object, "_CRS");
+	ReadAcpiBuffer(Object, "_DMA");
+	ReadAcpiBuffer(Object, "_DIS");
+	ReadAcpiBuffer(Object, "_DSD");
+	ReadAcpiBuffer(Object, "_HPX");
+	ReadAcpiBuffer(Object, "_MAT");
+	ReadAcpiBuffer(Object, "_OSC");
 
     ACPI_FREE(DeviceInfo);
 
