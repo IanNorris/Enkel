@@ -317,24 +317,57 @@ ACPI_STATUS InitializeAcpica (void)
     return (AE_OK);
 }
 
+char GetAlphaOnly(char input)
+{
+	if((input >= 'A' && input <= 'Z') || (input >= 'a' && input <= 'z') || (input >= '0' && input <= '9'))
+	{
+		return input;
+	}
+	else
+	{
+		return input;
+	}
+}
+
+void DecodeHID(uint32_t hid)
+{
+    char manufacturer[4] = { 0 };
+    
+    manufacturer[0] = GetAlphaOnly((char)((hid >> 24) & 0xFF));
+    manufacturer[1] = GetAlphaOnly((char)((hid >> 16) & 0xFF));
+    manufacturer[2] = GetAlphaOnly((char)((hid >> 8) & 0xFF));
+    uint8_t productID = (uint8_t)(hid & 0xFF);
+
+	SerialPrint("Manufacturer: ");
+	SerialPrint(manufacturer);
+
+	SerialPrint(", ProductId: 0x");
+	char16_t tempBuffer[16];
+	witoabuf(tempBuffer, (uint32_t)productID, 16);
+	SerialPrint(tempBuffer);
+	SerialPrint(", ");
+}
+
+
 void PrintValue(ACPI_OBJECT* ObjectPtr)
 {
-	SerialPrint(" Value: ");
 	if (ObjectPtr->Type == ACPI_TYPE_STRING)
 	{	
         SerialPrint(ObjectPtr->String.Pointer);
     } 
 	else if (ObjectPtr->Type == ACPI_TYPE_INTEGER)
 	{
+		DecodeHID((uint32_t)ObjectPtr->Integer.Value);
+
         char16_t tempBuffer[16];
-        witoabuf(tempBuffer, (uint32_t)ObjectPtr->Integer.Value, 10);
+        witoabuf(tempBuffer, (uint32_t)ObjectPtr->Integer.Value, 16);
         SerialPrint(tempBuffer);
     }
 	else
 	{
         SerialPrint(" UnknownType ");
     }
-	SerialPrint("\n");
+	SerialPrint(", ");
 }
 
 void ReadAcpiBuffer(ACPI_HANDLE Object, const char* Name)
@@ -358,6 +391,14 @@ extern "C" const char *
 AcpiUtGetTypeName (
     ACPI_OBJECT_TYPE        Type);
 
+void PrintIndent(UINT32 depth)
+{
+	for(int i = 0; i < depth; i++)
+	{
+		SerialPrint("  ");
+	}
+}
+
 ACPI_STATUS AcpiDeviceTreeCallback (
     ACPI_HANDLE                     Object,
     UINT32                          NestingLevel,
@@ -374,10 +415,11 @@ ACPI_STATUS AcpiDeviceTreeCallback (
         return (Status);
     }
 
+	PrintIndent(NestingLevel);
+
 	const char* Name = (const char*)NameBuffer.Pointer;
-	SerialPrint("Name: ");
 	SerialPrint(Name);
-	 ACPI_FREE(NameBuffer.Pointer);
+	ACPI_FREE(NameBuffer.Pointer);
 
     // Get the device info
     Status = AcpiGetObjectInfo(Object, &DeviceInfo);
@@ -390,16 +432,9 @@ ACPI_STATUS AcpiDeviceTreeCallback (
 	
 	SerialPrint(" Type: ");
 	SerialPrint(Type);
-	SerialPrint("\n");
-
-	if(DeviceInfo->ClassCode.String)
-	{
-		SerialPrint("ClassCode: ");
-		SerialPrint(DeviceInfo->ClassCode.String);
-		SerialPrint("\n");
-	}
 
 	ReadAcpiBuffer(Object, "_HID");
+	ReadAcpiBuffer(Object, "_HIDSTR");
 	ReadAcpiBuffer(Object, "_CLS");
 	ReadAcpiBuffer(Object, "_CID");
 	ReadAcpiBuffer(Object, "_UID");
@@ -424,6 +459,26 @@ ACPI_STATUS AcpiDeviceTreeCallback (
 	ReadAcpiBuffer(Object, "_HPX");
 	ReadAcpiBuffer(Object, "_MAT");
 	ReadAcpiBuffer(Object, "_OSC");
+
+	// https://github.com/qemu/qemu/blob/fd9a38fd437c4c31705071c240f4be11394ca1f8/hw/i386/acpi-build.c#L1270
+
+	 /* DRAM controller */
+    //dev = aml_device("DRAC");
+    //aml_append(dev, aml_name_decl("_HID", aml_string("PNP0C01")));
+
+	/*void xhci_sysbus_build_aml(Aml *scope, uint32_t mmio, unsigned int irq)
+{
+    Aml *dev = aml_device("XHCI");
+    Aml *crs = aml_resource_template();
+
+    aml_append(crs, aml_memory32_fixed(mmio, XHCI_LEN_REGS, AML_READ_WRITE));
+    aml_append(crs, aml_interrupt(AML_CONSUMER, AML_LEVEL, AML_ACTIVE_HIGH,
+                                  AML_EXCLUSIVE, &irq, 1));
+
+    aml_append(dev, aml_name_decl("_HID", aml_eisaid("PNP0D10")));
+    aml_append(dev, aml_name_decl("_CRS", crs));*/
+
+	SerialPrint("\n");
 
     ACPI_FREE(DeviceInfo);
 
