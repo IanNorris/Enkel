@@ -50,7 +50,7 @@ DebugHook_ISR_%2:
     mov rdi, [rsp + 14*8] ; RIP from EIP
     mov rsi, cr2
     xor rdx, rdx
-	mov rcx, $%1
+	mov rcx, %1
 
     ; Call the function named ISR_Int_ followed by the given ISR name
     call ISR_Int_%2
@@ -76,7 +76,7 @@ DebugHook_ISR_%2:
     mov rdi, [rsp + 15*8] ; RIP from EIP
     mov rsi, cr2
     mov rdx, [rsp + 14*8] ; Error code
-	mov rcx, $%1
+	mov rcx, %1
    
     ; Call the function named ISR_Int_ followed by the given ISR name
     call ISR_Int_%2

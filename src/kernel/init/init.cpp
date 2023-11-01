@@ -21,6 +21,9 @@ void InitInterrupts(KernelBootData* bootData)
     ConsolePrint(u"Initializing IDT...\n");
 	uint8_t* TableOffset = (uint8_t*)bootData->MemoryLayout.SpecialLocations[SpecialMemoryLocation_Tables].VirtualStart;
     size_t IDTTableSize = InitIDT(TableOffset, codeSelector);
+
+	//We can now re-enable interrupts.
+    EnableInterrupts();
 }
 
 void InitVirtualMemory(KernelBootData* bootData)
@@ -28,9 +31,6 @@ void InitVirtualMemory(KernelBootData* bootData)
 	ConsolePrint(u"Initializing GDT...\n");
 	uint8_t* GDTOffset = (uint8_t*)bootData->MemoryLayout.SpecialLocations[SpecialMemoryLocation_APBootstrap].VirtualStart + 512;
     InitGDT(GDTOffset);
-
-    //We can now re-enable interrupts.
-    EnableInterrupts();
 
     _ASSERTF(CheckProtectedMode(), "In UEFI mode we should already be in protected mode!");
 

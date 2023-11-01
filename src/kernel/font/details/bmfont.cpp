@@ -198,6 +198,10 @@ void BMFont_Render(const BMFont* Font, FramebufferLayout* Framebuffer, int32_t& 
 			for (int AdvanceChar = 0; AdvanceChar < NextOffset; AdvanceChar++)
 			{
 				const BMFontChar* Glyph = BMFont_FindGlyph(Font, *(String + AdvanceChar));
+				if(!Glyph)
+				{
+					continue;
+				}
 
 				if (NextWordPixelLength + Glyph->XAdvance > Framebuffer->Width)
 				{

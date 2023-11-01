@@ -1,10 +1,12 @@
 #include "utilities/termination.h"
 #include "kernel/console/console.h"
+#include "kernel/devices/keyboard.h"
 #include "kernel/init/apic.h"
 #include "kernel/init/bootload.h"
 #include "kernel/init/init.h"
 #include "kernel/init/pic.h"
 #include "kernel/init/tls.h"
+#include "kernel/init/msr.h"
 #include "kernel/init/interrupts.h"
 #include "kernel/texture/render.h"
 #include "memory/memory.h"
@@ -102,15 +104,18 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 		ConsolePrint(u"DEBUGGER ATTACHED!\n");
 	}
 
-	InitInterrupts(&GBootData);
 	InitVirtualMemory(&GBootData);
 
 	CRTInit();
+
+	InitInterrupts(&GBootData);
 
 	//FinalizeRuntimeServices();
 
 	InitPIC();
 	InitApic(GBootData.Rsdt, GBootData.Xsdt);
+
+	InitKeyboard();
 
 #ifdef _DEBUG
 	ACPI_DEBUG_INITIALIZE ();

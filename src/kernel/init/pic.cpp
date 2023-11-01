@@ -28,23 +28,40 @@ void RemapPIC()
     OutPort(0xA1, a1);
 }
 
-void EnableIRQ0()
+void SetIRQEnabled(uint8_t irq, bool enabled)
 {
-    // Read the current IMR state
-    uint8_t mask = InPort(0x21);
+    if (irq > 15)
+	{
+		_ASSERTF(false, "Invalid IRQ");
+        return;  // Invalid IRQ
+    }
 
-    // Clear the bit corresponding to IRQ0
-    mask &= ~(1 << 0);
+    uint16_t port = 0x21;  // PIC1 command port
+    if (irq >= 8)
+	{
+        port = 0xA1;  // PIC2 command port
+        irq -= 8;
+    }
 
-    // Write the new IMR state
-    OutPort(0x21, mask);
+    uint8_t mask = InPort(port);
+
+    if (enabled)
+	{
+        mask &= ~(1 << irq);
+    }
+	else
+	{
+        mask |= (1 << irq);
+    }
+
+    OutPort(port, mask);
 }
 
 void InitPIC()
 {
 	RemapPIC();
 
-	EnableIRQ0();
+	SetIRQEnabled(0, true);
 }
 
 void DisablePIC()
