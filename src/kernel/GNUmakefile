@@ -72,7 +72,6 @@ override CFLAGS += \
     -Wall \
     -Wextra \
 	-Wno-unused-parameter \
-    -finput-charset=CP1252\
     -ffreestanding \
     -fno-stack-protector \
     -fno-stack-check \
