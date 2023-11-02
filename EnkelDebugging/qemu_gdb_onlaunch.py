@@ -108,7 +108,7 @@ def print_flags(level, entry_value):
     pat = (entry_value >> 7) & 1
     g = (entry_value >> 8) & 1
     nx = (entry_value >> 63) & 1
-    print("%s value: %x, Present: %d, R/W: %d, User/Supervisor: %d, PageWriteThrough: %d, PageCacheDisable: %d, Accessed: %d, Dirty: %d, PageAttributeTable: %d, Global: %d, NoExecute: %d" % (level, entry_value, p, rw, us, pwt, pcd, a, d, pat, g, nx))
+    print("%s value: %x, Present: %d, R/W: %d, User/Supervisor: %d, PageWriteThrough: %d, PageCacheDisable: %d, Accessed: %d, Dirty: %d, PageAttributeTable/PS: %d, Global: %d, NoExecute: %d" % (level, entry_value, p, rw, us, pwt, pcd, a, d, pat, g, nx))
 
 
 class TranslateCommand(gdb.Command):
