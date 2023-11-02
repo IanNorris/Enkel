@@ -48,11 +48,11 @@ The technical bits I've done so far. Hopefully useful to any would-be adventurer
 * Physical and Virtual memory allocation and protection flags
 * Walk the APIC, find the Local APIC (LAPIC), and initialize the APs
 * For each AP, step through 16-bit real mode, 32-bit protected mode then finally 64-bit long mode again and back into C
+* Keyboard input
 
 # Next steps
 
 * AHCI and opening files from the ISO
-* Keyboard input
 * Syscalls
 * Scheduling
 
