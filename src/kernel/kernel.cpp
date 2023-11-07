@@ -15,6 +15,8 @@
 #include "../../assets/SplashLogo.h"
 #include "kernel/init/acpi.h"
 
+void EnterUserModeTest();
+
 KernelBootData GBootData;
 
 extern const char16_t* KernelBuildId;
@@ -127,6 +129,8 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 	
 	ConsolePrint(u"Ready!\n");
 	//HaltPermanently();
+
+	EnterUserModeTest();
 
 	while(true)
 	{

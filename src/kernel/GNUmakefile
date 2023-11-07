@@ -16,6 +16,10 @@ FONT_H_FILES := $(FONT_ROOT)/$(FONT_NAME).h  $(FONT_ROOT)/$(FONT_NAME)_0.h
 EMBEDDED_IMAGE_FILES := ../../assets/SplashLogo.tga
 EMBEDDED_IMAGE_CPP_FILES := ../../assets/SplashLogo.cpp
 EMBEDDED_IMAGE_H_FILES := ../../assets/SplashLogo.h
+EMBEDDED_APPS := ../apps/hello_world/hello_world.a
+EMBEDDED_APP_DIRECTORIES := ../apps/hello_world
+override EMBEDDED_APP_BINCPP_FILES := $(EMBEDDED_APPS:.a=.bin.cpp)
+override EMBEDDED_APP_BINH_FILES := $(EMBEDDED_APPS:.a=.bin.h)
 TOOLS := ../../tools
 
 LDTEMPLATE := linker.ld
@@ -129,7 +133,7 @@ override SFLAGS += \
 
 # Use "find" to glob all *.c, *.S, and *.asm files in the tree and obtain the
 # object and header dependency file names.
-override CPPFILES := $(shell find -L . -type f -name '*.cpp') $(FONT_CPP_FILES) $(EMBEDDED_IMAGE_CPP_FILES)
+override CPPFILES := $(shell find -L . -type f -name '*.cpp') $(FONT_CPP_FILES) $(EMBEDDED_IMAGE_CPP_FILES) $(EMBEDDED_APP_BINCPP_FILES)
 override CFILES := $(RPMALLOC_C_FILES) $(QRCODE_C_FILES) $(ZLIB_C_FILES)
 override ASFILES := $(shell find -L . -type f -name '*.S')
 override NASMFILES := $(shell find -L . -type f -name '*.asm')
@@ -140,10 +144,13 @@ override HEADER_DEPS := $(CPPFILES:.cpp=.cpp.d) $(CFILES:.c=.c.d) $(ASFILES:.S=.
 
 # Default target.
 .PHONY: force all
-all: vendor $(VENDOR_ROOT)/acpica_out/acpica.a $(NASMBINFILES) $(KERNEL) kernel_build.cpptemp.o $(NASMFILES) $(FONT_CPP_FILES) $(FONT_H_FILES) $(EMBEDDED_IMAGE_CPP_FILES) $(EMBEDDED_IMAGE_H_FILES) $(QRCODE_C_FILES)
+all: vendor embedded_apps $(VENDOR_ROOT)/acpica_out/acpica.a $(NASMBINFILES) $(KERNEL) kernel_build.cpptemp.o $(NASMFILES) $(FONT_CPP_FILES) $(FONT_H_FILES) $(EMBEDDED_IMAGE_CPP_FILES) $(EMBEDDED_IMAGE_H_FILES) $(QRCODE_C_FILES) $(EMBEDDED_APP_BINCPP_FILES)
 
 vendor:
 	make -C $(VENDOR_ROOT)
+
+embedded_apps $(EMBEDDED_APP_BINCPP_FILES) $(EMBEDDED_APP_BINH_FILES): $(EMBEDDED_APP_DIRECTORIES)
+	make -C $<
 
 $(VENDOR_ROOT)/acpica_out/acpica.a:
 	make -C $(VENDOR_ROOT)/acpica_out
