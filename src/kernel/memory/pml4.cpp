@@ -88,7 +88,7 @@ const int NextPagingBlockSize = 0x1000;
 
 void AllocateNextFreePageTableEntries()
 {
-	NextFreePageTableEntriesBlock = VirtualAlloc(sizeof(SPagingStructurePage) * NextPagingBlockSize);
+	NextFreePageTableEntriesBlock = VirtualAlloc(sizeof(SPagingStructurePage) * NextPagingBlockSize, PrivilegeLevel::Kernel);
 	memset(NextFreePageTableEntriesBlock, 0, sizeof(SPagingStructurePage) * NextPagingBlockSize);
 
 	PhysicalMemoryState.InitDynamic();
@@ -207,7 +207,7 @@ uint64_t GetPhysicalAddress(uint64_t virtualAddress, bool live)
 	}
 }
 
-void MapPages(uint64_t virtualAddress, uint64_t physicalAddress, uint64_t size, bool writable, bool executable, MemoryState::RangeState newState, PageFlags pageFlags)
+void MapPages(uint64_t virtualAddress, uint64_t physicalAddress, uint64_t size, bool writable, bool executable, PrivilegeLevel privilegeLevel, MemoryState::RangeState newState, PageFlags pageFlags)
 {
     uint64_t originalVirtualAddress = virtualAddress;
     uint64_t originalPhysicalAddress = physicalAddress;
@@ -249,7 +249,7 @@ void MapPages(uint64_t virtualAddress, uint64_t physicalAddress, uint64_t size, 
         else
         {
             PDPT = GetPML4FreePage();
-			PML4.Entries[pml4Index] = ((uint64_t)PDPT) | PRESENT | WRITABLE;
+			PML4.Entries[pml4Index] = ((uint64_t)PDPT) | PRESENT | WRITABLE | USER_CPL;
 			CHECK_PML4_RESERVED_BITS(PML4.Entries[pml4Index], PML4_RESERVED_MASK);
 		}
 
@@ -261,7 +261,7 @@ void MapPages(uint64_t virtualAddress, uint64_t physicalAddress, uint64_t size, 
         else
         {
             PD = GetPML4FreePage();
-            PDPT->Entries[pdptIndex] = ((uint64_t)PD) | PRESENT | WRITABLE;
+            PDPT->Entries[pdptIndex] = ((uint64_t)PD) | PRESENT | WRITABLE | USER_CPL;
 			CHECK_PML4_RESERVED_BITS(PDPT->Entries[pdptIndex], PM_RESERVED_MASK);
         }
 
@@ -273,7 +273,7 @@ void MapPages(uint64_t virtualAddress, uint64_t physicalAddress, uint64_t size, 
         else
         {
 			PT = GetPML4FreePage();
-			PD->Entries[pdIndex] = ((uint64_t)PT) | PRESENT | WRITABLE;
+			PD->Entries[pdIndex] = ((uint64_t)PT) | PRESENT | WRITABLE | USER_CPL;
 			CHECK_PML4_RESERVED_BITS(PD->Entries[pdIndex], PM_RESERVED_MASK);
 		}
 
@@ -285,13 +285,17 @@ void MapPages(uint64_t virtualAddress, uint64_t physicalAddress, uint64_t size, 
         {
 			bool wasPresent = (PT->Entries[ptIndex] & PRESENT) != 0;
 
+			uint64_t userModeFlag = (privilegeLevel == PrivilegeLevel::User || (wasPresent && privilegeLevel == PrivilegeLevel::Keep && ((PT->Entries[ptIndex] & USER_CPL) == USER_CPL))) ? USER_CPL : 0;
+
+			
+
 			//We're about to yoink the memory away, flush the cache
 			if(wasPresent)
 			{
 				asm volatile("clflush (%0)" ::"r"(virtualAddress) : "memory");
 			}
 
-            PT->Entries[ptIndex] = (physicalAddress & PAGE_MASK) | PRESENT;
+            PT->Entries[ptIndex] = (physicalAddress & PAGE_MASK) | PRESENT | userModeFlag;
             if (writable)
             {
                 PT->Entries[ptIndex] |= WRITABLE;
@@ -530,7 +534,7 @@ void BuildPML4(KernelBootData* bootData)
 
         if (!IsFree)
         {
-            MapPages(VirtualStart, Start, Size, !IsReadOnly, IsExecutable, IsReserved ? MemoryState::RangeState::Reserved : MemoryState::RangeState::Used);
+            MapPages(VirtualStart, Start, Size, !IsReadOnly, IsExecutable, PrivilegeLevel::User, IsReserved ? MemoryState::RangeState::Reserved : MemoryState::RangeState::Used);
         }
 
 		if(!IsReserved && IsFree)
@@ -613,7 +617,7 @@ void BuildPML4(KernelBootData* bootData)
 
 	uint64_t allocatedFrameBufferSize = (framebuffer.ByteSize + (PAGE_SIZE-1)) & PAGE_MASK;
 
-    MapPages(framebuffer.VirtualStart, PhysicalFramebuffer, allocatedFrameBufferSize, true, false /*executable*/, MemoryState::RangeState::Reserved);
+    MapPages(framebuffer.VirtualStart, PhysicalFramebuffer, allocatedFrameBufferSize, true, false /*executable*/, PrivilegeLevel::User, MemoryState::RangeState::Reserved);
 	freeMemory -= allocatedFrameBufferSize;
 
     ConsolePrint(u"Memory available: ");
@@ -717,13 +721,13 @@ void MemCheck(KernelBootData* bootData)
 
 					if(PhysicalMemoryState.GetPageState(PhysicalOffset) == MemoryState::RangeState::Free)
 					{
-						MapPages(TargetVirtualPage, PhysicalOffset, PAGE_SIZE, true, false, MemoryState::RangeState::Used);
+						MapPages(TargetVirtualPage, PhysicalOffset, PAGE_SIZE, true, false, PrivilegeLevel::Kernel, MemoryState::RangeState::Used);
 						*WriteTarget = 0xCDCDCDCDCDCDCDCD;
 						if((uint64_t)WriteTarget > HighestAddressWritten)
 						{
 							HighestAddressWritten = (uint64_t)WriteTarget;
 						}
-						MapPages(TargetVirtualPage, PhysicalOffset, PAGE_SIZE, false, false, MemoryState::RangeState::Free);
+						MapPages(TargetVirtualPage, PhysicalOffset, PAGE_SIZE, false, false, PrivilegeLevel::Kernel, MemoryState::RangeState::Free);
 					}
 				}
 				
@@ -732,7 +736,7 @@ void MemCheck(KernelBootData* bootData)
     }
 
 	//Point it somewhere because our last free has meant we're not pointing to a physical page
-	MapPages(TargetVirtualPage, 0, PAGE_SIZE, true, false, MemoryState::RangeState::Used);
+	MapPages(TargetVirtualPage, 0, PAGE_SIZE, true, false, PrivilegeLevel::Kernel, MemoryState::RangeState::Used);
 	VirtualFree((void*)TargetVirtualPage, PAGE_SIZE);
 
 	LogPrintNumeric(u"Highest memcheck: ", HighestAddressWritten, u"\n");

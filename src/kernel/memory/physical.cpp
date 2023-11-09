@@ -6,21 +6,21 @@
 extern MemoryState PhysicalMemoryState;
 extern MemoryState VirtualMemoryState;
 
-void* PhysicalAlloc(uint64_t PhysicalAddress, uint64_t ByteSize, PageFlags pageFlags)
+void* PhysicalAlloc(uint64_t PhysicalAddress, uint64_t ByteSize, PrivilegeLevel privilegeLevel, PageFlags pageFlags)
 {
     uint64_t VirtualAddress = VirtualMemoryState.FindMinimumSizeFreeBlock(ByteSize);
 
-    MapPages(VirtualAddress, PhysicalAddress, ByteSize, true, false, MemoryState::RangeState::Used, pageFlags);
+    MapPages(VirtualAddress, PhysicalAddress, ByteSize, true, false, privilegeLevel, MemoryState::RangeState::Used, pageFlags);
 
     return (void*)VirtualAddress;
 }
 
-void* PhysicalAllocLowestAddress(uint64_t ByteSize, PageFlags pageFlags)
+void* PhysicalAllocLowestAddress(uint64_t ByteSize, PrivilegeLevel privilegeLevel, PageFlags pageFlags)
 {
 	uint64_t PhysicalAddress = PhysicalMemoryState.FindMinimumSizeFreeBlock(ByteSize);
     uint64_t VirtualAddress = VirtualMemoryState.FindMinimumSizeFreeBlock(ByteSize);
 
-    MapPages(VirtualAddress, PhysicalAddress, ByteSize, true, false, MemoryState::RangeState::Used, pageFlags);
+    MapPages(VirtualAddress, PhysicalAddress, ByteSize, true, false, privilegeLevel, MemoryState::RangeState::Used, pageFlags);
 
     return (void*)VirtualAddress;
 }

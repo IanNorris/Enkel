@@ -169,7 +169,7 @@ void InitAPs()
 	char16_t Buffer[16];
 
 	const int APStackSize = 16 * 1024;
-	uint64_t APStackFinal = (uint64_t)VirtualAlloc(APStackSize);
+	uint64_t APStackFinal = (uint64_t)VirtualAlloc(APStackSize, PrivilegeLevel::Kernel);
 	uint64_t APStackHighFinal = APStackFinal + APStackSize;
 
 	uint64_t Value = *(uint64_t*)APStackFinal;
@@ -327,7 +327,7 @@ void InitMADT(EFI_ACPI_2_0_MULTIPLE_APIC_DESCRIPTION_TABLE_HEADER* MADT)
 	ConsolePrint(Buffer);
 	ConsolePrint(u" cores.\n");
 
-	LocalApicVirtual = (uint8_t*)PhysicalAlloc((uint64_t)LocalApicPhysical, 4096, (PageFlags)(PageFlags_Cache_Disable | PageFlags_Cache_WriteThrough));
+	LocalApicVirtual = (uint8_t*)PhysicalAlloc((uint64_t)LocalApicPhysical, 4096, PrivilegeLevel::Kernel, (PageFlags)(PageFlags_Cache_Disable | PageFlags_Cache_WriteThrough));
 
 	//Enable APIC
 	uint64_t msr = GetMSR(IA32_APIC_BASE_MSR);

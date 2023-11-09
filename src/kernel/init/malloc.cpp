@@ -34,7 +34,7 @@ void* RPMallocMap(size_t size, size_t* offset)
 	size_t padding = ((size >= _memory_span_size) && (_memory_span_size > _memory_map_granularity)) ? _memory_span_size : 0;
 	_ASSERTF(size >= _memory_page_size, "Invalid mmap size");
 
-	void* ptr = VirtualAlloc(size + padding);
+	void* ptr = VirtualAlloc(size + padding, PrivilegeLevel::Kernel);
 	if (!ptr) {
 		_ASSERTF(ptr, "Failed to map virtual memory block");
 		return 0;

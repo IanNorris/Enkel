@@ -32,7 +32,7 @@ uint64_t GetCalibrationHPETSampleNS(bool warmUp)
 
 void InitHPET(EFI_ACPI_HIGH_PRECISION_EVENT_TIMER_TABLE_HEADER* Header)
 {
-	HpetBase = (volatile uint64_t*)PhysicalAlloc(Header->BaseAddressLower32Bit.Address, 4096);
+	HpetBase = (volatile uint64_t*)PhysicalAlloc(Header->BaseAddressLower32Bit.Address, 4096, PrivilegeLevel::Kernel);
 
 	//Enable HPET
 	uint64_t base = (uint64_t)HpetBase;

@@ -2,9 +2,6 @@
 #include <cstdint>
 #include <string.h>
 
-// The syscall number for 'write' on x86-64 Linux.
-constexpr uint64_t SyscallWrite = 1;
-
 size_t _strlen(const char* str)
 {
 	const char* s = str;
@@ -13,22 +10,8 @@ size_t _strlen(const char* str)
 	return s - str;
 }
 
-size_t Write(int fd, const void *buf, size_t count)
-{
-    size_t result;
-
-    __asm__ volatile (
-        "syscall"
-        : "=a" (result)                               // The result will be in the rax register
-        : "a" (SyscallWrite),                         // The syscall number for 'write'
-          "D" ((uint64_t)fd),                         // 'fd' goes in rdi
-          "S" (buf),                                  // 'buf' goes in rsi
-          "d" (count)                                 // 'count' goes in rdx
-        : "rcx", "r11", "memory", "cc"                // rcx and r11 are clobbered by syscall
-    );
-
-    return result;
-}
+extern "C" size_t __attribute__((sysv_abi)) Write(int fd, const void *buf, size_t count);
+extern "C" void __attribute__((sysv_abi,noreturn)) Exit(int errorCode);
 
 void PrintString(const char* message)
 {
@@ -37,8 +20,10 @@ void PrintString(const char* message)
 
 extern "C"
 {
-void _start()
+void __attribute__((sysv_abi,noreturn,noinline)) _start()
 {
 	PrintString("Hello World!\n");
+
+	Exit(0);
 }
 }

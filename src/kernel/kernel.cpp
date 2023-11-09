@@ -16,6 +16,7 @@
 #include "kernel/init/acpi.h"
 
 void EnterUserModeTest();
+void InitializeSyscalls();
 
 KernelBootData GBootData;
 
@@ -129,6 +130,8 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 	
 	ConsolePrint(u"Ready!\n");
 	//HaltPermanently();
+
+	InitializeSyscalls();
 
 	EnterUserModeTest();
 

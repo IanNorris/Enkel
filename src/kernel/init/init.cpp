@@ -26,6 +26,8 @@ void InitInterrupts(KernelBootData* bootData)
     EnableInterrupts();
 }
 
+extern "C" TSS TSSRing0;
+
 void InitVirtualMemory(KernelBootData* bootData)
 {
 	ConsolePrint(u"Initializing GDT...\n");
@@ -39,7 +41,11 @@ void InitVirtualMemory(KernelBootData* bootData)
 
     BuildAndLoadPML4(bootData);
 
-	InitializeTLS();
+	ConsolePrint(u"Loading TSS...\n");
+	TSSRing0.Rsp0 = bootData->MemoryLayout.SpecialLocations[SpecialMemoryLocation_KernelStack].VirtualStart;
+	LoadTSS(offsetof(GDTDescriptors, TSS));
+
+	InitializeTLS(false);
 	InitRPMalloc();
 
 	AllocateNextFreePageTableEntries();

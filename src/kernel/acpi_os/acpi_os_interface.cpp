@@ -928,7 +928,7 @@ AcpiOsMapMemory (
     LOG_DBG ("");
 
 	uint64_t offset = (Where - (Where & PAGE_MASK));
-	return PhysicalAlloc(Where & PAGE_MASK, ((Length + offset) + PAGE_SIZE) & PAGE_MASK) + offset;
+	return PhysicalAlloc(Where & PAGE_MASK, ((Length + offset) + PAGE_SIZE) & PAGE_MASK, PrivilegeLevel::Kernel) + offset;
 }
 #endif
 
