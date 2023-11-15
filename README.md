@@ -8,6 +8,10 @@ This is a hobby OS project to learn about operating system development, expand m
 
 The goal is to build an UEFI-only 64-bit kernel and environment. I'll keep going until I get bored. It has not been boring so far.
 
+## What does it look like?
+
+![A screenshot of Enkel running in qemu. Green text showing the boot up process on a blue background.](docs/images/screenshot1.png)
+
 ## Why is it called Enkel?
 
 I was looking for non-English synonyms for "simple" and "small" and `enkel` means simple/easy/uncomplicated in Swedish and Norwegian. It also means grandson in German, which somewhat fits with my theme for an OS reborn without the legacy ball and chain of having to support *real hardware* that people actually own and use. Imagine that!
