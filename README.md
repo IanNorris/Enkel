@@ -49,11 +49,12 @@ The technical bits I've done so far. Hopefully useful to any would-be adventurer
 * Walk the APIC, find the Local APIC (LAPIC), and initialize the APs
 * For each AP, step through 16-bit real mode, 32-bit protected mode then finally 64-bit long mode again and back into C
 * Keyboard input
+* Syscalls
+* User mode
 
 # Next steps
 
 * AHCI and opening files from the ISO
-* Syscalls
 * Scheduling
 
 (Not necessarily in this order)
