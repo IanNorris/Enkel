@@ -385,6 +385,8 @@ EnkelDebugging/gdb.txt
 gdb.txt
 
 *.map
+*.bin.cpp
+*.bin.h
 *.cpptemp
 *.htemp
 ap.bin
