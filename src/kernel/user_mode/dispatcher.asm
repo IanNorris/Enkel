@@ -8,10 +8,12 @@ SyscallDispatcher:
 	push r13 ; Contains the originating stack pointer
 	push rbx ; Our UM syscall invoke should put rbp in rbx
 	push r12
+	push r11 ; RFLAGS
 
 	lea r12, [SyscallTable + rax*8]
 	call [r12]
 		
+	pop r11
 	pop r12
 	pop rbx
 	pop r13

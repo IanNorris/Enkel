@@ -41,7 +41,6 @@ SwitchToUserMode:
     cld
 
 	push 0x08 ; CS register offset
-    ;push rsp ; <-- is this the problem?
 	push rdi
 
 	push rcx ;UM DS
