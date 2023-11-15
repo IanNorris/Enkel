@@ -54,8 +54,8 @@ SwitchToUserMode:
 
 ReturnToKernel:
 
-	lea rbp, [NextTask + 0]
-	lea rsp, [NextTask + 8]
+	mov rbp, [NextTask + 0]
+	mov rsp, [NextTask + 8]
 
 	; This matches the pop we made earlier
 	; so we could manipulate the task pointer
