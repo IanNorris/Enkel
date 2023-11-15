@@ -14,6 +14,7 @@
 #include "rpmalloc.h"
 #include "../../assets/SplashLogo.h"
 #include "kernel/init/acpi.h"
+#include "kernel/user_mode/syscall.h"
 
 void EnterUserModeTest();
 void InitializeSyscalls();
@@ -88,6 +89,8 @@ void FinalizeRuntimeServices()
 	rpfree(entries);
 }
 
+KernelState NextTask;
+
 extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootData * BootData)
 {
 	OnKernelMainHook();
@@ -124,16 +127,16 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 	ACPI_DEBUG_INITIALIZE ();
 #endif
 
+	InitializeSyscalls();
+
+	EnterUserModeTest();
+
 	InitializeAcpica();
 
 	WalkAcpiTree();
 	
 	ConsolePrint(u"Ready!\n");
 	//HaltPermanently();
-
-	InitializeSyscalls();
-
-	EnterUserModeTest();
 
 	while(true)
 	{

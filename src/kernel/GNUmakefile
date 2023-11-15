@@ -80,8 +80,6 @@ override CFLAGS += \
     -fno-stack-protector \
     -fno-stack-check \
     -fno-lto \
-    -pie \
-    -fPIE \
     -mgeneral-regs-only \
     -m64 \
     -march=x86-64 \
@@ -112,7 +110,6 @@ override LDFLAGS += \
     -m elf_x86_64 \
     -nostdlib \
     -static \
-    -pie \
     --no-dynamic-linker \
     -z text \
     -z max-page-size=0x1000 \
