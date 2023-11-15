@@ -2,29 +2,19 @@ section .text
 global Write
 global Exit
 
-%define Syscall_Write 1
-%define Syscall_Exit 60
-
-Write:
-    ; rdi = fd, rsi = buf, rdx = count
+%macro DefineSyscall 2
+	global %1
+%1:
 	push rbx
 	push r13
-    mov rax, Syscall_Write
+    mov rax, %2
 	mov r13, rsp ; Save stack pointer
 	mov rbx, rbp ; Save stack base, rcx contains rsp after the syscall
     syscall
 	pop r13
 	pop rbx
 	ret
+%endmacro
 
-Exit:
-    ; rdi = exit code
-	push rbx
-	push r13
-    mov rax, Syscall_Exit
-	mov r13, rsp ; Save stack pointer
-	mov rbx, rbp ; Save stack base, rcx contains RIP after the syscall
-    syscall
-	pop r13
-	pop rbx
-	ret
+DefineSyscall Write, 1
+DefineSyscall Exit, 60
