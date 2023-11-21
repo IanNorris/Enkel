@@ -85,7 +85,7 @@ size_t IndexOfSeparator(const char16_t* input)
 }
 
 template<typename T>
-int witoabuf(char16_t* buffer, T value, int base)
+int witoabuf(char16_t* buffer, T value, int base, int padDigits)
 {
 	const static char16_t characters[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
 
@@ -104,6 +104,11 @@ int witoabuf(char16_t* buffer, T value, int base)
 
 		currentValue = nextValue;
 	} while (currentValue != 0);
+
+	do
+	{
+		buffer[offset++] = '0';
+	} while(padDigits > offset);
 
 	if (isNegative)
 	{
@@ -129,10 +134,65 @@ int witoabuf(char16_t* buffer, T value, int base)
 	return offset;
 }
 
-template int witoabuf(char16_t* buffer, int32_t value, int base);
-template int witoabuf(char16_t* buffer, uint32_t value, int base);
-template int witoabuf(char16_t* buffer, int64_t value, int base);
-template int witoabuf(char16_t* buffer, uint64_t value, int base);
+template<typename T>
+int witoabuf(char* buffer, T value, int base, int padDigits)
+{
+	const static char characters[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
+
+	const T isNegative = value < 0 && base == 10;
+	const T absValue = isNegative ? -value : value;
+
+	int offset = 0;
+
+	T currentValue = absValue;
+	do
+	{
+		T nextValue = currentValue / base;
+		T remainder = currentValue - (nextValue * base);
+
+		buffer[offset++] = characters[remainder];
+
+		currentValue = nextValue;
+	} while (currentValue != 0);
+
+	do
+	{
+		buffer[offset++] = '0';
+	} while(padDigits > offset);
+
+	if (isNegative)
+	{
+		buffer[offset++] = '-';
+	}
+
+	buffer[offset] = '\0';
+
+	// String is now constructed backwards. Flipping it is very likely 
+	// faster than calculating the exact string length and building backwards.
+	// If this was in a hot path I'd profile it to check.
+
+	int halfOffset = (offset - 1) / 2;
+
+	for (int index = 0; index <= halfOffset; index++)
+	{
+		int swapIndex = offset - index - 1;
+		char16_t temp = buffer[index];
+		buffer[index] = buffer[swapIndex];
+		buffer[swapIndex] = temp;
+	}
+
+	return offset;
+}
+
+template int witoabuf(char16_t* buffer, int32_t value, int base, int padDigits);
+template int witoabuf(char16_t* buffer, uint32_t value, int base, int padDigits);
+template int witoabuf(char16_t* buffer, int64_t value, int base, int padDigits);
+template int witoabuf(char16_t* buffer, uint64_t value, int base, int padDigits);
+
+template int witoabuf(char* buffer, int32_t value, int base, int padDigits);
+template int witoabuf(char* buffer, uint32_t value, int base, int padDigits);
+template int witoabuf(char* buffer, int64_t value, int base, int padDigits);
+template int witoabuf(char* buffer, uint64_t value, int base, int padDigits);
 
 int ascii_to_wide(char16_t* bufferOut, const char* bufferIn, int bufferOutBytes)
 {

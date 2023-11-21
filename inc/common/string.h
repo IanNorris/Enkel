@@ -11,7 +11,10 @@ size_t IndexOfChar(const char16_t* input, char16_t c);
 size_t IndexOfSeparator(const char16_t* input);
 
 template<typename T>
-int witoabuf(char16_t* buffer, T value, int base);
+int witoabuf(char16_t* buffer, T value, int base, int padDigits = 0);
+
+template<typename T>
+int witoabuf(char* buffer, T value, int base, int padDigits = 0);
 
 int ascii_to_wide(char16_t* bufferOut, const char* bufferIn, int bufferOutBytes);
 
