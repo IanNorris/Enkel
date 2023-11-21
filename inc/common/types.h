@@ -14,6 +14,8 @@
 #define BOOL uint8_t
 #endif
 
+#define PACKED_ALIGNMENT __attribute__((packed))
+
 #define KERNEL_API __attribute__((sysv_abi))
 #define KERNEL_NORETURN __attribute__((noreturn))
 
