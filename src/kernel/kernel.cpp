@@ -16,6 +16,9 @@
 #include "kernel/init/acpi.h"
 #include "kernel/user_mode/syscall.h"
 
+#include "Protocol/DevicePath.h"
+#include "kernel/devices/ahci/cdrom.h"
+
 void EnterUserModeTest();
 void InitializeSyscalls();
 
@@ -24,16 +27,6 @@ KernelBootData GBootData;
 extern const char16_t* KernelBuildId;
 
 #include "common/string.h"
-
-void WriteToMemoryWeOwn(void* Address, uint64_t Size, int Pattern)
-{
-	memset(Address, Pattern, Size);
-}
-
-void WriteToMemoryWeDontOwn(void* Address, uint64_t Size, int Pattern)
-{
-	memset(Address, Pattern, Size);
-}
 
 //Define what a constructor is
 typedef void (*StaticInitFunction)();
@@ -112,21 +105,28 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 
 	InitVirtualMemory(&GBootData);
 
+	ConsolePrint(u"Initializing CRT...\n");
 	CRTInit();
 
+	ConsolePrint(u"Initializing interrupts...\n");
 	InitInterrupts(&GBootData);
 
 	//FinalizeRuntimeServices();
 
+	ConsolePrint(u"Initializing PIC...\n");
 	InitPIC();
+
+	ConsolePrint(u"Initializing APIC...\n");
 	InitApic(GBootData.Rsdt, GBootData.Xsdt);
 
+	ConsolePrint(u"Initializing keyboard...\n");
 	InitKeyboard();
 
 #ifdef _DEBUG
 	ACPI_DEBUG_INITIALIZE ();
 #endif
 
+	ConsolePrint(u"Initializing syscalls...\n");
 	InitializeSyscalls();
 
 	EnterUserModeTest();
@@ -134,6 +134,14 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 	InitializeAcpica();
 
 	WalkAcpiTree();
+
+	EFI_DEV_PATH* devicePath = (EFI_DEV_PATH*)BootData->BootDevicePath;
+
+	SataBus* sataBus = (SataBus*)rpmalloc(sizeof(SataBus));
+	sataBus->Initialize(devicePath);
+
+	CdRomDevice* cdromDevice = (CdRomDevice*)rpmalloc(sizeof(CdRomDevice));
+	cdromDevice->Initialize(devicePath, sataBus);
 	
 	ConsolePrint(u"Ready!\n");
 	//HaltPermanently();

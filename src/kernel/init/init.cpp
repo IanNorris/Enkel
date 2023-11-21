@@ -45,8 +45,14 @@ void InitVirtualMemory(KernelBootData* bootData)
 	TSSRing0.Rsp0 = bootData->MemoryLayout.SpecialLocations[SpecialMemoryLocation_KernelStack].VirtualStart;
 	LoadTSS(offsetof(GDTDescriptors, TSS));
 
+	ConsolePrint(u"Loading TLS...\n");
+
 	InitializeTLS(false);
+
+	ConsolePrint(u"Initializing rpmalloc...\n");
 	InitRPMalloc();
+
+	ConsolePrint(u"Preparing page table layouts...\n");
 
 	AllocateNextFreePageTableEntries();
 

@@ -155,6 +155,7 @@
 #include "kernel/init/msr.h"
 #include "kernel/init/interrupts.h"
 #include "kernel/console/console.h"
+#include "kernel/devices/pci.h"
 #include "memory/physical.h"
 #include "kernel/scheduling/time.h"
 #include "utilities/termination.h"
@@ -361,6 +362,7 @@ AcpiOsPrintf (
 
     if (EnableDebugLogging)
     {
+		SerialPrint(Fmt);
 		//TODO
         //printk (Fmt, args);
     }
@@ -670,36 +672,6 @@ AcpiOsWritePort (
     return (AE_OK);
 }
 
-extern ACPI_MCFG_ALLOCATION* GAcpiMcfgAllocation;
-extern uint64_t GAciMcfgAllocationEntries;
-
-volatile UINT64* PciConfigGetMMIOAddress(UINT8 bus, UINT8 device, UINT8 function, UINT8 offset)
-{
-    // Calculate the PCI Configuration Address
-    UINT64 pciOffset = static_cast<UINT64>(bus) << 20 |
-                       static_cast<UINT64>(device) << 15 |
-                       static_cast<UINT64>(function) << 12 |
-                       (offset & 0xFFC);
-
-	ACPI_MCFG_ALLOCATION* Alloc = GAcpiMcfgAllocation;
-	for (UINT64 Index = 0; Index < GAciMcfgAllocationEntries; ++Index, ++Alloc)
-	{
-		if(bus >= Alloc->StartBusNumber && bus <= Alloc->EndBusNumber)
-		{
-			volatile UINT32* configAddress = reinterpret_cast<volatile UINT32*>(Alloc->Address);
-			return (volatile UINT64*)&configAddress[pciOffset >> 3];
-		}
-	}
-
-	_ASSERTF(false, "Bus not found in MMIO");
-
-	return nullptr;
-
-    // Map the PCI configuration space to memory and read the value
-    
-}
-
-
 /******************************************************************************
  *
  * FUNCTION:    AcpiOsWritePciConfiguration
@@ -928,7 +900,7 @@ AcpiOsMapMemory (
     LOG_DBG ("");
 
 	uint64_t offset = (Where - (Where & PAGE_MASK));
-	return PhysicalAlloc(Where & PAGE_MASK, ((Length + offset) + PAGE_SIZE) & PAGE_MASK, PrivilegeLevel::Kernel) + offset;
+	return PhysicalAlloc(Where & PAGE_MASK, ((Length + offset) + PAGE_SIZE) & PAGE_MASK, PrivilegeLevel::Kernel, PageFlags_Cache_Disable) + offset;
 }
 #endif
 
@@ -1300,6 +1272,7 @@ AcpiOsVprintf (
     va_list                 Args)
 {
 	SerialPrint(Fmt);
+	SerialPrint("\n");
 	//NOT_IMPLEMENTED();
 
    /* INT32                   Count = 0;

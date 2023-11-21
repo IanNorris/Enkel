@@ -25,7 +25,7 @@ enum class MemoryProtection
     Execute,
 };
 
-void* VirtualAlloc(uint64_t ByteSize, PrivilegeLevel privilegeLevel);
+void* VirtualAlloc(uint64_t ByteSize, PrivilegeLevel privilegeLevel, PageFlags pageFlags = PageFlags_None);
 bool VirtualFree(void* Address, uint64_t ByteSize);
 void VirtualProtect(void* Address, uint64_t ByteSize, MemoryProtection ProtectFlags, PageFlags pageFlags = PageFlags_None);
 

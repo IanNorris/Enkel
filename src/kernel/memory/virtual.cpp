@@ -6,7 +6,7 @@
 extern MemoryState PhysicalMemoryState;
 extern MemoryState VirtualMemoryState;
 
-void* VirtualAlloc(uint64_t ByteSize, PrivilegeLevel privilegeLevel)
+void* VirtualAlloc(uint64_t ByteSize, PrivilegeLevel privilegeLevel, PageFlags pageFlags)
 {
 	//TODO: We don't actually need a contiguous block of physical for this!
     uint64_t PhysicalAddress = PhysicalMemoryState.FindMinimumSizeFreeBlock(ByteSize);
@@ -19,7 +19,7 @@ void* VirtualAlloc(uint64_t ByteSize, PrivilegeLevel privilegeLevel)
 
     uint64_t VirtualAddress = VirtualMemoryState.FindMinimumSizeFreeBlock(ByteSize);
 
-    MapPages(VirtualAddress, PhysicalAddress, ByteSize, true, false, privilegeLevel, MemoryState::RangeState::Used);
+    MapPages(VirtualAddress, PhysicalAddress, ByteSize, true, false, privilegeLevel, MemoryState::RangeState::Used, pageFlags);
 
 	//This should always succeed as we're setting the page as writable
 	*(volatile uint64_t*)VirtualAddress = 0x0;

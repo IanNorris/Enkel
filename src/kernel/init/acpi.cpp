@@ -230,7 +230,7 @@ uint64_t GAciMcfgAllocationEntries;
 void InitializeMMIO()
 {
 	ACPI_TABLE_HEADER* Table;
-	ACPI_STATUS Status = AcpiGetTable("MCFG", 0, &Table);
+	ACPI_STATUS Status = AcpiGetTable((char*)"MCFG", 0, &Table);
 
 	if (ACPI_SUCCESS(Status))
 	{
@@ -331,6 +331,17 @@ char GetAlphaOnly(char input)
 
 void DecodeHID(uint32_t hid)
 {
+	if(hid & 0xFFFF == 0x41D0)
+	{
+		uint32_t deviceHID = (hid >> 16);
+		char hidString[16] = {"PNP0"};
+		witoabuf(hidString+4, deviceHID, 16);
+		SerialPrint(" HIDStr: ");
+		SerialPrint(hidString);
+
+		return;
+	}
+
     char manufacturer[4] = { 0 };
     
     manufacturer[0] = GetAlphaOnly((char)((hid >> 24) & 0xFF));
@@ -408,24 +419,35 @@ ACPI_STATUS AcpiDeviceTreeCallback (
     ACPI_DEVICE_INFO* DeviceInfo;
     ACPI_STATUS Status;
 
-    // Get the full pathname of this object
-	ACPI_BUFFER NameBuffer = {ACPI_ALLOCATE_BUFFER, NULL};
-    Status = AcpiGetName(Object, ACPI_FULL_PATHNAME, &NameBuffer);
-    if (ACPI_FAILURE(Status)) {
-        return (Status);
-    }
-
 	PrintIndent(NestingLevel);
 
+	// Get the full pathname of this object
+	ACPI_BUFFER NameBuffer = {ACPI_ALLOCATE_BUFFER, NULL};
+    Status = AcpiGetName(Object, ACPI_FULL_PATHNAME, &NameBuffer);
+
 	const char* Name = (const char*)NameBuffer.Pointer;
-	SerialPrint(Name);
-	ACPI_FREE(NameBuffer.Pointer);
+	if(Name)
+	{
+		SerialPrint(Name);
+		ACPI_FREE(NameBuffer.Pointer);
+	}
 
     // Get the device info
     Status = AcpiGetObjectInfo(Object, &DeviceInfo);
     if (ACPI_FAILURE(Status)) {
         return (Status);
     }
+
+	if(DeviceInfo->HardwareId.String)
+	{
+		SerialPrint(" HIDString: ");
+		SerialPrint(DeviceInfo->HardwareId.String);
+	}
+	if(DeviceInfo->UniqueId.String)
+	{
+		SerialPrint(" UIDString: ");
+		SerialPrint(DeviceInfo->UniqueId.String);
+	}
 
 	const char* Type = AcpiUtGetTypeName(DeviceInfo->Type);
 
@@ -458,7 +480,7 @@ ACPI_STATUS AcpiDeviceTreeCallback (
 	ReadAcpiBuffer(Object, "_DSD");
 	ReadAcpiBuffer(Object, "_HPX");
 	ReadAcpiBuffer(Object, "_MAT");
-	ReadAcpiBuffer(Object, "_OSC");
+	//ReadAcpiBuffer(Object, "_OSC");
 
 	// https://github.com/qemu/qemu/blob/fd9a38fd437c4c31705071c240f4be11394ca1f8/hw/i386/acpi-build.c#L1270
 
@@ -490,4 +512,159 @@ void WalkAcpiTree()
     AcpiWalkNamespace(ACPI_TYPE_ANY, ACPI_ROOT_OBJECT,
                       ACPI_UINT32_MAX, AcpiDeviceTreeCallback,
                       NULL, NULL, NULL);
+}
+
+struct DeviceToFind
+{
+	uint32_t HID;
+	uint32_t UID;
+};
+
+static ACPI_STATUS AcpiSpecificDeviceCallback(ACPI_HANDLE Device, UINT32 Level, void *Context, void **ReturnValue)
+{
+	ACPI_DEVICE_INFO* deviceInfo;
+
+	DeviceToFind* device = (DeviceToFind*)Context;
+
+	ACPI_STATUS status = AcpiGetObjectInfo(Device, &deviceInfo);
+	if (ACPI_FAILURE(status))
+	{
+		return status;
+	}
+
+	_ASSERTFV((device->HID & 0xFFFF) == 0x41D0, "_HID doesn't match expected PNP", device->HID & 0xFFFF, 0, 0);
+
+	uint32_t deviceHID = (device->HID >> 16);
+	char hidString[16];
+
+	int shift = 0;
+	hidString[0] = ((device->HID >> shift) & 0x1F) + 'A' - 1; shift+=5;
+	hidString[1] = ((device->HID >> shift) & 0x1F) + 'A' - 1; shift+=5;
+	hidString[2] = ((device->HID >> shift) & 0x1F) + 'A' - 1;
+
+    witoabuf(hidString+3, deviceHID, 16, 4);
+
+	char uidString[16];
+    witoabuf(uidString, (uint32_t)device->UID, 10);
+
+	if(deviceInfo->HardwareId.String)
+	{
+		bool matchUid = false;
+		if(deviceInfo->UniqueId.String)
+		{
+			matchUid = _stricmp(deviceInfo->UniqueId.String, uidString) == 0;
+		}
+		else
+		{
+			matchUid = device->UID == 0;
+		}
+
+		bool match = _stricmp(deviceInfo->HardwareId.String, hidString) == 0 && matchUid;
+
+		if(match)
+		{
+			*ReturnValue = Device;
+			AcpiOsFree(deviceInfo);
+			return AE_CTRL_TERMINATE;
+		}
+	}
+
+	AcpiOsFree(deviceInfo);
+	return AE_OK;
+}
+
+bool FindSpecificDevice(uint32_t hid, uint32_t uid, ACPI_HANDLE *outDevice)
+{
+	ACPI_STATUS status;
+	ACPI_HANDLE parent = ACPI_ROOT_OBJECT;
+	ACPI_BUFFER buffer;
+	ACPI_HANDLE currentDevice = nullptr;
+	ACPI_DEVICE_INFO *deviceInfo;
+
+	DeviceToFind device = { hid, uid };
+
+	status = AcpiGetDevices(NULL, AcpiSpecificDeviceCallback, &device, (void **)&currentDevice);
+
+	if (ACPI_SUCCESS(status) && currentDevice != NULL)
+	{
+		*outDevice = currentDevice;
+		return true;
+	}
+
+	return false;
+}
+
+ACPI_STATUS GetPciIdFromAcpiHandle(ACPI_HANDLE Handle, ACPI_PCI_ID *PciId)
+{
+    ACPI_STATUS Status = AE_OK;
+    ACPI_DEVICE_INFO *DeviceInfo;
+    ACPI_HANDLE ParentHandle = Handle;
+
+    // Ensure valid input
+    _ASSERTF(Handle != NULL, "Handle must not be NULL");
+    _ASSERTF(PciId != NULL, "PciId must not be NULL");
+
+    /*// Traverse up the ACPI tree to find the PCI device
+    while (ParentHandle)
+    {
+        Status = AcpiGetObjectInfo(ParentHandle, &DeviceInfo);
+        if (ACPI_FAILURE(Status))
+        {
+            SerialPrint("Error: Failed to get ACPI object info\n");
+            return Status;
+        }
+
+        // Check if the device is a PCI/PCIe device
+        if ((DeviceInfo->Valid & ACPI_VALID_ADR) && (DeviceInfo->Address != ACPI_ADR_SPACE_PCI))
+        {
+            PciId->Bus = ACPI_PCI_BUS(DeviceInfo->Address);
+            PciId->Device = ACPI_PCI_DEVICE(DeviceInfo->Address);
+            PciId->Function = ACPI_PCI_FUNCTION(DeviceInfo->Address);
+
+            AcpiOsFree(DeviceInfo);
+            return AE_OK;
+        }
+
+        AcpiOsFree(DeviceInfo);
+
+        // Move to the parent ACPI object
+        Status = AcpiGetParent(ParentHandle, &ParentHandle);
+        if (ACPI_FAILURE(Status))
+        {
+            SerialPrint("Error: Failed to get parent ACPI object\n");
+            return Status;
+        }
+    }*/
+
+	 Status = AcpiGetObjectInfo(ParentHandle, &DeviceInfo);
+	if (ACPI_FAILURE(Status))
+	{
+		SerialPrint("Error: Failed to get ACPI object info\n");
+		return Status;
+	}
+
+	// Check if the device is a PCI/PCIe device
+	if ((DeviceInfo->Valid & ACPI_VALID_ADR))
+	{
+		PciId->Bus = ACPI_PCI_BUS(DeviceInfo->Address);
+		PciId->Device = ACPI_PCI_DEVICE(DeviceInfo->Address);
+		PciId->Function = ACPI_PCI_FUNCTION(DeviceInfo->Address);
+
+		AcpiOsFree(DeviceInfo);
+		return AE_OK;
+	}
+
+	AcpiOsFree(DeviceInfo);
+
+    return AE_NOT_FOUND;
+}
+
+unsigned int DevicePathNodeLength(const EFI_DEVICE_PATH_PROTOCOL *DevicePath)
+{
+	return ((unsigned int)DevicePath->Length[0]) | ((unsigned int)DevicePath->Length[1] << 8);
+}
+
+EFI_DEVICE_PATH_PROTOCOL* NextDevicePathNode(EFI_DEVICE_PATH_PROTOCOL *DevicePath)
+{
+	return (EFI_DEVICE_PATH_PROTOCOL*)((UINT8*)DevicePath + DevicePathNodeLength(DevicePath));
 }

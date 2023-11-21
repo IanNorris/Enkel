@@ -88,10 +88,15 @@ const int NextPagingBlockSize = 0x1000;
 
 void AllocateNextFreePageTableEntries()
 {
+	ConsolePrint(u"Alloc...\n");
 	NextFreePageTableEntriesBlock = VirtualAlloc(sizeof(SPagingStructurePage) * NextPagingBlockSize, PrivilegeLevel::Kernel);
+	ConsolePrint(u"memset...\n");
 	memset(NextFreePageTableEntriesBlock, 0, sizeof(SPagingStructurePage) * NextPagingBlockSize);
 
+	ConsolePrint(u"Init 1...\n");
 	PhysicalMemoryState.InitDynamic();
+
+	ConsolePrint(u"Init 2...\n");
 	VirtualMemoryState.InitDynamic();
 }
 

@@ -3,6 +3,7 @@
 #ifdef NULL
 #undef NULL
 #endif
+
 #include "Uefi.h"
 #ifdef NULL
 #undef NULL
@@ -25,6 +26,7 @@ enum EfiMemoryMapType
 	EfiMemoryMapType_APBootstrap = EfiLoaderCode,
 	EfiMemoryMapType_Tables = EfiLoaderData,
 	EfiMemoryMapType_Framebuffer = EfiRuntimeServicesData,
+	EfiMemoryMapType_BootDevicePath = EfiLoaderData,
 };
 
 #define ENKEL_MEMORY_FLAG_STACK    		0x100000ULL
@@ -71,6 +73,8 @@ struct KernelBootData
 	EFI_ACPI_DESCRIPTION_HEADER* Xsdt;
 	EFI_ACPI_2_0_ROOT_SYSTEM_DESCRIPTION_POINTER* Rsdt;
 	FramebufferLayout Framebuffer;
+	uint8_t* BootDevicePath;
+	uint32_t BootDevicePartition;
 };
 
 extern "C"

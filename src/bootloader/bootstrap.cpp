@@ -4,6 +4,7 @@
 #include "common/string.h"
 
 #include "Protocol/LoadedImage.h"
+#include "Protocol/BlockIo.h"
 #include "Guid/FileInfo.h"
 
 //Header guard to stop it pulling extra stuff in
@@ -96,18 +97,93 @@ KernelStartFunction PrepareKernel(EFI_BOOT_SERVICES* bootServices, const uint8_t
 	return kernelEntry;
 }
 
+UINTN DevicePathNodeLength(const EFI_DEVICE_PATH_PROTOCOL *DevicePath)
+{
+	return ((UINTN)DevicePath->Length[0]) | ((UINTN)DevicePath->Length[1] << 8);
+}
+
+EFI_DEVICE_PATH_PROTOCOL* NextDevicePathNode(EFI_DEVICE_PATH_PROTOCOL *DevicePath)
+{
+	return (EFI_DEVICE_PATH_PROTOCOL*)((UINT8*)DevicePath + DevicePathNodeLength(DevicePath));
+}
+
+bool IsGPTPartition(EFI_BLOCK_IO_PROTOCOL* blockIO)
+{
+    EFI_STATUS status;
+    UINT8 buffer[blockIO->Media->BlockSize];
+    status = blockIO->ReadBlocks(blockIO, blockIO->Media->MediaId, 1, sizeof(buffer), buffer);
+
+    if (EFI_ERROR(status))
+	{
+        return false;
+    }
+
+    // Check for the GPT signature
+	const UINTN GPT_SIGNATURE_OFFSET = 0;
+    return (memcmp(buffer + GPT_SIGNATURE_OFFSET, "EFI PART", 8) == 0);
+}
+
+bool IsMBRPartition(EFI_BLOCK_IO_PROTOCOL* blockIO)
+{
+    EFI_STATUS status;
+    UINT8 buffer[blockIO->Media->BlockSize];
+    status = blockIO->ReadBlocks(blockIO, blockIO->Media->MediaId, 0, sizeof(buffer), buffer);
+
+    if (EFI_ERROR(status))
+	{
+        return false;
+    }
+
+    // Check the MBR signature
+    return (buffer[510] == 0x55 && buffer[511] == 0xAA);
+}
+
+
+
 KernelStartFunction LoadKernel(EFI_HANDLE imageHandle, EFI_BOOT_SERVICES* bootServices, KernelBootData& bootData)
 {
 	EFI_GUID loadedImageProtocolGuid = EFI_LOADED_IMAGE_PROTOCOL_GUID;
 	EFI_GUID simpleFileSystemProtocolGuid = EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID;
+	EFI_GUID devicePathProtocolGuid = EFI_DEVICE_PATH_PROTOCOL_GUID;
+	EFI_GUID blockIOProtocolGuid = EFI_BLOCK_IO_PROTOCOL_GUID;
 	EFI_GUID getInfoGuid = EFI_FILE_INFO_ID;
 
 	EFI_LOADED_IMAGE_PROTOCOL* loadedImageService;
 	ERROR_CHECK(bootServices->HandleProtocol(imageHandle, &loadedImageProtocolGuid, (void**)&loadedImageService), u"LI service");
 
 	EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* simpleFileSystem;
-	ERROR_CHECK(bootServices->OpenProtocol(loadedImageService->DeviceHandle, &simpleFileSystemProtocolGuid, (void**)&simpleFileSystem, imageHandle, NULL, EFI_OPEN_PROTOCOL_GET_PROTOCOL), u"SFS protocol");
+	ERROR_CHECK(bootServices->OpenProtocol(loadedImageService->DeviceHandle, &simpleFileSystemProtocolGuid, (void**)&simpleFileSystem, imageHandle, nullptr, EFI_OPEN_PROTOCOL_GET_PROTOCOL), u"SFS protocol");
 
+	EFI_DEVICE_PATH_PROTOCOL* devicePath;
+	ERROR_CHECK(bootServices->HandleProtocol(loadedImageService->DeviceHandle, &devicePathProtocolGuid, (void**)&devicePath), u"DP service");
+
+	uint8_t* devicePathStart = (uint8_t*)devicePath;
+
+	// Find the end of the ACPI path
+	while (devicePath->Type != END_DEVICE_PATH_TYPE)
+	{
+		devicePath = NextDevicePathNode( devicePath );
+	}
+
+	uint64_t devicePathLength = (uint64_t)((uint8_t*)devicePath - devicePathStart + DevicePathNodeLength(devicePath));
+
+	EFI_BLOCK_IO_PROTOCOL* blockIO;
+	ERROR_CHECK(bootServices->HandleProtocol(loadedImageService->DeviceHandle, &blockIOProtocolGuid, (void**)&blockIO), u"Block IO service");
+
+	if(IsGPTPartition(blockIO))
+	{
+		Print(u"GPT partition.\n");
+	}
+	if(IsMBRPartition(blockIO))
+	{
+		Print(u"MBR partition.\n");
+	}
+
+	Allocation devicePathAlloc = AllocatePages(EfiMemoryMapType_BootDevicePath, devicePathLength);
+	memcpy((void*)devicePathAlloc.Data, devicePathStart, devicePathLength);
+
+	bootData.BootDevicePath = (uint8_t*)devicePathAlloc.Data;
+	
 	EFI_FILE_PROTOCOL* volume;
 	UEFI_CALL(simpleFileSystem, OpenVolume, &volume);
 
