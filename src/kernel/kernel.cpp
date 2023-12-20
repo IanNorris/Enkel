@@ -133,7 +133,7 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 
 	InitializeAcpica();
 
-	WalkAcpiTree();
+	//WalkAcpiTree();
 
 	EFI_DEV_PATH* devicePath = (EFI_DEV_PATH*)BootData->BootDevicePath;
 
