@@ -13,6 +13,18 @@
 #include "kernel/devices/ahci/cdrom.h"
 
 #define AHCI_ENABLE_FLAG 0x80000000
+#define HBA_CAP2_BOH (1 << 0)
+#define HBA_BOHC_OS_OWNED_SEMAPHORE (1 << 0)
+#define HBA_BOHC_BIOS_OWNED_SEMAPHORE (1 << 1)
+#define HBA_BOHC_OS_OWNERSHIP_CHANGE_REQUEST (1 << 3)
+
+// GHC Register Bits
+#define HBA_AE_BIT (1 << 31)
+#define HBA_HR_BIT (1 << 0)
+
+#define HBA_PxCMD_SUD (1 << 1)
+#define HBA_PxCMD_POD (1 << 2)
+#define HBA_PxCMD_ICC_ACTIVE (1 << 28)
 
 bool SataBus::Initialize(EFI_DEV_PATH* devicePath)
 {
@@ -87,6 +99,23 @@ bool SataBus::Initialize(EFI_DEV_PATH* devicePath)
 		_ASSERTF(false, "AHCI mode boot device is mandatory");
 	}
 
+	//Perform BIOS/OS handoff if required
+	if(Memory->HostCapabilitiesExtended & HBA_CAP2_BOH)
+	{
+		ConsolePrint(u"BIOS/OS handoff required.\n");
+
+		Memory->BIOSHandoffControlStatus |= HBA_BOHC_OS_OWNED_SEMAPHORE;
+
+		while(Memory->BIOSHandoffControlStatus & HBA_BOHC_BIOS_OWNED_SEMAPHORE);
+	}
+
+	ConsolePrint(u"Resetting HBA.\n");	
+	Memory->GlobalHostControl |= HBA_HR_BIT;
+	while(Memory->GlobalHostControl & HBA_HR_BIT);
+
+	//Enable ACHCI
+	Memory->GlobalHostControl |= HBA_AE_BIT;
+
 	uint64_t commandListSize = ((Memory->PortsImplemented * 1024) + (PAGE_SIZE-1)) & PAGE_MASK;
 	CommandList = (uint8_t*)VirtualAlloc(commandListSize, PrivilegeLevel::Kernel, PageFlags_Cache_Disable);
 
@@ -129,14 +158,25 @@ void SataBus::ResetPort(uint32_t portNumber)
 {
 	volatile HBAPort* port = &Memory->Ports[portNumber];
 
-    // Ensure that the command engine is stopped before resetting
+	// Ensure that the command engine is stopped before resetting
     StopCommandEngine(portNumber);
+
+	//Write to interrupt status to clear it
+	port->InterruptStatus = port->InterruptStatus;
+
+	//Spin up device, power on device, enable interface communication control
+	port->CommandStatus = HBA_PxCMD_SUD | HBA_PxCMD_POD | HBA_PxCMD_ICC_ACTIVE;
 
     // Reset the port
     port->CommandStatus |= HBA_PxCMD_CR;
     while (port->CommandStatus & HBA_PxCMD_CR) {
         // Wait for the command list processing to stop
     }
+
+	if(port->SATAError)
+	{
+		_ASSERTFV(false, "SATA Error", port->SATAError, 0, 0);
+	}
 
     // Clear error status
     port->SATAError = (uint32_t)-1; // Writing 1 to each bit clears the error

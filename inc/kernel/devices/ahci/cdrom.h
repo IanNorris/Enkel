@@ -17,6 +17,7 @@ private:
 	void StartCommand(uint32_t slot);
 
 	const static uint32_t MaxPRDTEntries = 16; //Up to 64k count at 4MB each.
+	const static uint32_t PRDTSize = 64 * 1024;
 
 	volatile HBAPort* Port;
 	volatile HBACommandListHeader* CommandList;
@@ -24,6 +25,7 @@ private:
 
 	volatile uint8_t* FIS;
 	volatile HBACommandTable* CommandTable;
+	volatile HBAPRDTEntry* PRDTs;
 
 	SataBus* Sata;
 	uint32_t PortNumber;

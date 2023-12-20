@@ -136,21 +136,6 @@ bool CdromPort::Initialize(SataBus* sataBus, uint32_t portNumber)
 	volatile HBAPort* port = &sataBus->Memory->Ports[portNumber];
 	Port = port;
 
-	if(port->Signature != SATA_SIG_ATAPI)
-	{
-		return false;
-	}
-
-	if(!(port->SATAStatus & HBA_PORT_IPM_ACTIVE))
-	{
-		return false;
-	}
-
-	if(!(port->SATAStatus & HBA_PORT_DET_PRESENT))
-	{
-		return false;
-	}
-
 	//Enable interrupts, DMA, and memory space access
 	// (actually we'll disable interrupts)
 
@@ -165,7 +150,8 @@ bool CdromPort::Initialize(SataBus* sataBus, uint32_t portNumber)
 	CommandList = (HBACommandListHeader*)portCommandListAddress;
 
 	port->CommandStatus = CommandRegisterValue;
-	TO_LOW_HIGH(port->CommandListBaseLow, port->CommandListBaseHigh, portCommandListAddress);
+	uint64_t portCommandListPhysical = GetPhysicalAddress((uint64_t)portCommandListAddress);
+	TO_LOW_HIGH(port->CommandListBaseLow, port->CommandListBaseHigh, portCommandListPhysical);
 
 	// The alignment constraints for FIS and command tables are:
 	// FIS: 256-byte aligned
@@ -187,54 +173,33 @@ bool CdromPort::Initialize(SataBus* sataBus, uint32_t portNumber)
 	_ASSERTF(((uint64_t)cmdTable & 0x7F) == 0, "Command table not aligned");
 	CommandTable = (HBACommandTable*)cmdTable;
 
+	PRDTs = (volatile HBAPRDTEntry*)(cmdTable + sizeof(HBAPRDTEntry));
+	CommandList->PRDTLength = MaxPRDTEntries;
+	CommandList->PRDByteCount = PRDTSize;
+
+	uint64_t cmdTablePhysical = GetPhysicalAddress((uint64_t)cmdTable);
+
 	// Set addresses in port registers
-	TO_LOW_HIGH(CommandList->CommandTableBaseLow, CommandList->CommandTableBaseHigh, cmdTable);
+	TO_LOW_HIGH(CommandList->CommandTableBaseLow, CommandList->CommandTableBaseHigh, cmdTablePhysical);
 	TO_LOW_HIGH(port->FISBaseLow, port->FISBaseHigh, fis);
-
-	//AcpiOsWritePciConfiguration(&PciId, PCI_COMMAND_REGISTER, CommandRegisterValue, 16);
-
-	
-	//Perform BIOS/OS handoff (if the bit in the extended capabilities is set)
-	//Reset controller
-	//Register IRQ handler, using interrupt line given in the PCI register. This interrupt line may be shared with other devices, so the usual implications of this apply.
-	//Enable AHCI mode and interrupts in global host control register.
-	//Read capabilities registers. Check 64-bit DMA is supported if you need it.
-	//For all the implemented ports:
-	//    Allocate physical memory for its command list, the received FIS, and its command tables. Make sure the command tables are 128 byte aligned.
-	//    Memory map these as uncacheable.
-	//    Set command list and received FIS address registers (and upper registers, if supported).
-	//    Setup command list entries to point to the corresponding command table.
-	//    Reset the port.
-	//    Start command list processing with the port's command register.
-	//    Enable interrupts for the port. The D2H bit will signal completed commands.
-	//    Read signature/status of the port to see if it connected to a drive.
-	//    Send IDENTIFY ATA command to connected drives. Get their sector size and count. 
-
-
-
-
-
-
-
-
-	//Start read/write command
-
-	//	Select an available command slot to use.
-	//	Setup command FIS.
-	//	Setup PRDT.
-	//	Setup command list entry.
-	//	Issue the command, and record separately that you have issued it. 
-
-	//IRQ handler
-
-	//	Check global interrupt status. Write back its value. For all the ports that have a corresponding set bit...
-	//	Check the port interrupt status. Write back its value. If zero, continue to the next port.
-	//	If error bit set, reset port/retry commands as necessary.
-	//	Compare issued commands register to the commands you have recorded as issuing. For any bits where a command was issued but is no longer running, this means that the command has completed.
-	//	Once done, continue checking if any other devices sharing the IRQ also need servicing. 
 
 	// Reset the port
 	Sata->ResetPort(portNumber);
+
+	if(port->Signature != SATA_SIG_ATAPI)
+	{
+		return false;
+	}
+
+	if(!(port->SATAStatus & HBA_PORT_IPM_ACTIVE))
+	{
+		return false;
+	}
+
+	if(!(port->SATAStatus & HBA_PORT_DET_PRESENT))
+	{
+		return false;
+	}
 
 	// Start command list processing
 	port->CommandStatus |= HBA_PxCMD_ST;
@@ -286,6 +251,8 @@ bool CdromPort::IdentifyDrive()
     uint16_t* identifyBuffer = (uint16_t*)rpmalloc(512);
     memset(identifyBuffer, 0, 512);
 
+	uint64_t identifyBufferPhysical = GetPhysicalAddress((uint64_t)identifyBuffer);
+
     volatile FISRegisterHostToDevice* cmdFis = (FISRegisterHostToDevice*)&CommandTable->CommandFIS;
     memset(cmdFis, 0, sizeof(FISRegisterHostToDevice));
     cmdFis->FISType = (uint8_t)FISType::RegisterHostToDevice;
@@ -294,7 +261,7 @@ bool CdromPort::IdentifyDrive()
     cmdFis->CommandControl = 1; // Command
 
     // Set up the PRDT (Physical Region Descriptor Table)
-	TO_LOW_HIGH(CommandTable->PRDTEntries[0].DataBaseLow, CommandTable->PRDTEntries[0].DataBaseHigh, identifyBuffer);
+	TO_LOW_HIGH(CommandTable->PRDTEntries[0].DataBaseLow, CommandTable->PRDTEntries[0].DataBaseHigh, identifyBufferPhysical);
     CommandTable->PRDTEntries[0].ByteCount = 511; // 512 bytes, minus 1
     CommandTable->PRDTEntries[0].InterruptOnCompletion = 0;
 
@@ -316,6 +283,11 @@ bool CdromPort::IdentifyDrive()
 			SerialPrint("IDENTIFY command failed.\n");
 			return false;
 		}
+	}
+
+	if(Port->SATAError)
+	{
+		_ASSERTFV(false, "SATA Error", Port->SATAError, 0, 0);
 	}
 
     // Process IDENTIFY data
