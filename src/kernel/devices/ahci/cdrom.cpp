@@ -16,6 +16,12 @@
 #define SATA_SIG_ATAPI 0xEB140101 // SATA signature for ATAPI devices
 #define HBA_PORT_DET_PRESENT 0x3
 #define HBA_PORT_IPM_ACTIVE 0x1
+#define MAX_PRDT_ENTRIES 65536
+
+//TODO: Verify
+#define HBA_PxIE_DHR 0x80000000 // Device to host register FIS interrupt enable
+#define HBA_PxIS_TFES 0x40000000 // Task file error status
+#define ATA_CMD_IDENTIFY 0xEC
 
 #define PCI_BAR5_OFFSET 0x24
 
@@ -23,6 +29,8 @@
 #define PCI_COMMAND_BUS_MASTER (1 << 2)
 #define PCI_COMMAND_MEMORY_SPACE (1 << 1)
 #define PCI_COMMAND_IO_SPACE (1 << 0)
+
+#define TO_LOW_HIGH(low, high, input) low = (uint32_t)((uint64_t)input & 0xffffffff); high = (uint32_t)(((uint64_t)input >> 32) & 0xffffffff);
 
 // Forward declaration of AHCI related functions
 
@@ -41,6 +49,12 @@ bool CdRomDevice::Initialize(EFI_DEV_PATH* devicePath, SataBus* sataBus)
 	USB_DEVICE_PATH* usbDevicePath = nullptr;
 	USB_CLASS_DEVICE_PATH* usbClassDevicePath = nullptr;
 	USB_WWID_DEVICE_PATH* usbWwidDevicePath = nullptr;
+
+	UNUSED(cdromDevicePath);
+	UNUSED(hddDevicePath);
+	UNUSED(usbDevicePath);
+	UNUSED(usbClassDevicePath);
+	UNUSED(usbWwidDevicePath);
 
 	// Find the ACPI path
 	while (devicePath->DevPath.Type != END_DEVICE_PATH_TYPE)
@@ -87,64 +101,114 @@ bool CdRomDevice::Initialize(EFI_DEV_PATH* devicePath, SataBus* sataBus)
 
 	_ASSERTF(sataDevicePath, "SATA device is mandatory");
 
+	SetupPorts();
+
+	CdPort = &Ports[sataDevicePath->HBAPortNumber];
+
+	if(!CdPort->IsActive())
+	{
+		ConsolePrint(u"CD-ROM drive not found on expected SATA port.\n");
+		return false;
+	}
+
+	return true;
+}
+
+void CdRomDevice::SetupPorts()
+{
+	memset(Ports, 0, sizeof(Ports[0]) * MaxPorts);
+
+    for (uint32_t i = 0; i < MaxPorts; i++)
+	{
+		Ports[i].Initialize(Sata, i);
+    }
+}
+
+//////////////////////////////////////////////////////////////////////////
+
+bool CdromPort::Initialize(SataBus* sataBus, uint32_t portNumber)
+{
+	Sata = sataBus;
+	PortNumber = portNumber;
+	IsEnabled = false;
+
 	//TODO PortMultiplier not implemented
-	Port = &Sata->Memory->Ports[sataDevicePath->HBAPortNumber];
+	volatile HBAPort* port = &sataBus->Memory->Ports[portNumber];
+	Port = port;
 
-	if(Port->Signature != SATA_SIG_ATAPI)
+	if(port->Signature != SATA_SIG_ATAPI)
 	{
-		ConsolePrint(u"SATA ATAPI signature not found.\n");
 		return false;
 	}
 
-	if(!(Port->SATAStatus & HBA_PORT_IPM_ACTIVE))
+	if(!(port->SATAStatus & HBA_PORT_IPM_ACTIVE))
 	{
-		ConsolePrint(u"SATA port not active.\n");
 		return false;
 	}
 
-	if(!(Port->SATAStatus & HBA_PORT_DET_PRESENT))
+	if(!(port->SATAStatus & HBA_PORT_DET_PRESENT))
 	{
-		ConsolePrint(u"SATA DET not present.\n");
 		return false;
 	}
 
-	
-
-    //Enable interrupts, DMA, and memory space access in the PCI command register
+	//Enable interrupts, DMA, and memory space access
 	// (actually we'll disable interrupts)
 
 	uint64_t CommandMask = PCI_COMMAND_INTERRUPT_DISABLE | PCI_COMMAND_BUS_MASTER | PCI_COMMAND_MEMORY_SPACE | PCI_COMMAND_IO_SPACE;
-
-	uint64_t CommandRegisterValue = Port->CommandStatus;
-	//AcpiOsReadPciConfiguration(&PciId, PCI_COMMAND_REGISTER, (UINT64*)&CommandRegisterValue, 16);
+	uint64_t CommandRegisterValue = port->CommandStatus;
 
 	CommandRegisterValue &= ~CommandMask;
 	CommandRegisterValue |= PCI_COMMAND_INTERRUPT_DISABLE | PCI_COMMAND_BUS_MASTER | PCI_COMMAND_MEMORY_SPACE | PCI_COMMAND_IO_SPACE;
 
-	uint8_t* portCommandListAddress = Sata->CommandList + (1024 * sataDevicePath->HBAPortNumber);
+	// Configure memory space for command list (this is allocated by the SataBus)
+	volatile uint8_t* portCommandListAddress = sataBus->GetCommandListBase(portNumber);
+	CommandList = (HBACommandListHeader*)portCommandListAddress;
 
-	Port->CommandStatus = CommandRegisterValue;
-	Port->CommandListBaseLow = (uint32_t)((uint64_t)portCommandListAddress & 0xffffffff);
-	Port->CommandListBaseHigh = (uint32_t)(((uint64_t)portCommandListAddress >> 32) & 0xffffffff);
+	port->CommandStatus = CommandRegisterValue;
+	TO_LOW_HIGH(port->CommandListBaseLow, port->CommandListBaseHigh, portCommandListAddress);
+
+	// The alignment constraints for FIS and command tables are:
+	// FIS: 256-byte aligned
+	// Command tables: 128-byte aligned
+
+	uint64_t FISSize = AlignSize(sizeof(FIS), 128);
+	
+	//-1 entries because we have one inital entry in the command table
+	uint64_t CommandTableAllocSize = FISSize + sizeof(HBACommandTable) + (sizeof(HBAPRDTEntry) * (MaxPRDTEntries-1));
+	CommandTableAllocSize = AlignSize(CommandTableAllocSize, PAGE_SIZE);
+
+	//TODO: Free me
+	CommandTableAlloc = (volatile uint8_t*)VirtualAlloc(CommandTableAllocSize, PrivilegeLevel::Kernel, PageFlags_Cache_Disable);
+	memset(CommandTableAlloc, 0, CommandTableAllocSize);
+
+	volatile uint8_t* fis = CommandTableAlloc;
+	volatile uint8_t* cmdTable = CommandTableAlloc + FISSize;
+
+	_ASSERTF(((uint64_t)cmdTable & 0x7F) == 0, "Command table not aligned");
+	CommandTable = (HBACommandTable*)cmdTable;
+
+	// Set addresses in port registers
+	TO_LOW_HIGH(CommandList->CommandTableBaseLow, CommandList->CommandTableBaseHigh, cmdTable);
+	TO_LOW_HIGH(port->FISBaseLow, port->FISBaseHigh, fis);
 
 	//AcpiOsWritePciConfiguration(&PciId, PCI_COMMAND_REGISTER, CommandRegisterValue, 16);
 
-    
-    //Perform BIOS/OS handoff (if the bit in the extended capabilities is set)
-    //Reset controller
-    //Register IRQ handler, using interrupt line given in the PCI register. This interrupt line may be shared with other devices, so the usual implications of this apply.
-    //Enable AHCI mode and interrupts in global host control register.
-    //Read capabilities registers. Check 64-bit DMA is supported if you need it.
-    //For all the implemented ports:
-    //    Allocate physical memory for its command list, the received FIS, and its command tables. Make sure the command tables are 128 byte aligned.
-    //    Memory map these as uncacheable.
-    //    Set command list and received FIS address registers (and upper registers, if supported).
-    //    Setup command list entries to point to the corresponding command table.
-    //    Reset the port.
-    //    Start command list processing with the port's command register.
-    //    Enable interrupts for the port. The D2H bit will signal completed commands.
-    //    Read signature/status of the port to see if it connected to a drive.
-    //    Send IDENTIFY ATA command to connected drives. Get their sector size and count. 
+	
+	//Perform BIOS/OS handoff (if the bit in the extended capabilities is set)
+	//Reset controller
+	//Register IRQ handler, using interrupt line given in the PCI register. This interrupt line may be shared with other devices, so the usual implications of this apply.
+	//Enable AHCI mode and interrupts in global host control register.
+	//Read capabilities registers. Check 64-bit DMA is supported if you need it.
+	//For all the implemented ports:
+	//    Allocate physical memory for its command list, the received FIS, and its command tables. Make sure the command tables are 128 byte aligned.
+	//    Memory map these as uncacheable.
+	//    Set command list and received FIS address registers (and upper registers, if supported).
+	//    Setup command list entries to point to the corresponding command table.
+	//    Reset the port.
+	//    Start command list processing with the port's command register.
+	//    Enable interrupts for the port. The D2H bit will signal completed commands.
+	//    Read signature/status of the port to see if it connected to a drive.
+	//    Send IDENTIFY ATA command to connected drives. Get their sector size and count. 
 
 
 
@@ -168,78 +232,102 @@ bool CdRomDevice::Initialize(EFI_DEV_PATH* devicePath, SataBus* sataBus)
 	//	If error bit set, reset port/retry commands as necessary.
 	//	Compare issued commands register to the commands you have recorded as issuing. For any bits where a command was issued but is no longer running, this means that the command has completed.
 	//	Once done, continue checking if any other devices sharing the IRQ also need servicing. 
-}
 
-/*
-CdRomDevice* InitializeCdRom(PCI_DEVICE_PATH* pciDevicePath, SATA_DEVICE_PATH* sataDevicePath, CDROM_DEVICE_PATH* cdromDevicePath)
-{
-    // Allocate memory for CdRomDevice
-    CdRomDevice* device = static_cast<CdRomDevice*>(rpmalloc(sizeof(CdRomDevice)));
-    if (!device)
-    {
-        SerialPrint(u"Failed to allocate memory for CdRomDevice\n");
-        return nullptr;
-    }
+	// Reset the port
+	Sata->ResetPort(portNumber);
 
-    // Initialize device paths
-    device->PciDevicePath = pciDevicePath;
-    device->SataDevicePath = sataDevicePath;
-    device->CdromDevicePath = cdromDevicePath;
+	// Start command list processing
+	port->CommandStatus |= HBA_PxCMD_ST;
 
-	// AHCI specific initialization
-	HBA_MEM *ahciBase = reinterpret_cast<HBA_MEM *>(AHCI_BASE_ADDR);
-	int portNumber = FindCdRomPort(ahciBase);
-	if (portNumber == -1)
+	// Enable interrupts for the port
+	port->InterruptEnable = HBA_PxIE_DHR;
+
+	if(!IdentifyDrive())
 	{
-		SerialPrint(u"No CD-ROM drive found on AHCI ports\n");
-		rpfree(device);
-		return nullptr;
+		ConsolePrint(u"CD-ROM drive identification failed.\n");
+		return false;
 	}
 
-	device->Port = &ahciBase->ports[portNumber];
+	IsEnabled = true;
 
-	// Rest of the initialization
-	return device;
+	return true;
 }
 
-int64_t ReadBytes(CdRomDevice *device, uint64_t offset, uint8_t *buffer, uint64_t bufferSize)
+bool CdromPort::IsActive()
 {
-	_ASSERTF(device != nullptr, u"Device pointer is null");
-	_ASSERTF(buffer != nullptr, u"Buffer pointer is null");
-
-	// Convert offset to LBA (Logical Block Addressing)
-	uint64_t lba = offset / 2048; // Assuming 2048 bytes per sector for CD-ROM
-	uint32_t sectorCount = bufferSize / 2048;
-
-	// Read from AHCI port
-	return ReadFromAHCIPort(device->Port, lba & 0xFFFFFFFF, lba >> 32, sectorCount, buffer);
-}
-
-// Implementations of AHCI related functions
-int FindCdRomPort(HBA_MEM *ahciBase)
-{
-	// Iterate over AHCI ports to find a CD-ROM device
-	for (int i = 0; i < 32; i++)
+	if(!IsEnabled)
 	{
-		HBAPort &port = ahciBase->ports[i];
-		if ((port.sig == SATA_SIG_ATAPI) && (port.ssts & HBA_PORT_IPM_ACTIVE) && (port.ssts & HBA_PORT_DET_PRESENT))
+		return false;
+	}
+
+	if(Port->Signature != SATA_SIG_ATAPI)
+	{
+		return false;
+	}
+
+	if(!(Port->SATAStatus & HBA_PORT_IPM_ACTIVE))
+	{
+		return false;
+	}
+
+	if(!(Port->SATAStatus & HBA_PORT_DET_PRESENT))
+	{
+		return false;
+	}
+
+	return true;
+}
+
+bool CdromPort::IdentifyDrive()
+{
+    // Prepare command header and command table
+
+    // Prepare the IDENTIFY command (ATA Command)
+    uint16_t* identifyBuffer = (uint16_t*)rpmalloc(512);
+    memset(identifyBuffer, 0, 512);
+
+    volatile FISRegisterHostToDevice* cmdFis = (FISRegisterHostToDevice*)&CommandTable->CommandFIS;
+    memset(cmdFis, 0, sizeof(FISRegisterHostToDevice));
+    cmdFis->FISType = (uint8_t)FISType::RegisterHostToDevice;
+    cmdFis->Command = ATA_CMD_IDENTIFY;
+    cmdFis->Device = 0; // LBA mode
+    cmdFis->CommandControl = 1; // Command
+
+    // Set up the PRDT (Physical Region Descriptor Table)
+	TO_LOW_HIGH(CommandTable->PRDTEntries[0].DataBaseLow, CommandTable->PRDTEntries[0].DataBaseHigh, identifyBuffer);
+    CommandTable->PRDTEntries[0].ByteCount = 511; // 512 bytes, minus 1
+    CommandTable->PRDTEntries[0].InterruptOnCompletion = 0;
+
+    // Set command header
+    CommandList->PRDTLength = 1;
+    CommandList->CommandFISLength = sizeof(FISRegisterHostToDevice) / sizeof(uint32_t); // Command FIS size in DWORDs
+    CommandList->Write = 0; // This is a read
+
+    // Start command and wait for completion
+	uint32_t slot = 0;
+    StartCommand(slot);
+
+    // Wait for command to complete
+    while (Port->CommandIssue & (1 << slot))
+	{
+		if (Port->InterruptStatus & HBA_PxIS_TFES)
 		{
-			return i;
+			// Task File Error Status
+			SerialPrint("IDENTIFY command failed.\n");
+			return false;
 		}
 	}
-	return -1;
+
+    // Process IDENTIFY data
+    //ProcessIdentifyData(identifyBuffer);
+
+    // Free allocated buffer
+    rpfree(identifyBuffer);
+
+    return true;
 }
 
-int ReadFromAHCIPort(HBAPort *port, uint64_t startl, uint64_t starth, uint32_t count, uint8_t *buf)
+void CdromPort::StartCommand(uint32_t slot)
 {
-	// Implement AHCI read command here.
-	// This will involve setting up command structures, issuing the command,
-	// and waiting for completion.
-	// For brevity, the details of this implementation are omitted.
-
-	// Placeholder for actual read operation
-	int64_t bytesRead = 0; // Replace with actual bytes read
-
-	return bytesRead;
+    Port->CommandIssue |= (1 << slot);
 }
-*/

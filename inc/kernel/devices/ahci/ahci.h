@@ -57,15 +57,15 @@ struct FISSetupDMA
 
 struct HBAPRDTEntry
 {
-    uint32_t DataBaseAddress;       // Data base address
-    uint32_t DataBaseAddressUpper;  // Data base address upper 32 bits
+    uint32_t DataBaseLow;       	// Data base address
+    uint32_t DataBaseHigh;  		// Data base address upper 32 bits
     uint32_t Reserved0;             // Reserved
     uint32_t ByteCount : 22;        // Byte count, 4M max
     uint32_t Reserved1 : 9;         // Reserved
     uint32_t InterruptOnCompletion : 1; // Interrupt on completion
 } PACKED_ALIGNMENT;
 
-struct HBACommandHeader
+struct HBACommandListHeader
 {
     uint8_t  CommandFISLength : 5;  // Command FIS length in DWORDS, 2 ~ 16
     uint8_t  Atapi : 1;             // ATAPI
@@ -78,8 +78,8 @@ struct HBACommandHeader
     uint8_t  PortMultiplierPort : 4;// Port multiplier port
     uint16_t PRDTLength;            // Physical region descriptor table length in entries
     volatile uint32_t PRDByteCount; // Physical region descriptor byte count transferred
-    uint32_t CommandTableBaseAddress;       // Command table descriptor base address
-    uint32_t CommandTableBaseAddressUpper;  // Command table descriptor base address upper 32 bits
+    uint32_t CommandTableBaseLow;   // Command table descriptor base address
+    uint32_t CommandTableBaseHigh;  // Command table descriptor base address upper 32 bits
 
     uint32_t Reserved1[4];         // Reserved
 } PACKED_ALIGNMENT;
@@ -264,7 +264,7 @@ struct FIS
 	uint8_t Reserved[60];
 } PACKED_ALIGNMENT;
 
-static_assert(sizeof(HBACommandHeader) == 32, "HBACommandHeader structure size must be 32 bytes.");
+static_assert(sizeof(HBACommandListHeader) == 32, "HBACommandListHeader structure size must be 32 bytes.");
 static_assert(sizeof(HBACommandTable) >= 128, "HBACommandTable structure size must be at least 128 bytes.");
 static_assert(sizeof(HBAPort) == 128, "HBAPort structure size must be 128 bytes.");
 static_assert(sizeof(HBAMemory) == 256, "Incorrect size for HBAMemory");

@@ -12,6 +12,8 @@
 #include "kernel/devices/pci.h"
 #include "kernel/devices/ahci/cdrom.h"
 
+#define AHCI_ENABLE_FLAG 0x80000000
+
 bool SataBus::Initialize(EFI_DEV_PATH* devicePath)
 {
 	memset(this, 0, sizeof(SataBus));
@@ -59,7 +61,7 @@ bool SataBus::Initialize(EFI_DEV_PATH* devicePath)
 		ACPI_STATUS status = AcpiOsReadPciConfiguration(&PciId, 0x08, &classCode, 32);
 		if (status == AE_OK && ((classCode >> 16) & 0xFFFF) == ((AHCI_CLASS_CODE << 8) | AHCI_SUBCLASS_CODE))
 		{
-			// Read BAR5 to get ABAR
+			// Read BAR5 to get ABAR (AHCI Base Memory Register)
 			UINT64 abar;
 			status = AcpiOsReadPciConfiguration(&PciId, PCI_BAR5_OFFSET, &abar, 64);
 			if (status != AE_OK)
@@ -80,8 +82,65 @@ bool SataBus::Initialize(EFI_DEV_PATH* devicePath)
 		}
     }
 
+	if(!(Memory->GlobalHostControl & AHCI_ENABLE_FLAG))
+	{
+		_ASSERTF(false, "AHCI mode boot device is mandatory");
+	}
+
 	uint64_t commandListSize = ((Memory->PortsImplemented * 1024) + (PAGE_SIZE-1)) & PAGE_MASK;
 	CommandList = (uint8_t*)VirtualAlloc(commandListSize, PrivilegeLevel::Kernel, PageFlags_Cache_Disable);
 
 	memset(CommandList, 0, commandListSize);
+}
+
+volatile uint8_t* SataBus::GetCommandListBase(uint32_t portNumber)
+{
+	return CommandList + (portNumber * 1024);
+}
+
+void SataBus::StartCommandEngine(uint32_t portNumber)
+{
+	volatile HBAPort* port = &Memory->Ports[portNumber];
+
+    // Set FRE (FIS Receive Enable) bit
+    port->CommandStatus |= HBA_PxCMD_FRE;
+
+    // Set ST (Start) bit to start the command engine
+    port->CommandStatus |= HBA_PxCMD_ST;
+}
+
+void SataBus::StopCommandEngine(uint32_t portNumber)
+{
+	volatile HBAPort* port = &Memory->Ports[portNumber];
+
+    // Clear ST (Start) bit to stop the command engine
+    port->CommandStatus &= ~HBA_PxCMD_ST;
+
+    // Clear FRE (FIS Receive Enable) bit
+    port->CommandStatus &= ~HBA_PxCMD_FRE;
+
+    // Wait until FR (FIS Receive Running) and CR (Command List Running) bits are cleared
+    while (port->CommandStatus & (HBA_PxCMD_FR | HBA_PxCMD_CR)) {
+        // Wait for the command list and FIS receive engines to stop
+    }
+}
+
+void SataBus::ResetPort(uint32_t portNumber)
+{
+	volatile HBAPort* port = &Memory->Ports[portNumber];
+
+    // Ensure that the command engine is stopped before resetting
+    StopCommandEngine(portNumber);
+
+    // Reset the port
+    port->CommandStatus |= HBA_PxCMD_CR;
+    while (port->CommandStatus & HBA_PxCMD_CR) {
+        // Wait for the command list processing to stop
+    }
+
+    // Clear error status
+    port->SATAError = (uint32_t)-1; // Writing 1 to each bit clears the error
+
+    // Restart the command engine
+    StartCommandEngine(portNumber);
 }
