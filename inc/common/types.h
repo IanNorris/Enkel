@@ -30,3 +30,6 @@ extern "C" void AssertionFailed(const char* expression, const char* message, con
 #define _ASSERTF(x, message) if( !(x) ) { AssertionFailed(#x, message, __FILE__, __LINE__, 0, 0, 0); DebugBreak(); }
 #define _ASSERTFV(x, message, v1, v2, v3) if( !(x) ) { AssertionFailed(#x, message, __FILE__, __LINE__, v1, v2, v3); DebugBreak(); }
 #define NOT_IMPLEMENTED() _ASSERTF(false, "Not implemented")
+
+#define UNUSED(x) (void)(x)
+#define AlignSize(value, alignment) (((value) + ((alignment)-1)) & ~((alignment)-1))
