@@ -125,7 +125,7 @@ void HexDump(const uint8_t* Bytes, uint32_t ByteLength, uint32_t BytesPerLine)
 			ConsolePrint(u"\n");
 		}
 
-		witoabuf<uint32_t>(Buffer, Bytes[i], 16);
+		witoabuf<uint32_t>(Buffer, Bytes[i], 16, 2);
 		ConsolePrint(Buffer);
 		ConsolePrint(u" ");
 	}
