@@ -190,7 +190,7 @@ struct FISRegisterDeviceToHost
     uint8_t  Reserved4[4]; // Reserved
 } PACKED_ALIGNMENT;
 
-struct FISData
+struct FIS
 {
     uint8_t  FISType;    // FIS_TYPE_DATA
     uint8_t  PortMultiplier : 4; // Port multiplier
@@ -246,7 +246,7 @@ struct FISSetupDevBits
     uint32_t SActive;        // Active Set
 } PACKED_ALIGNMENT;
 
-struct FIS
+struct FISData
 {
 	FISSetupDMA SetupDMA;
 	uint8_t Pad0[4];

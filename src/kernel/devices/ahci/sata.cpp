@@ -7,6 +7,7 @@
 #include "memory/physical.h"
 #include "rpmalloc.h"
 #include "kernel/init/acpi.h"
+#include "kernel/scheduling/time.h"
 #include "common/string.h"
 
 #include "kernel/devices/pci.h"
@@ -14,6 +15,7 @@
 
 #define AHCI_ENABLE_FLAG 0x80000000
 #define HBA_CAP2_BOH (1 << 0)
+#define HBA_PORT_DET_PRESENT 0x3
 #define HBA_BOHC_OS_OWNED_SEMAPHORE (1 << 0)
 #define HBA_BOHC_BIOS_OWNED_SEMAPHORE (1 << 1)
 #define HBA_BOHC_OS_OWNERSHIP_CHANGE_REQUEST (1 << 3)
@@ -120,6 +122,8 @@ bool SataBus::Initialize(EFI_DEV_PATH* devicePath)
 	CommandList = (uint8_t*)VirtualAlloc(commandListSize, PrivilegeLevel::Kernel, PageFlags_Cache_Disable);
 
 	memset(CommandList, 0, commandListSize);
+
+	return true;
 }
 
 volatile uint8_t* SataBus::GetCommandListBase(uint32_t portNumber)
@@ -161,16 +165,46 @@ void SataBus::ResetPort(uint32_t portNumber)
 	// Ensure that the command engine is stopped before resetting
     StopCommandEngine(portNumber);
 
+	HpetSleepMS(5);
+
 	//Write to interrupt status to clear it
 	port->InterruptStatus = port->InterruptStatus;
 
 	//Spin up device, power on device, enable interface communication control
-	port->CommandStatus = HBA_PxCMD_SUD | HBA_PxCMD_POD | HBA_PxCMD_ICC_ACTIVE;
+	port->CommandStatus = HBA_PxCMD_ICC_ACTIVE;
+
+	port->CommandStatus |= HBA_PxCMD_FRE;
+
+	HpetSleepMS(5);
 
     // Reset the port
     port->CommandStatus |= HBA_PxCMD_CR;
-    while (port->CommandStatus & HBA_PxCMD_CR) {
+
+	HpetSleepMS(5);
+
+    while ((port->CommandStatus & HBA_PxCMD_CR && port->SATAStatus & HBA_PORT_DET_PRESENT) || port->SATAError) {
         // Wait for the command list processing to stop
+		HpetSleepMS(1);
+    }
+
+	if(port->Signature == 0)
+	{
+		return;
+	}
+
+	//Spin up device, power on device, enable interface communication control
+	port->CommandStatus |= HBA_PxCMD_POD | HBA_PxCMD_SUD;
+
+	HpetSleepMS(5);
+
+    // Reset the port
+    port->CommandStatus |= HBA_PxCMD_CR;
+
+	HpetSleepMS(5);
+
+    while ((port->CommandStatus & HBA_PxCMD_CR && port->SATAStatus & HBA_PORT_DET_PRESENT) || port->SATAError) {
+        // Wait for the command list processing to stop
+		HpetSleepMS(1);
     }
 
 	if(port->SATAError)

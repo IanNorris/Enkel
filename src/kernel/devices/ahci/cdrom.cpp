@@ -16,12 +16,12 @@
 #define SATA_SIG_ATAPI 0xEB140101 // SATA signature for ATAPI devices
 #define HBA_PORT_DET_PRESENT 0x3
 #define HBA_PORT_IPM_ACTIVE 0x1
-#define MAX_PRDT_ENTRIES 65536
 
 //TODO: Verify
 #define HBA_PxIE_DHR 0x80000000 // Device to host register FIS interrupt enable
 #define HBA_PxIS_TFES 0x40000000 // Task file error status
 #define ATA_CMD_IDENTIFY 0xEC
+#define ATA_CMD_PACKET 0xA0
 
 #define PCI_BAR5_OFFSET 0x24
 
@@ -124,6 +124,18 @@ void CdRomDevice::SetupPorts()
     }
 }
 
+uint64_t CdRomDevice::ReadSector(uint64_t lba, uint8_t* buffer)
+{
+	if(CdPort->IsATAPI())
+	{
+		return CdPort->ReadSectorCD(lba, buffer);
+	}
+	else
+	{
+		return CdPort->ReadSectorSATA(lba, buffer);
+	}
+}
+
 //////////////////////////////////////////////////////////////////////////
 
 bool CdromPort::Initialize(SataBus* sataBus, uint32_t portNumber)
@@ -131,6 +143,9 @@ bool CdromPort::Initialize(SataBus* sataBus, uint32_t portNumber)
 	Sata = sataBus;
 	PortNumber = portNumber;
 	IsEnabled = false;
+
+	// Ensure that the command engine is stopped before resetting
+    Sata->StopCommandEngine(portNumber);
 
 	//TODO PortMultiplier not implemented
 	volatile HBAPort* port = &sataBus->Memory->Ports[portNumber];
@@ -147,7 +162,7 @@ bool CdromPort::Initialize(SataBus* sataBus, uint32_t portNumber)
 
 	// Configure memory space for command list (this is allocated by the SataBus)
 	volatile uint8_t* portCommandListAddress = sataBus->GetCommandListBase(portNumber);
-	CommandList = (HBACommandListHeader*)portCommandListAddress;
+	CommandLists = (HBACommandListHeader*)portCommandListAddress;
 
 	port->CommandStatus = CommandRegisterValue;
 	uint64_t portCommandListPhysical = GetPhysicalAddress((uint64_t)portCommandListAddress);
@@ -157,10 +172,11 @@ bool CdromPort::Initialize(SataBus* sataBus, uint32_t portNumber)
 	// FIS: 256-byte aligned
 	// Command tables: 128-byte aligned
 
-	uint64_t FISSize = AlignSize(sizeof(FIS), 128);
+	uint64_t FISSize = AlignSize(sizeof(FISData), 128);
+	uint64_t CommandListAndPRDTSize = AlignSize((sizeof(HBACommandTable) + sizeof(HBAPRDTEntry) * ((MaxCommands*MaxPRDTEntries)-1)), 128);
 	
 	//-1 entries because we have one inital entry in the command table
-	uint64_t CommandTableAllocSize = FISSize + sizeof(HBACommandTable) + (sizeof(HBAPRDTEntry) * (MaxPRDTEntries-1));
+	uint64_t CommandTableAllocSize = FISSize + (CommandListAndPRDTSize * MaxCommands);
 	CommandTableAllocSize = AlignSize(CommandTableAllocSize, PAGE_SIZE);
 
 	//TODO: Free me
@@ -168,20 +184,29 @@ bool CdromPort::Initialize(SataBus* sataBus, uint32_t portNumber)
 	memset(CommandTableAlloc, 0, CommandTableAllocSize);
 
 	volatile uint8_t* fis = CommandTableAlloc;
-	volatile uint8_t* cmdTable = CommandTableAlloc + FISSize;
+	FIS = (volatile FISData*)fis;
 
-	_ASSERTF(((uint64_t)cmdTable & 0x7F) == 0, "Command table not aligned");
-	CommandTable = (HBACommandTable*)cmdTable;
+	volatile uint8_t* cmdTable = (CommandTableAlloc + FISSize);
 
-	PRDTs = (volatile HBAPRDTEntry*)(cmdTable + sizeof(HBAPRDTEntry));
-	CommandList->PRDTLength = MaxPRDTEntries;
-	CommandList->PRDByteCount = PRDTSize;
+	uint64_t fisPhysical = GetPhysicalAddress((uint64_t)fis);
+	TO_LOW_HIGH(port->FISBaseLow, port->FISBaseHigh, fisPhysical);
 
-	uint64_t cmdTablePhysical = GetPhysicalAddress((uint64_t)cmdTable);
+	for(uint32_t commandIndex = 0; commandIndex < MaxCommands; commandIndex++)
+	{
+		_ASSERTF(((uint64_t)cmdTable & 0x7F) == 0, "Command table not aligned");
+		CommandTables[commandIndex] = (HBACommandTable*)cmdTable;
 
-	// Set addresses in port registers
-	TO_LOW_HIGH(CommandList->CommandTableBaseLow, CommandList->CommandTableBaseHigh, cmdTablePhysical);
-	TO_LOW_HIGH(port->FISBaseLow, port->FISBaseHigh, fis);
+		uint64_t cmdTablePhysical = GetPhysicalAddress((uint64_t)cmdTable);
+
+		// Set addresses in port registers
+		TO_LOW_HIGH(CommandLists[commandIndex].CommandTableBaseLow, CommandLists[commandIndex].CommandTableBaseHigh, cmdTablePhysical);
+		cmdTable += sizeof(HBACommandTable);
+
+		CommandLists[commandIndex].PRDTLength = MaxPRDTEntries;
+		CommandLists[commandIndex].PRDByteCount = 0;
+
+		cmdTable += CommandListAndPRDTSize - sizeof(HBACommandTable);
+	}
 
 	// Reset the port
 	Sata->ResetPort(portNumber);
@@ -201,11 +226,8 @@ bool CdromPort::Initialize(SataBus* sataBus, uint32_t portNumber)
 		return false;
 	}
 
-	// Start command list processing
-	port->CommandStatus |= HBA_PxCMD_ST;
-
 	// Enable interrupts for the port
-	port->InterruptEnable = HBA_PxIE_DHR;
+	port->InterruptEnable |= HBA_PxIE_DHR;
 
 	if(!IdentifyDrive())
 	{
@@ -218,6 +240,16 @@ bool CdromPort::Initialize(SataBus* sataBus, uint32_t portNumber)
 	return true;
 }
 
+bool CdromPort::IsATAPI()
+{
+	if(Port->Signature == SATA_SIG_ATAPI)
+	{
+		return true;
+	}
+
+	return false;
+}
+
 bool CdromPort::IsActive()
 {
 	if(!IsEnabled)
@@ -225,8 +257,9 @@ bool CdromPort::IsActive()
 		return false;
 	}
 
-	if(Port->Signature != SATA_SIG_ATAPI)
+	if(!IsATAPI())
 	{
+		//Don't support anything else yet
 		return false;
 	}
 
@@ -248,12 +281,14 @@ bool CdromPort::IdentifyDrive()
     // Prepare command header and command table
 
     // Prepare the IDENTIFY command (ATA Command)
-    uint16_t* identifyBuffer = (uint16_t*)rpmalloc(512);
+    uint16_t* identifyBuffer = (uint16_t*)VirtualAlloc(4096, PrivilegeLevel::Kernel, PageFlags_Cache_WriteThrough);
     memset(identifyBuffer, 0, 512);
 
 	uint64_t identifyBufferPhysical = GetPhysicalAddress((uint64_t)identifyBuffer);
 
-    volatile FISRegisterHostToDevice* cmdFis = (FISRegisterHostToDevice*)&CommandTable->CommandFIS;
+	uint32_t commandIndex = 0;
+
+    volatile FISRegisterHostToDevice* cmdFis = (volatile FISRegisterHostToDevice*)&(CommandTables[commandIndex]->CommandFIS[0]);
     memset(cmdFis, 0, sizeof(FISRegisterHostToDevice));
     cmdFis->FISType = (uint8_t)FISType::RegisterHostToDevice;
     cmdFis->Command = ATA_CMD_IDENTIFY;
@@ -261,21 +296,22 @@ bool CdromPort::IdentifyDrive()
     cmdFis->CommandControl = 1; // Command
 
     // Set up the PRDT (Physical Region Descriptor Table)
-	TO_LOW_HIGH(CommandTable->PRDTEntries[0].DataBaseLow, CommandTable->PRDTEntries[0].DataBaseHigh, identifyBufferPhysical);
-    CommandTable->PRDTEntries[0].ByteCount = 511; // 512 bytes, minus 1
-    CommandTable->PRDTEntries[0].InterruptOnCompletion = 0;
+	TO_LOW_HIGH(CommandTables[commandIndex]->PRDTEntries[0].DataBaseLow, CommandTables[commandIndex]->PRDTEntries[0].DataBaseHigh, identifyBufferPhysical);
+    CommandTables[commandIndex]->PRDTEntries[0].ByteCount = 511; // 512 bytes, minus 1
+    CommandTables[commandIndex]->PRDTEntries[0].InterruptOnCompletion = 0;
 
     // Set command header
-    CommandList->PRDTLength = 1;
-    CommandList->CommandFISLength = sizeof(FISRegisterHostToDevice) / sizeof(uint32_t); // Command FIS size in DWORDs
-    CommandList->Write = 0; // This is a read
+    CommandLists[commandIndex].PRDTLength = 1;
+    CommandLists[commandIndex].CommandFISLength = sizeof(FISRegisterHostToDevice) / sizeof(uint32_t); // Command FIS size in DWORDs
+    CommandLists[commandIndex].Write = 0; // This is a read
+
+	CommandLists[commandIndex].PRDByteCount = 0; //Clear, this is set by the hardware
 
     // Start command and wait for completion
-	uint32_t slot = 0;
-    StartCommand(slot);
+	StartCommand(commandIndex);
 
-    // Wait for command to complete
-    while (Port->CommandIssue & (1 << slot))
+	// Wait for command to complete
+	while (Port->CommandIssue & (1 << commandIndex))
 	{
 		if (Port->InterruptStatus & HBA_PxIS_TFES)
 		{
@@ -285,19 +321,183 @@ bool CdromPort::IdentifyDrive()
 		}
 	}
 
-	if(Port->SATAError)
+	if (Port->SATAError)
 	{
 		_ASSERTFV(false, "SATA Error", Port->SATAError, 0, 0);
 	}
 
-    // Process IDENTIFY data
-    //ProcessIdentifyData(identifyBuffer);
+	// Check if the command completed successfully
+	if (Port->CommandStatus & HBA_PxCMD_CR)
+	{
+		// Command completed successfully
+		// Process IDENTIFY data
+		//ProcessIdentifyData(identifyBuffer);
+	}
+	else
+	{
+		// Command failed
+		SerialPrint("IDENTIFY command failed.\n");
+		return false;
+	}
 
-    // Free allocated buffer
-    rpfree(identifyBuffer);
+	// Free allocated buffer
+	VirtualFree(identifyBuffer, 4096);
 
     return true;
 }
+
+uint64_t CdromPort::ReadSectorSATA(uint64_t lba, uint8_t* buffer)
+{
+	uint32_t sectorSize = 2048;
+	uint32_t byteSize = 2048;
+
+    // Ensure buffer is allocated and cleared
+    memset(buffer, 0, byteSize);
+
+    uint64_t bufferPhysical = GetPhysicalAddress((uint64_t)buffer);
+
+    uint32_t commandIndex = 0; // Assuming we are using the first command slot
+
+    // Prepare the command FIS
+    volatile FISRegisterHostToDevice* cmdFis = (volatile FISRegisterHostToDevice*)&(CommandTables[commandIndex]->CommandFIS[0]);
+    memset(cmdFis, 0, sizeof(FISRegisterHostToDevice));
+    cmdFis->FISType = (uint8_t)FISType::RegisterHostToDevice;
+    cmdFis->Command = ATA_CMD_READ_DMA_EX;
+    cmdFis->Device = 0x40; // LBA mode
+    cmdFis->LBA0 = (uint8_t)(lba & 0xFF);
+    cmdFis->LBA1 = (uint8_t)((lba >> 8) & 0xFF);
+    cmdFis->LBA2 = (uint8_t)((lba >> 16) & 0xFF);
+    cmdFis->LBA3 = (uint8_t)((lba >> 24) & 0xFF);
+    cmdFis->LBA4 = (uint8_t)((lba >> 32) & 0xFF);
+    cmdFis->LBA5 = (uint8_t)((lba >> 40) & 0xFF);
+
+	TO_LOW_HIGH(cmdFis->CountLow, cmdFis->CountHigh, (byteSize / sectorSize));
+
+    cmdFis->CommandControl = 1; // Command
+
+    // Set up the PRDT
+    TO_LOW_HIGH(CommandTables[commandIndex]->PRDTEntries[0].DataBaseLow, CommandTables[commandIndex]->PRDTEntries[0].DataBaseHigh, bufferPhysical);
+    CommandTables[commandIndex]->PRDTEntries[0].ByteCount = byteSize-1;
+    CommandTables[commandIndex]->PRDTEntries[0].InterruptOnCompletion = 1;
+
+    // Set command header
+    CommandLists[commandIndex].PRDTLength = 1;
+    CommandLists[commandIndex].CommandFISLength = sizeof(FISRegisterHostToDevice) / sizeof(uint32_t); // Command FIS size in DWORDs
+    CommandLists[commandIndex].Write = 0; // This is a read
+    CommandLists[commandIndex].PRDByteCount = 0; // Clear, this is set by the hardware
+
+    // Start command and wait for completion
+    StartCommand(commandIndex);
+
+    // Wait for command to complete
+    while (Port->CommandIssue & (1 << commandIndex))
+    {
+        if (Port->InterruptStatus & HBA_PxIS_TFES)
+        {
+            // Task File Error Status
+            SerialPrint("READ SECTOR command failed.\n");
+            return false;
+        }
+    }
+
+    if (Port->SATAError)
+    {
+        _ASSERTFV(false, "SATA Error", Port->SATAError, 0, 0);
+    }
+
+    // Check if the command completed successfully
+    if (Port->CommandStatus & HBA_PxCMD_CR)
+    {
+        // Command completed successfully
+        // Data is now in 'buffer'
+		return CommandLists[commandIndex].PRDByteCount;
+    }
+    else
+    {
+        // Command failed
+        SerialPrint("READ SECTOR command failed.\n");
+        return 0;
+    }
+}
+
+uint64_t CdromPort::ReadSectorCD(uint64_t lba, uint8_t* buffer)
+{
+	uint32_t sectorSize = 2048;
+	uint32_t byteSize = 2048;
+
+    // Ensure buffer is allocated and cleared
+    memset(buffer, 0, byteSize);
+
+    uint64_t bufferPhysical = GetPhysicalAddress((uint64_t)buffer);
+
+    uint32_t commandIndex = 0; // Assuming we are using the first command slot
+
+    // Prepare the command FIS for ATAPI command
+    volatile FISRegisterHostToDevice* cmdFis = (volatile FISRegisterHostToDevice*)&(CommandTables[commandIndex]->CommandFIS[0]);
+    memset(cmdFis, 0, sizeof(FISRegisterHostToDevice));
+    cmdFis->FISType = (uint8_t)FISType::RegisterHostToDevice;
+    cmdFis->Command = ATA_CMD_PACKET; // ATAPI Packet command
+    cmdFis->CommandControl = 1; // Command
+
+    // Prepare the ATAPI command (e.g., READ (10))
+    volatile uint8_t* atapiCommand = &CommandTables[commandIndex]->AtapiCommand[0];
+    memset(atapiCommand, 0, 12); // ATAPI commands are 12 bytes
+    atapiCommand[0] = 0x28; // READ (10) command
+    atapiCommand[2] = (lba >> 24) & 0xFF;
+    atapiCommand[3] = (lba >> 16) & 0xFF;
+    atapiCommand[4] = (lba >> 8) & 0xFF;
+    atapiCommand[5] = lba & 0xFF;
+
+	uint64_t sectorCount = byteSize / sectorSize;
+	TO_LOW_HIGH(atapiCommand[8], atapiCommand[7], sectorCount);
+    atapiCommand[7] = 0; // Number of sectors to read (high byte)
+    atapiCommand[8] = 1; // Number of sectors to read (low byte)
+
+    // Set up the PRDT
+    TO_LOW_HIGH(CommandTables[commandIndex]->PRDTEntries[0].DataBaseLow, CommandTables[commandIndex]->PRDTEntries[0].DataBaseHigh, bufferPhysical);
+    CommandTables[commandIndex]->PRDTEntries[0].ByteCount = byteSize-1;
+    CommandTables[commandIndex]->PRDTEntries[0].InterruptOnCompletion = 1;
+
+    // Set command header
+	CommandLists[commandIndex].Atapi = 1;
+    CommandLists[commandIndex].PRDTLength = 1;
+    CommandLists[commandIndex].CommandFISLength = sizeof(FISRegisterHostToDevice) / sizeof(uint32_t); // Command FIS size in DWORDs
+    //CommandLists[commandIndex].AtapiCommandLength = 12; // ATAPI command is 12 bytes
+    CommandLists[commandIndex].Write = 0; // This is a read
+
+    // Start command and wait for completion
+    StartCommand(commandIndex);
+
+    // Wait for command to complete
+    while (Port->CommandIssue & (1 << commandIndex))
+    {
+        if (Port->InterruptStatus & HBA_PxIS_TFES)
+        {
+            // Task File Error Status
+            SerialPrint("READ CD SECTOR command failed.\n");
+            return false;
+        }
+    }
+
+    if (Port->SATAError)
+    {
+        _ASSERTFV(false, "SATA Error", Port->SATAError, 0, 0);
+    }
+
+    // Check if the command completed successfully
+    if (Port->CommandStatus & HBA_PxCMD_CR)
+    {
+        // Command completed successfully
+        // Data is now in 'buffer'
+    }
+    else
+    {
+        // Command failed
+        SerialPrint("READ CD SECTOR command failed.\n");
+        return false;
+    }
+}
+
 
 void CdromPort::StartCommand(uint32_t slot)
 {

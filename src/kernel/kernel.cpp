@@ -142,6 +142,12 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 
 	CdRomDevice* cdromDevice = (CdRomDevice*)rpmalloc(sizeof(CdRomDevice));
 	cdromDevice->Initialize(devicePath, sataBus);
+
+	uint8_t buffer[2048];
+	uint8_t buffer2[2048];
+
+	cdromDevice->ReadSector(0, buffer);
+	cdromDevice->ReadSector(1, buffer2);
 	
 	ConsolePrint(u"Ready!\n");
 	//HaltPermanently();

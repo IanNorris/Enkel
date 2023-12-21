@@ -9,7 +9,11 @@ public:
 
 	bool Initialize(SataBus* sataBus, uint32_t portNumber);
 
+	uint64_t ReadSectorSATA(uint64_t lba, uint8_t* buffer);
+	uint64_t ReadSectorCD(uint64_t lba, uint8_t* buffer);
+
 	bool IsActive();
+	bool IsATAPI();
 
 private:
 
@@ -17,15 +21,15 @@ private:
 	void StartCommand(uint32_t slot);
 
 	const static uint32_t MaxPRDTEntries = 16; //Up to 64k count at 4MB each.
+	const static uint32_t MaxCommands = 32;
 	const static uint32_t PRDTSize = 64 * 1024;
 
 	volatile HBAPort* Port;
-	volatile HBACommandListHeader* CommandList;
+	volatile HBACommandListHeader* CommandLists;
 	volatile uint8_t* CommandTableAlloc;
 
-	volatile uint8_t* FIS;
-	volatile HBACommandTable* CommandTable;
-	volatile HBAPRDTEntry* PRDTs;
+	volatile FISData* FIS;
+	volatile HBACommandTable* CommandTables[MaxCommands];
 
 	SataBus* Sata;
 	uint32_t PortNumber;
@@ -36,6 +40,8 @@ class CdRomDevice
 {
 public:
 	bool Initialize(EFI_DEV_PATH* devicePath, SataBus* sataBus);
+
+	uint64_t ReadSector(uint64_t lba, uint8_t* buffer);
 
 private:
 
