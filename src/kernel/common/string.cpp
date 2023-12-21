@@ -105,10 +105,10 @@ int witoabuf(char16_t* buffer, T value, int base, int padDigits)
 		currentValue = nextValue;
 	} while (currentValue != 0);
 
-	do
+	while(padDigits > offset)
 	{
 		buffer[offset++] = '0';
-	} while(padDigits > offset);
+	}
 
 	if (isNegative)
 	{
