@@ -33,6 +33,8 @@ void SetSerialTargetBuffer(char* NewTargetBuffer);
 void SerialPrint(const char* String);
 void SerialPrint(const char16_t* String);
 
+void HexDump(const uint8_t* Bytes, uint32_t ByteLength, uint32_t BytesPerLine = 32);
+
 const BMFont* GetFont(Console* Console = nullptr);
 
 void DefaultFontInit();

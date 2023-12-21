@@ -114,6 +114,24 @@ void SerialPrint(const char* String)
 	}
 }
 
+void HexDump(const uint8_t* Bytes, uint32_t ByteLength, uint32_t BytesPerLine)
+{
+	char16_t Buffer[16];
+
+	for(uint32_t i = 0; i < ByteLength; i++)
+	{
+		if(i % BytesPerLine == 0)
+		{
+			ConsolePrint(u"\n");
+		}
+
+		witoabuf<uint32_t>(Buffer, Bytes[i], 16);
+		ConsolePrint(Buffer);
+		ConsolePrint(u" ");
+	}
+	ConsolePrint(u"\n");
+}
+
 const BMFont* GetFont(Console* Console)
 {
 	if (Console == nullptr)
