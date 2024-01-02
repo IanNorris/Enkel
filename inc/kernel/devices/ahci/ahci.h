@@ -100,7 +100,7 @@ struct HBAPort
     uint32_t FISBaseHigh; // 0x0C, upper 32 bits of FIS base address
     uint32_t InterruptStatus; // 0x10, interrupt status
     uint32_t InterruptEnable; // 0x14, interrupt enable
-    uint32_t CommandStatus; // 0x18, command and status
+    uint32_t CommandAndStatus; // 0x18, command and status
     uint32_t Reserved0; // 0x1C, Reserved
     uint32_t TaskFileData; // 0x20, task file data
     uint32_t Signature; // 0x24, signature

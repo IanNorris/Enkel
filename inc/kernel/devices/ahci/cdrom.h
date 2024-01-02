@@ -9,16 +9,21 @@ public:
 
 	bool Initialize(SataBus* sataBus, uint32_t portNumber);
 
+	uint64_t ReadToc(uint8_t* buffer, uint32_t bufferSize);
 	uint64_t ReadSectorSATA(uint64_t lba, uint8_t* buffer);
 	uint64_t ReadSectorCD(uint64_t lba, uint8_t* buffer);
 
 	bool IsActive();
 	bool IsATAPI();
 
+	void LogStatus();
+
 private:
 
 	bool IdentifyDrive();
 	void StartCommand(uint32_t slot);
+
+	void ConvertToString(char* dest, const uint16_t* src, size_t wordCount);
 
 	const static uint32_t MaxPRDTEntries = 16; //Up to 64k count at 4MB each.
 	const static uint32_t MaxCommands = 32;
@@ -42,6 +47,7 @@ public:
 	bool Initialize(EFI_DEV_PATH* devicePath, SataBus* sataBus);
 
 	uint64_t ReadSector(uint64_t lba, uint8_t* buffer);
+	uint64_t ReadToc(uint8_t* buffer, uint32_t bufferSize);
 
 private:
 

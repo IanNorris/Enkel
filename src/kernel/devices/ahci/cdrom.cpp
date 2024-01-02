@@ -17,18 +17,61 @@
 #define HBA_PORT_DET_PRESENT 0x3
 #define HBA_PORT_IPM_ACTIVE 0x1
 
-//TODO: Verify
 #define HBA_PxIE_DHR 0x80000000 // Device to host register FIS interrupt enable
 #define HBA_PxIS_TFES 0x40000000 // Task file error status
 #define ATA_CMD_IDENTIFY 0xEC
+#define ATA_CMD_IDENTIFY_ATAPI 0xA1
 #define ATA_CMD_PACKET 0xA0
 
 #define PCI_BAR5_OFFSET 0x24
+
+// https://wiki.osdev.org/ATAPI#Complete_Command_Set
+#define ATAPI_CMD_READ_10 0x28
+#define ATAPI_CMD_READ_12 0xA8
+
+#define ATA_IDENTIFY_DEVICETYPE   		0
+#define ATA_IDENTIFY_SERIAL       		20
+#define ATA_IDENTIFY_BYTES_PER_SECTOR   120
+#define ATA_IDENTIFY_FIRMWARE_REV 		46
+#define ATA_IDENTIFY_MODEL        		54
+#define ATA_IDENTIFY_CAPABILITIES 		98
+#define ATA_IDENTIFY_MAX_LBA      		120
+#define ATA_IDENTIFY_COMMANDSETS  		164
+#define ATA_IDENTIFY_MAX_LBA_EXT  		200
+#define ATA_IDENTIFY_CAPABILITIES	    212
+
+#define STS_BSY (1 << 7) //Indicates the interface is busy
+#define STS_DRQ (1 << 3) //Indicates a data transfer is requested
+#define STS_ERR (1 << 0) //Indicates an error during the transfer.
+#define STS_DRDY (1 << 6) //Indicates the drive is ready to accept commands
+
+#define IS_ERR_FATAL (1 << 30)
 
 #define PCI_COMMAND_INTERRUPT_DISABLE (1 << 10)
 #define PCI_COMMAND_BUS_MASTER (1 << 2)
 #define PCI_COMMAND_MEMORY_SPACE (1 << 1)
 #define PCI_COMMAND_IO_SPACE (1 << 0)
+
+#define HBA_PxCMD_ST (1 << 0) //Start
+#define HBA_PxCMD_SUD (1 << 1) //Spin-up device
+#define HBA_PxCMD_POD (1 << 2) //Power on device
+#define HBA_PxCMD_CLO (1 << 3) //Command list override
+#define HBA_PxCMD_FRE (1 << 4) //FIS receive enable
+#define HBA_PxCMD_MPSS (1 << 13) //Mechanical switch state
+#define HBA_PxCMD_FR (1 << 14) //FIS receive running
+#define HBA_PxCMD_CR (1 << 15) //Command list running
+#define HBA_PxCMD_CPS (1 << 16) //Cold presence state
+#define HBA_PxCMD_PMA (1 << 17) //Port multiplier attached
+#define HBA_PxCMD_HPCP (1 << 18) //Hot plug capable
+#define HBA_PxCMD_MPSP (1 << 19) //Mechanical switch attached to port
+#define HBA_PxCMD_CPD (1 << 20) //Cold presence detect
+#define HBA_PxCMD_ESP (1 << 21) //External SATA port
+#define HBA_PxCMD_FBSCP (1 << 22) //FIS-based switching capable port
+#define HBA_PxCMD_APSTE (1 << 23) //Automatic partial to slumber transitions enabled
+#define HBA_PxCMD_ATAPI (1 << 24) //Device is ATAPI
+#define HBA_PxCMD_DLAE (1 << 25) //Device LED on ATAPI enable
+#define HBA_PxCMD_ALPE (1 << 26) //Aggressive link power management enable
+#define HBA_PxCMD_ASP (1 << 27) //Aggressive slumber/power management enable
 
 #define TO_LOW_HIGH(low, high, input) low = (uint32_t)((uint64_t)input & 0xffffffff); high = (uint32_t)(((uint64_t)input >> 32) & 0xffffffff);
 
@@ -136,6 +179,19 @@ uint64_t CdRomDevice::ReadSector(uint64_t lba, uint8_t* buffer)
 	}
 }
 
+uint64_t CdRomDevice::ReadToc(uint8_t* buffer, uint32_t bufferSize)
+{
+	if(CdPort->IsATAPI())
+	{
+		return CdPort->ReadToc(buffer, bufferSize);
+	}
+	else
+	{
+		NOT_IMPLEMENTED()
+		return 0;
+	}
+}
+
 //////////////////////////////////////////////////////////////////////////
 
 bool CdromPort::Initialize(SataBus* sataBus, uint32_t portNumber)
@@ -155,7 +211,7 @@ bool CdromPort::Initialize(SataBus* sataBus, uint32_t portNumber)
 	// (actually we'll disable interrupts)
 
 	uint64_t CommandMask = PCI_COMMAND_INTERRUPT_DISABLE | PCI_COMMAND_BUS_MASTER | PCI_COMMAND_MEMORY_SPACE | PCI_COMMAND_IO_SPACE;
-	uint64_t CommandRegisterValue = port->CommandStatus;
+	uint64_t CommandRegisterValue = port->CommandAndStatus;
 
 	CommandRegisterValue &= ~CommandMask;
 	CommandRegisterValue |= PCI_COMMAND_INTERRUPT_DISABLE | PCI_COMMAND_BUS_MASTER | PCI_COMMAND_MEMORY_SPACE | PCI_COMMAND_IO_SPACE;
@@ -164,7 +220,7 @@ bool CdromPort::Initialize(SataBus* sataBus, uint32_t portNumber)
 	volatile uint8_t* portCommandListAddress = sataBus->GetCommandListBase(portNumber);
 	CommandLists = (HBACommandListHeader*)portCommandListAddress;
 
-	port->CommandStatus = CommandRegisterValue;
+	port->CommandAndStatus = CommandRegisterValue;
 	uint64_t portCommandListPhysical = GetPhysicalAddress((uint64_t)portCommandListAddress);
 	TO_LOW_HIGH(port->CommandListBaseLow, port->CommandListBaseHigh, portCommandListPhysical);
 
@@ -226,8 +282,13 @@ bool CdromPort::Initialize(SataBus* sataBus, uint32_t portNumber)
 		return false;
 	}
 
+	if(IsATAPI())
+	{
+		port->CommandAndStatus |= HBA_PxCMD_ATAPI;
+	}
+
 	// Enable interrupts for the port
-	port->InterruptEnable |= HBA_PxIE_DHR;
+	//port->InterruptEnable |= HBA_PxIE_DHR;
 
 	if(!IdentifyDrive())
 	{
@@ -276,12 +337,27 @@ bool CdromPort::IsActive()
 	return true;
 }
 
+void CdromPort::ConvertToString(char* dest, const uint16_t* src, size_t wordCount)
+{
+    for (size_t i = 0; i < wordCount; ++i)
+	{
+        dest[i * 2] = src[i] >> 8;
+        dest[i * 2 + 1] = src[i] & 0xff;
+    }
+    dest[wordCount * 2] = '\0';
+}
+
 bool CdromPort::IdentifyDrive()
 {
     // Prepare command header and command table
 
+	while (Port->SATAStatus & STS_BSY) // While the device is busy
+	{
+		// Wait
+	}
+
     // Prepare the IDENTIFY command (ATA Command)
-    uint16_t* identifyBuffer = (uint16_t*)VirtualAlloc(4096, PrivilegeLevel::Kernel, PageFlags_Cache_WriteThrough);
+    uint8_t* identifyBuffer = (uint8_t*)VirtualAlloc(4096, PrivilegeLevel::Kernel, PageFlags_Cache_WriteThrough);
     memset(identifyBuffer, 0, 512);
 
 	uint64_t identifyBufferPhysical = GetPhysicalAddress((uint64_t)identifyBuffer);
@@ -291,7 +367,9 @@ bool CdromPort::IdentifyDrive()
     volatile FISRegisterHostToDevice* cmdFis = (volatile FISRegisterHostToDevice*)&(CommandTables[commandIndex]->CommandFIS[0]);
     memset(cmdFis, 0, sizeof(FISRegisterHostToDevice));
     cmdFis->FISType = (uint8_t)FISType::RegisterHostToDevice;
-    cmdFis->Command = ATA_CMD_IDENTIFY;
+
+	//GOTCHA here! The identify command is different for ATAPI devices
+    cmdFis->Command = IsATAPI() ? ATA_CMD_IDENTIFY_ATAPI : ATA_CMD_IDENTIFY;
     cmdFis->Device = 0; // LBA mode
     cmdFis->CommandControl = 1; // Command
 
@@ -311,9 +389,11 @@ bool CdromPort::IdentifyDrive()
 	StartCommand(commandIndex);
 
 	// Wait for command to complete
-	while (Port->CommandIssue & (1 << commandIndex))
+
+	const uint32_t BusyMask = STS_BSY | STS_DRQ;
+	while (((Port->CommandIssue & (1 << commandIndex)) || (Port->InterruptStatus & BusyMask)))
 	{
-		if (Port->InterruptStatus & HBA_PxIS_TFES)
+		if (Port->InterruptStatus & (HBA_PxIS_TFES | IS_ERR_FATAL))
 		{
 			// Task File Error Status
 			SerialPrint("IDENTIFY command failed.\n");
@@ -326,12 +406,40 @@ bool CdromPort::IdentifyDrive()
 		_ASSERTFV(false, "SATA Error", Port->SATAError, 0, 0);
 	}
 
-	// Check if the command completed successfully
-	if (Port->CommandStatus & HBA_PxCMD_CR)
+	if(Port->TaskFileData & STS_ERR)
 	{
-		// Command completed successfully
-		// Process IDENTIFY data
-		//ProcessIdentifyData(identifyBuffer);
+		ConsolePrintNumeric(u"Command failed: ", Port->TaskFileData >> 8 & 0xFF, u"\n", 16);
+		return false;
+	}
+
+	// Check if the command completed successfully
+	if (Port->CommandAndStatus & HBA_PxCMD_CR)
+	{
+		const uint64_t LBA48AddressableSectors = *(uint32_t*)(identifyBuffer+ATA_IDENTIFY_MAX_LBA_EXT);
+		const uint16_t* SerialNumberPtr = (uint16_t*)(identifyBuffer+ATA_IDENTIFY_SERIAL);
+		const uint16_t* ModelNumberPtr = (uint16_t*)(identifyBuffer+ATA_IDENTIFY_MODEL);
+		const uint16_t* FirmwareRevPtr = (uint16_t*)(identifyBuffer+ATA_IDENTIFY_FIRMWARE_REV);
+		const uint16_t BytesPerSector = *(uint16_t*)(identifyBuffer+ATA_IDENTIFY_BYTES_PER_SECTOR);
+
+		char modelName[41];
+		char serial[21];
+		char firmware[9];
+		ConvertToString(modelName, ModelNumberPtr, 20);
+		ConvertToString(serial, SerialNumberPtr, 10);
+		ConvertToString(firmware, FirmwareRevPtr, 4);
+
+		SerialPrint(u"Drive model: ");
+		SerialPrint(modelName);
+
+		SerialPrint(u"\nSerial: ");
+		SerialPrint(serial);
+
+		SerialPrint(u"\nFirmware: ");
+		SerialPrint(firmware);
+
+		//ConsolePrintNumeric(u"\nLBA count: ", LBA48AddressableSectors, u"\n", 10);
+		//ConsolePrintNumeric(u"Sector size: ", BytesPerSector, u"\n", 10);
+		//ConsolePrintNumeric(u"Byte size: ", BytesPerSector * LBA48AddressableSectors, u"\n", 10);
 	}
 	else
 	{
@@ -339,6 +447,13 @@ bool CdromPort::IdentifyDrive()
 		SerialPrint("IDENTIFY command failed.\n");
 		return false;
 	}
+
+	while (Port->SATAStatus & STS_BSY) // While the device is busy
+	{
+		// Wait
+	}
+
+	HexDump((uint8_t*)identifyBuffer, 512, 64);
 
 	// Free allocated buffer
 	VirtualFree(identifyBuffer, 4096);
@@ -350,6 +465,11 @@ uint64_t CdromPort::ReadSectorSATA(uint64_t lba, uint8_t* buffer)
 {
 	uint32_t sectorSize = 2048;
 	uint32_t byteSize = 2048;
+
+	while (Port->SATAStatus & STS_BSY) // While the device is busy
+	{
+		// Wait
+	}
 
     // Ensure buffer is allocated and cleared
     memset(buffer, 0, byteSize);
@@ -371,7 +491,7 @@ uint64_t CdromPort::ReadSectorSATA(uint64_t lba, uint8_t* buffer)
     cmdFis->LBA4 = (uint8_t)((lba >> 32) & 0xFF);
     cmdFis->LBA5 = (uint8_t)((lba >> 40) & 0xFF);
 
-	TO_LOW_HIGH(cmdFis->CountLow, cmdFis->CountHigh, (byteSize / sectorSize));
+	//TO_LOW_HIGH(cmdFis->CountLow, cmdFis->CountHigh, (byteSize / sectorSize));
 
     cmdFis->CommandControl = 1; // Command
 
@@ -381,6 +501,7 @@ uint64_t CdromPort::ReadSectorSATA(uint64_t lba, uint8_t* buffer)
     CommandTables[commandIndex]->PRDTEntries[0].InterruptOnCompletion = 1;
 
     // Set command header
+	CommandLists[commandIndex].Atapi = 0;
     CommandLists[commandIndex].PRDTLength = 1;
     CommandLists[commandIndex].CommandFISLength = sizeof(FISRegisterHostToDevice) / sizeof(uint32_t); // Command FIS size in DWORDs
     CommandLists[commandIndex].Write = 0; // This is a read
@@ -390,7 +511,8 @@ uint64_t CdromPort::ReadSectorSATA(uint64_t lba, uint8_t* buffer)
     StartCommand(commandIndex);
 
     // Wait for command to complete
-    while (Port->CommandIssue & (1 << commandIndex))
+    const uint32_t BusyMask = STS_BSY | STS_DRQ;
+	while (((Port->CommandIssue & (1 << commandIndex)) || (Port->InterruptStatus & BusyMask)))
     {
         if (Port->InterruptStatus & HBA_PxIS_TFES)
         {
@@ -400,24 +522,24 @@ uint64_t CdromPort::ReadSectorSATA(uint64_t lba, uint8_t* buffer)
         }
     }
 
+	while (Port->SATAStatus & STS_BSY) // While the device is busy
+	{
+		// Wait
+	}
+
     if (Port->SATAError)
     {
         _ASSERTFV(false, "SATA Error", Port->SATAError, 0, 0);
     }
 
-    // Check if the command completed successfully
-    if (Port->CommandStatus & HBA_PxCMD_CR)
-    {
-        // Command completed successfully
-        // Data is now in 'buffer'
-		return CommandLists[commandIndex].PRDByteCount;
-    }
-    else
-    {
-        // Command failed
-        SerialPrint("READ SECTOR command failed.\n");
-        return 0;
-    }
+	uint8_t ErrorCode = (Port->TaskFileData >> 8) & 0xFF;
+	if(Port->TaskFileData & STS_ERR || ErrorCode != 0)
+	{
+		ConsolePrintNumeric(u"Command failed: ", Port->TaskFileData >> 8 & 0xFF, u"\n", 16);
+		return false;
+	}
+
+    return CommandLists[commandIndex].PRDByteCount;
 }
 
 uint64_t CdromPort::ReadSectorCD(uint64_t lba, uint8_t* buffer)
@@ -425,58 +547,180 @@ uint64_t CdromPort::ReadSectorCD(uint64_t lba, uint8_t* buffer)
 	uint32_t sectorSize = 2048;
 	uint32_t byteSize = 2048;
 
+	uint32_t prdtCount = 1;
+
+	while (Port->SATAStatus & STS_BSY) // While the device is busy
+	{
+		// Wait
+	}
+
+	// Ensure buffer is allocated and cleared
+	memset(buffer, 0, byteSize);
+
+	uint64_t bufferPhysical = GetPhysicalAddress((uint64_t)buffer);
+
+	uint32_t commandIndex = 1; // Assuming we are using the first command slot
+
+	// Prepare the command FIS for ATAPI command
+	volatile FISRegisterHostToDevice* cmdFis = (volatile FISRegisterHostToDevice*)&(CommandTables[commandIndex]->CommandFIS[0]);
+	memset(cmdFis, 0x0, sizeof(FISRegisterHostToDevice));
+	cmdFis->FISType = (uint8_t)FISType::RegisterHostToDevice;
+	cmdFis->FeatureLow = 1; // Set feature to 1 - DMA
+	cmdFis->Command = ATA_CMD_PACKET; // ATAPI Packet command
+	cmdFis->CommandControl = 1; // Command
+
+	uint16_t sectorCount = byteSize / sectorSize;
+
+	// Prepare the ATAPI command (READ (10))
+	volatile uint8_t* atapiCommand = &CommandTables[commandIndex]->AtapiCommand[0];
+	memset(atapiCommand, 0x0, 12); // ATAPI commands are 12 bytes
+	atapiCommand[0] = ATAPI_CMD_READ_12;
+	atapiCommand[1] = 0;
+	atapiCommand[2] = (lba >> 24) & 0xFF;
+	atapiCommand[3] = (lba >> 16) & 0xFF;
+	atapiCommand[4] = (lba >> 8) & 0xFF;
+	atapiCommand[5] = lba & 0xFF;
+
+	//atapiCommand[7] = (sectorCount >> 8) & 0xFF;
+	//atapiCommand[8] = sectorCount & 0xFF;
+	atapiCommand[9] = sectorCount & 0xFF;
+	//atapiCommand[9] = 0; // Set control byte to 0
+
+	// Set up the PRDT
+	memset(&CommandTables[commandIndex]->PRDTEntries[0], 0, sizeof(HBAPRDTEntry) * prdtCount);
+	TO_LOW_HIGH(CommandTables[commandIndex]->PRDTEntries[0].DataBaseLow, CommandTables[commandIndex]->PRDTEntries[0].DataBaseHigh, bufferPhysical);
+	CommandTables[commandIndex]->PRDTEntries[0].ByteCount = byteSize-1;
+	CommandTables[commandIndex]->PRDTEntries[0].InterruptOnCompletion = 0;
+
+	// Set command header
+	CommandLists[commandIndex].Atapi = 1;
+	CommandLists[commandIndex].PRDTLength = prdtCount;
+	CommandLists[commandIndex].CommandFISLength = sizeof(FISRegisterHostToDevice) / sizeof(uint32_t); // Command FIS size in DWORDs
+	CommandLists[commandIndex].Write = 0; // This is a read
+	CommandLists[commandIndex].PRDByteCount = 0; // Clear, this is set by the hardware
+
+	LogStatus();
+
+	/*while(!(Port->SATAStatus & STS_DRDY)) // If the device is ready
+	{
+		// Device is not ready
+	}*/
+
+	HexDump((const uint8_t*)cmdFis, sizeof(FISRegisterHostToDevice), 16);
+
+	// Start command and wait for completion
+	StartCommand(commandIndex);
+
+
+
+	// Wait for command to complete
+	const uint32_t BusyMask = STS_BSY | STS_DRQ;
+	while (((Port->CommandIssue & (1 << commandIndex)) || (Port->InterruptStatus & BusyMask)))
+	{
+		if (Port->InterruptStatus & HBA_PxIS_TFES)
+		{
+			// Task File Error Status
+			SerialPrint("READ CD SECTOR command failed.\n");
+			return 0; // Return 0 bytes read on failure
+		}
+	}
+
+	HexDump((const uint8_t*)cmdFis, sizeof(FISRegisterHostToDevice), 16);
+
+	uint8_t ErrorCode = (Port->TaskFileData >> 8) & 0xFF;
+	if(Port->TaskFileData & STS_ERR || ErrorCode != 0)
+	{
+		ConsolePrintNumeric(u"Command failed: ", Port->TaskFileData >> 8 & 0xFF, u"\n", 16);
+		return 0; // Return 0 bytes read on failure
+	}
+
+	if (Port->SATAError)
+	{
+		_ASSERTFV(false, "SATA Error", Port->SATAError, 0, 0);
+	}
+
+	return CommandLists[commandIndex].PRDByteCount;
+}
+
+uint64_t CdromPort::ReadToc(uint8_t* buffer, uint32_t bufferSize)
+{
+    _ASSERTF(buffer != nullptr, "Buffer cannot be null");
+
+	uint32_t startTrack = 0;
+	uint8_t format = 0;
+
+    uint32_t prdtCount = 1;
+
+	while (Port->SATAStatus & STS_BSY) // While the device is busy
+	{
+		// Wait
+	}
+
     // Ensure buffer is allocated and cleared
-    memset(buffer, 0, byteSize);
+    memset(buffer, 0, bufferSize);
 
     uint64_t bufferPhysical = GetPhysicalAddress((uint64_t)buffer);
-
-    uint32_t commandIndex = 0; // Assuming we are using the first command slot
+    uint32_t commandIndex = 0; // Using the first command slot
 
     // Prepare the command FIS for ATAPI command
     volatile FISRegisterHostToDevice* cmdFis = (volatile FISRegisterHostToDevice*)&(CommandTables[commandIndex]->CommandFIS[0]);
     memset(cmdFis, 0, sizeof(FISRegisterHostToDevice));
     cmdFis->FISType = (uint8_t)FISType::RegisterHostToDevice;
-    cmdFis->Command = ATA_CMD_PACKET; // ATAPI Packet command
-    cmdFis->CommandControl = 1; // Command
+    cmdFis->Command = ATA_CMD_PACKET;
+    cmdFis->CommandControl = 1;
 
-    // Prepare the ATAPI command (e.g., READ (10))
+    // Prepare the ATAPI command (READ TOC)
     volatile uint8_t* atapiCommand = &CommandTables[commandIndex]->AtapiCommand[0];
-    memset(atapiCommand, 0, 12); // ATAPI commands are 12 bytes
-    atapiCommand[0] = 0x28; // READ (10) command
-    atapiCommand[2] = (lba >> 24) & 0xFF;
-    atapiCommand[3] = (lba >> 16) & 0xFF;
-    atapiCommand[4] = (lba >> 8) & 0xFF;
-    atapiCommand[5] = lba & 0xFF;
-
-	uint64_t sectorCount = byteSize / sectorSize;
-	TO_LOW_HIGH(atapiCommand[8], atapiCommand[7], sectorCount);
-    atapiCommand[7] = 0; // Number of sectors to read (high byte)
-    atapiCommand[8] = 1; // Number of sectors to read (low byte)
+    memset(atapiCommand, 0, 12);
+    atapiCommand[0] = 0x43; // READ TOC command
+    atapiCommand[2] = format; // Format
+    atapiCommand[6] = startTrack; // Starting track
+    atapiCommand[7] = (bufferSize >> 8) & 0xFF; // Allocation length (MSB)
+    atapiCommand[8] = bufferSize & 0xFF; // Allocation length (LSB)
 
     // Set up the PRDT
+    memset(&CommandTables[commandIndex]->PRDTEntries[0], 0, sizeof(HBAPRDTEntry) * prdtCount);
     TO_LOW_HIGH(CommandTables[commandIndex]->PRDTEntries[0].DataBaseLow, CommandTables[commandIndex]->PRDTEntries[0].DataBaseHigh, bufferPhysical);
-    CommandTables[commandIndex]->PRDTEntries[0].ByteCount = byteSize-1;
-    CommandTables[commandIndex]->PRDTEntries[0].InterruptOnCompletion = 1;
+    CommandTables[commandIndex]->PRDTEntries[0].ByteCount = bufferSize - 1;
+    CommandTables[commandIndex]->PRDTEntries[0].InterruptOnCompletion = 0;
 
     // Set command header
-	CommandLists[commandIndex].Atapi = 1;
-    CommandLists[commandIndex].PRDTLength = 1;
-    CommandLists[commandIndex].CommandFISLength = sizeof(FISRegisterHostToDevice) / sizeof(uint32_t); // Command FIS size in DWORDs
-    //CommandLists[commandIndex].AtapiCommandLength = 12; // ATAPI command is 12 bytes
-    CommandLists[commandIndex].Write = 0; // This is a read
+    CommandLists[commandIndex].Atapi = 1;
+    CommandLists[commandIndex].PRDTLength = prdtCount;
+    CommandLists[commandIndex].CommandFISLength = sizeof(FISRegisterHostToDevice) / sizeof(uint32_t);
+    CommandLists[commandIndex].Write = 0;
+    CommandLists[commandIndex].PRDByteCount = 0;
+
+    LogStatus();
+
+	HexDump((const uint8_t*)cmdFis, sizeof(FISRegisterHostToDevice), 16);
 
     // Start command and wait for completion
     StartCommand(commandIndex);
 
+	HexDump((const uint8_t*)cmdFis, sizeof(FISRegisterHostToDevice), 16);
+
     // Wait for command to complete
-    while (Port->CommandIssue & (1 << commandIndex))
+    const uint32_t BusyMask = STS_BSY | STS_DRQ;
+    while (((Port->CommandIssue & (1 << commandIndex)) || (Port->InterruptStatus & BusyMask)))
     {
         if (Port->InterruptStatus & HBA_PxIS_TFES)
         {
-            // Task File Error Status
-            SerialPrint("READ CD SECTOR command failed.\n");
+            SerialPrint("READ TOC command failed.\n");
             return false;
         }
+    }
+
+	while (Port->SATAStatus & STS_BSY) // While the device is busy
+	{
+		// Wait
+	}
+
+    uint8_t ErrorCode = (Port->TaskFileData >> 8) & 0xFF;
+    if(Port->TaskFileData & STS_ERR || ErrorCode != 0)
+    {
+        ConsolePrintNumeric(u"TOC command failed: ", Port->TaskFileData >> 8 & 0xFF, u"\n", 16);
+        return false;
     }
 
     if (Port->SATAError)
@@ -484,22 +728,121 @@ uint64_t CdromPort::ReadSectorCD(uint64_t lba, uint8_t* buffer)
         _ASSERTFV(false, "SATA Error", Port->SATAError, 0, 0);
     }
 
-    // Check if the command completed successfully
-    if (Port->CommandStatus & HBA_PxCMD_CR)
-    {
-        // Command completed successfully
-        // Data is now in 'buffer'
-    }
-    else
-    {
-        // Command failed
-        SerialPrint("READ CD SECTOR command failed.\n");
-        return false;
-    }
+    return CommandLists[commandIndex].PRDByteCount;
 }
 
 
 void CdromPort::StartCommand(uint32_t slot)
 {
+	//Force it to update
+	Port->InterruptStatus = Port->InterruptStatus;
+
     Port->CommandIssue |= (1 << slot);
+}
+
+void CdromPort::LogStatus()
+{
+	SerialPrint(u"Device state: ");
+
+	if(Port->CommandAndStatus & HBA_PxCMD_ST)
+	{
+		SerialPrint(u"ST ");
+	}
+
+	if(Port->CommandAndStatus & HBA_PxCMD_SUD)
+	{
+		SerialPrint(u"SUD ");
+	}
+
+	if(Port->CommandAndStatus & HBA_PxCMD_POD)
+	{
+		SerialPrint(u"POD ");
+	}
+
+	if(Port->CommandAndStatus & HBA_PxCMD_CLO)
+	{
+		SerialPrint(u"CLO ");
+	}
+
+	if(Port->CommandAndStatus & HBA_PxCMD_FRE)
+	{
+		SerialPrint(u"FRE ");
+	}
+
+	if(Port->CommandAndStatus & HBA_PxCMD_MPSS)
+	{
+		SerialPrint(u"MPSS ");
+	}
+
+	if(Port->CommandAndStatus & HBA_PxCMD_FR)
+	{
+		SerialPrint(u"FR ");
+	}
+
+	if(Port->CommandAndStatus & HBA_PxCMD_CR)
+	{
+		SerialPrint(u"CR ");
+	}
+
+	if(Port->CommandAndStatus & HBA_PxCMD_CPS)
+	{
+		SerialPrint(u"CPS ");
+	}
+
+	if(Port->CommandAndStatus & HBA_PxCMD_PMA)
+	{
+		SerialPrint(u"PMA ");
+	}
+
+	if(Port->CommandAndStatus & HBA_PxCMD_HPCP)
+	{
+		SerialPrint(u"HPCP ");
+	}
+
+	if(Port->CommandAndStatus & HBA_PxCMD_MPSP)
+	{
+		SerialPrint(u"MPSP ");
+	}
+
+	if(Port->CommandAndStatus & HBA_PxCMD_CPD)
+	{
+		SerialPrint(u"CPD ");
+	}
+
+	if(Port->CommandAndStatus & HBA_PxCMD_ESP)
+	{
+		SerialPrint(u"ESP ");
+	}
+
+	if(Port->CommandAndStatus & HBA_PxCMD_FBSCP)
+	{
+		SerialPrint(u"FBSCP ");
+	}
+
+	if(Port->CommandAndStatus & HBA_PxCMD_APSTE)
+	{
+		SerialPrint(u"APSTE ");
+	}
+
+	if(Port->CommandAndStatus & HBA_PxCMD_ATAPI)
+	{
+		SerialPrint(u"ATAPI ");
+	}
+
+	if(Port->CommandAndStatus & HBA_PxCMD_DLAE)
+	{
+		SerialPrint(u"DLAE ");
+	}
+
+	if(Port->CommandAndStatus & HBA_PxCMD_ALPE)
+	{
+		SerialPrint(u"ALPE ");
+	}
+
+	if(Port->CommandAndStatus & HBA_PxCMD_ASP)
+	{
+		SerialPrint(u"ASP ");
+	}
+
+	SerialPrint(u"\n");
 }

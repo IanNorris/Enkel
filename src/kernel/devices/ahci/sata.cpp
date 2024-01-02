@@ -75,6 +75,8 @@ bool SataBus::Initialize(EFI_DEV_PATH* devicePath)
 		ACPI_STATUS status = AcpiOsReadPciConfiguration(&PciId, 0x08, &classCode, 32);
 		if (status == AE_OK && ((classCode >> 16) & 0xFFFF) == ((AHCI_CLASS_CODE << 8) | AHCI_SUBCLASS_CODE))
 		{
+			ConsolePrint(u"Valid bus found.\n");
+
 			// Read BAR5 to get ABAR (AHCI Base Memory Register)
 			UINT64 abar;
 			status = AcpiOsReadPciConfiguration(&PciId, PCI_BAR5_OFFSET, &abar, 64);
@@ -92,7 +94,9 @@ bool SataBus::Initialize(EFI_DEV_PATH* devicePath)
 			//Memory map BAR 5 register as uncacheable.
 			Memory = (HBAMemory*)PhysicalAlloc(physicalAddress, alignedSize, PrivilegeLevel::Kernel, PageFlags_Cache_Disable);
 
-			break;
+			ConsolePrint(u"Valid bus processed.\n");
+
+			//break;
 		}
     }
 
@@ -121,7 +125,7 @@ bool SataBus::Initialize(EFI_DEV_PATH* devicePath)
 	uint64_t commandListSize = ((Memory->PortsImplemented * 1024) + (PAGE_SIZE-1)) & PAGE_MASK;
 	CommandList = (uint8_t*)VirtualAlloc(commandListSize, PrivilegeLevel::Kernel, PageFlags_Cache_Disable);
 
-	memset(CommandList, 0, commandListSize);
+	//memset(CommandList, 0, commandListSize);
 
 	return true;
 }
@@ -136,10 +140,10 @@ void SataBus::StartCommandEngine(uint32_t portNumber)
 	volatile HBAPort* port = &Memory->Ports[portNumber];
 
     // Set FRE (FIS Receive Enable) bit
-    port->CommandStatus |= HBA_PxCMD_FRE;
+    port->CommandAndStatus |= HBA_PxCMD_FRE;
 
     // Set ST (Start) bit to start the command engine
-    port->CommandStatus |= HBA_PxCMD_ST;
+    port->CommandAndStatus |= HBA_PxCMD_ST;
 }
 
 void SataBus::StopCommandEngine(uint32_t portNumber)
@@ -147,13 +151,13 @@ void SataBus::StopCommandEngine(uint32_t portNumber)
 	volatile HBAPort* port = &Memory->Ports[portNumber];
 
     // Clear ST (Start) bit to stop the command engine
-    port->CommandStatus &= ~HBA_PxCMD_ST;
+    port->CommandAndStatus &= ~HBA_PxCMD_ST;
 
     // Clear FRE (FIS Receive Enable) bit
-    port->CommandStatus &= ~HBA_PxCMD_FRE;
+    port->CommandAndStatus &= ~HBA_PxCMD_FRE;
 
     // Wait until FR (FIS Receive Running) and CR (Command List Running) bits are cleared
-    while (port->CommandStatus & (HBA_PxCMD_FR | HBA_PxCMD_CR)) {
+    while (port->CommandAndStatus & (HBA_PxCMD_FR | HBA_PxCMD_CR)) {
         // Wait for the command list and FIS receive engines to stop
     }
 }
@@ -171,18 +175,18 @@ void SataBus::ResetPort(uint32_t portNumber)
 	port->InterruptStatus = port->InterruptStatus;
 
 	//Spin up device, power on device, enable interface communication control
-	port->CommandStatus = HBA_PxCMD_ICC_ACTIVE;
+	port->CommandAndStatus = HBA_PxCMD_ICC_ACTIVE;
 
-	port->CommandStatus |= HBA_PxCMD_FRE;
+	port->CommandAndStatus |= HBA_PxCMD_FRE;
 
 	HpetSleepMS(5);
 
     // Reset the port
-    port->CommandStatus |= HBA_PxCMD_CR;
+    port->CommandAndStatus |= HBA_PxCMD_CR;
 
 	HpetSleepMS(5);
 
-    while ((port->CommandStatus & HBA_PxCMD_CR && port->SATAStatus & HBA_PORT_DET_PRESENT) || port->SATAError) {
+    while ((port->CommandAndStatus & HBA_PxCMD_CR && port->SATAStatus & HBA_PORT_DET_PRESENT) || port->SATAError) {
         // Wait for the command list processing to stop
 		HpetSleepMS(1);
     }
@@ -193,16 +197,16 @@ void SataBus::ResetPort(uint32_t portNumber)
 	}
 
 	//Spin up device, power on device, enable interface communication control
-	port->CommandStatus |= HBA_PxCMD_POD | HBA_PxCMD_SUD;
+	port->CommandAndStatus |= HBA_PxCMD_POD | HBA_PxCMD_SUD;
 
 	HpetSleepMS(5);
 
     // Reset the port
-    port->CommandStatus |= HBA_PxCMD_CR;
+    port->CommandAndStatus |= HBA_PxCMD_CR;
 
 	HpetSleepMS(5);
 
-    while ((port->CommandStatus & HBA_PxCMD_CR && port->SATAStatus & HBA_PORT_DET_PRESENT) || port->SATAError) {
+    while ((port->CommandAndStatus & HBA_PxCMD_CR && port->SATAStatus & HBA_PORT_DET_PRESENT) || port->SATAError) {
         // Wait for the command list processing to stop
 		HpetSleepMS(1);
     }

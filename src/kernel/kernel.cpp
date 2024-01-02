@@ -129,8 +129,9 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 	ConsolePrint(u"Initializing syscalls...\n");
 	InitializeSyscalls();
 
-	EnterUserModeTest();
+	//EnterUserModeTest();
 
+	ConsolePrint(u"Initializing ACPI...\n");
 	InitializeAcpica();
 
 	//WalkAcpiTree();
@@ -143,11 +144,32 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 	CdRomDevice* cdromDevice = (CdRomDevice*)rpmalloc(sizeof(CdRomDevice));
 	cdromDevice->Initialize(devicePath, sataBus);
 
-	uint8_t buffer[2048];
-	uint8_t buffer2[2048];
+	uint64_t tocSize = 800;
 
-	cdromDevice->ReadSector(0, buffer);
-	cdromDevice->ReadSector(1, buffer2);
+	uint8_t* buffer = (uint8_t*)rpmalloc(2048*12);
+	uint8_t* tocBuffer = (uint8_t*)rpmalloc(tocSize);
+
+	cdromDevice->ReadToc(tocBuffer, tocSize);
+	HexDump((uint8_t*)tocBuffer, tocSize, 64);
+
+	uint64_t offset = 0;
+
+	cdromDevice->ReadSector(16, buffer + offset); offset += 2048;
+	cdromDevice->ReadSector(64, buffer + offset); offset += 2048;
+	cdromDevice->ReadSector(90, buffer + offset); offset += 2048;
+	cdromDevice->ReadSector(100, buffer + offset); offset += 2048;
+	cdromDevice->ReadSector(120, buffer + offset); offset += 2048;
+	cdromDevice->ReadSector(184, buffer + offset); offset += 2048;
+	cdromDevice->ReadSector(193, buffer + offset); offset += 2048;
+
+	offset = 0;
+	HexDump((uint8_t*)buffer + offset, 512, 64); offset += 2048;
+	HexDump((uint8_t*)buffer + offset, 512, 64); offset += 2048;
+	HexDump((uint8_t*)buffer + offset, 512, 64); offset += 2048;
+	HexDump((uint8_t*)buffer + offset, 512, 64); offset += 2048;
+	HexDump((uint8_t*)buffer + offset, 512, 64); offset += 2048;
+	HexDump((uint8_t*)buffer + offset, 512, 64); offset += 2048;
+	HexDump((uint8_t*)buffer + offset, 512, 64); offset += 2048;
 	
 	ConsolePrint(u"Ready!\n");
 	//HaltPermanently();
