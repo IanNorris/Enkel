@@ -68,7 +68,7 @@ void RPMallocUnmap(void* address, size_t size, size_t offset, size_t release)
 		}
 	}
 
-	if (!VirtualFree(address, release ? 0 : size))
+	if (!VirtualFree(address, size))
 	{
 		_ASSERTF(0, "Failed to unmap virtual memory block");
 	}
