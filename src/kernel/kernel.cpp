@@ -9,6 +9,7 @@
 #include "kernel/init/msr.h"
 #include "kernel/init/interrupts.h"
 #include "kernel/texture/render.h"
+#include "fs/fat/fat.h"
 #include "memory/memory.h"
 #include "memory/virtual.h"
 #include "rpmalloc.h"
@@ -144,32 +145,56 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 	CdRomDevice* cdromDevice = (CdRomDevice*)rpmalloc(sizeof(CdRomDevice));
 	cdromDevice->Initialize(devicePath, sataBus);
 
-	uint64_t tocSize = 800;
+	//uint64_t tocSize = 800;
+	//uint8_t* tocBuffer = (uint8_t*)rpmalloc(tocSize);
+	//cdromDevice->ReadToc(tocBuffer, tocSize);
+	//HexDump((uint8_t*)tocBuffer, tocSize, 64);
 
-	uint8_t* buffer = (uint8_t*)rpmalloc(2048*12);
-	uint8_t* tocBuffer = (uint8_t*)rpmalloc(tocSize);
+	uint64_t fileSystemImageSize = 32 * 1024 * 1024;
+	uint8_t* fileSystemImage = (uint8_t*)rpmalloc(fileSystemImageSize);
 
-	cdromDevice->ReadToc(tocBuffer, tocSize);
-	HexDump((uint8_t*)tocBuffer, tocSize, 64);
+	int sectorSize = 2048;
+	int startSector = 33; //(0x10800 / 2048 - which seems to be where our file system starts)
+	int sectorCount = fileSystemImageSize / sectorSize;
 
-	uint64_t offset = 0;
+	uint8_t* fileSystemImagePointer = fileSystemImage;
+	int offsetSector = 0;
+	do
+	{
+		int sectorCountToRead = sectorCount > 255 ? 255 : sectorCount;
 
-	cdromDevice->ReadSector(16, buffer + offset); offset += 2048;
-	cdromDevice->ReadSector(64, buffer + offset); offset += 2048;
-	cdromDevice->ReadSector(90, buffer + offset); offset += 2048;
-	cdromDevice->ReadSector(100, buffer + offset); offset += 2048;
-	cdromDevice->ReadSector(120, buffer + offset); offset += 2048;
-	cdromDevice->ReadSector(184, buffer + offset); offset += 2048;
-	cdromDevice->ReadSector(193, buffer + offset); offset += 2048;
+		cdromDevice->ReadSectors(startSector + offsetSector, sectorCountToRead, fileSystemImagePointer);
+		fileSystemImagePointer += sectorCountToRead * sectorSize;
+		offsetSector += sectorCountToRead;
+		
+		sectorCount -= sectorCountToRead;
+	} while(sectorCount > 0);
 
-	offset = 0;
-	HexDump((uint8_t*)buffer + offset, 512, 64); offset += 2048;
-	HexDump((uint8_t*)buffer + offset, 512, 64); offset += 2048;
-	HexDump((uint8_t*)buffer + offset, 512, 64); offset += 2048;
-	HexDump((uint8_t*)buffer + offset, 512, 64); offset += 2048;
-	HexDump((uint8_t*)buffer + offset, 512, 64); offset += 2048;
-	HexDump((uint8_t*)buffer + offset, 512, 64); offset += 2048;
-	HexDump((uint8_t*)buffer + offset, 512, 64); offset += 2048;
+	FILE_SYSTEM_FAT mode = GetFileSystemType(fileSystemImage);
+
+    struct direntry* rootEntry;
+
+    bootsector* bootsect = (bootsector*)fileSystemImage;
+
+    const char* filename = "LOGO.TGA";
+
+    //Can read these variables as they alias in all three FATs.
+    bpb33* bpb = (bpb33*)(bootsect->bs33.bsBPB);
+    uint32_t root_dir_sector = bpb->bpbResSectors + (bpb->bpbFATs * bpb->bpbFATsecs);
+    rootEntry = (struct direntry*)(fileSystemImage + bpb->bpbBytesPerSec * root_dir_sector);
+    
+    const direntry* fileEntry = GetFileCluster(fileSystemImage, rootEntry, bpb, bpb->bpbRootDirEnts, filename);
+
+    uint32_t fileSize = *(uint32_t*)fileEntry->deFileSize;
+
+    uint32_t unpackedCluster = *(uint16_t*)fileEntry->deStartCluster | ((*(uint16_t*)fileEntry->deHighClust) << 16);
+    uint32_t data_sector = root_dir_sector +
+        (bpb->bpbRootDirEnts * 32 + bpb->bpbBytesPerSec - 1) / bpb->bpbBytesPerSec +
+        (unpackedCluster - 2) * bpb->bpbSecPerClust;
+
+	uint8_t* logoBuffer = (uint8_t*)rpmalloc(fileSize);
+
+    CopyFileToBuffer(mode, fileSystemImage, bpb, unpackedCluster, fileSize, logoBuffer, fileSize);
 	
 	ConsolePrint(u"Ready!\n");
 	//HaltPermanently();

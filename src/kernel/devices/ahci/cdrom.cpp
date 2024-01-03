@@ -167,15 +167,15 @@ void CdRomDevice::SetupPorts()
     }
 }
 
-uint64_t CdRomDevice::ReadSector(uint64_t lba, uint8_t* buffer)
+uint64_t CdRomDevice::ReadSectors(uint64_t lba, uint64_t sectorCount, uint8_t* buffer)
 {
 	if(CdPort->IsATAPI())
 	{
-		return CdPort->ReadSectorCD(lba, buffer);
+		return CdPort->ReadSectorsCD(lba, sectorCount, buffer);
 	}
 	else
 	{
-		return CdPort->ReadSectorSATA(lba, buffer);
+		return CdPort->ReadSectorsSATA(lba, sectorCount, buffer);
 	}
 }
 
@@ -415,11 +415,11 @@ bool CdromPort::IdentifyDrive()
 	// Check if the command completed successfully
 	if (Port->CommandAndStatus & HBA_PxCMD_CR)
 	{
-		const uint64_t LBA48AddressableSectors = *(uint32_t*)(identifyBuffer+ATA_IDENTIFY_MAX_LBA_EXT);
+		//const uint64_t LBA48AddressableSectors = *(uint32_t*)(identifyBuffer+ATA_IDENTIFY_MAX_LBA_EXT);
 		const uint16_t* SerialNumberPtr = (uint16_t*)(identifyBuffer+ATA_IDENTIFY_SERIAL);
 		const uint16_t* ModelNumberPtr = (uint16_t*)(identifyBuffer+ATA_IDENTIFY_MODEL);
 		const uint16_t* FirmwareRevPtr = (uint16_t*)(identifyBuffer+ATA_IDENTIFY_FIRMWARE_REV);
-		const uint16_t BytesPerSector = *(uint16_t*)(identifyBuffer+ATA_IDENTIFY_BYTES_PER_SECTOR);
+		//const uint16_t BytesPerSector = *(uint16_t*)(identifyBuffer+ATA_IDENTIFY_BYTES_PER_SECTOR);
 
 		char modelName[41];
 		char serial[21];
@@ -453,26 +453,23 @@ bool CdromPort::IdentifyDrive()
 		// Wait
 	}
 
-	HexDump((uint8_t*)identifyBuffer, 512, 64);
-
 	// Free allocated buffer
 	VirtualFree(identifyBuffer, 4096);
 
     return true;
 }
 
-uint64_t CdromPort::ReadSectorSATA(uint64_t lba, uint8_t* buffer)
+uint64_t CdromPort::ReadSectorsSATA(uint64_t lba, uint64_t sectorCount, uint8_t* buffer)
 {
 	uint32_t sectorSize = 2048;
-	uint32_t byteSize = 2048;
+	uint32_t byteSize = sectorCount * sectorSize;
+
+	_ASSERTF(byteSize <= 4 * 1024 * 1024, "PRDT limited to 4MB each.")
 
 	while (Port->SATAStatus & STS_BSY) // While the device is busy
 	{
 		// Wait
 	}
-
-    // Ensure buffer is allocated and cleared
-    memset(buffer, 0, byteSize);
 
     uint64_t bufferPhysical = GetPhysicalAddress((uint64_t)buffer);
 
@@ -542,10 +539,13 @@ uint64_t CdromPort::ReadSectorSATA(uint64_t lba, uint8_t* buffer)
     return CommandLists[commandIndex].PRDByteCount;
 }
 
-uint64_t CdromPort::ReadSectorCD(uint64_t lba, uint8_t* buffer)
+uint64_t CdromPort::ReadSectorsCD(uint64_t lba, uint64_t sectorCount, uint8_t* buffer)
 {
 	uint32_t sectorSize = 2048;
-	uint32_t byteSize = 2048;
+	uint32_t byteSize = sectorCount * sectorSize;
+
+	_ASSERTF(sectorCount < 256, "READ(12) limited to 255 sectors.");
+	_ASSERTF(byteSize <= 4 * 1024 * 1024, "PRDT limited to 4MB each.");
 
 	uint32_t prdtCount = 1;
 
@@ -553,9 +553,6 @@ uint64_t CdromPort::ReadSectorCD(uint64_t lba, uint8_t* buffer)
 	{
 		// Wait
 	}
-
-	// Ensure buffer is allocated and cleared
-	memset(buffer, 0, byteSize);
 
 	uint64_t bufferPhysical = GetPhysicalAddress((uint64_t)buffer);
 
@@ -569,8 +566,6 @@ uint64_t CdromPort::ReadSectorCD(uint64_t lba, uint8_t* buffer)
 	cmdFis->Command = ATA_CMD_PACKET; // ATAPI Packet command
 	cmdFis->CommandControl = 1; // Command
 
-	uint16_t sectorCount = byteSize / sectorSize;
-
 	// Prepare the ATAPI command (READ (10))
 	volatile uint8_t* atapiCommand = &CommandTables[commandIndex]->AtapiCommand[0];
 	memset(atapiCommand, 0x0, 12); // ATAPI commands are 12 bytes
@@ -581,11 +576,8 @@ uint64_t CdromPort::ReadSectorCD(uint64_t lba, uint8_t* buffer)
 	atapiCommand[4] = (lba >> 8) & 0xFF;
 	atapiCommand[5] = lba & 0xFF;
 
-	//atapiCommand[7] = (sectorCount >> 8) & 0xFF;
-	//atapiCommand[8] = sectorCount & 0xFF;
-	atapiCommand[9] = sectorCount & 0xFF;
-	//atapiCommand[9] = 0; // Set control byte to 0
-
+	atapiCommand[9] = sectorCount == 256 ? 0 : sectorCount & 0xFF;
+	
 	// Set up the PRDT
 	memset(&CommandTables[commandIndex]->PRDTEntries[0], 0, sizeof(HBAPRDTEntry) * prdtCount);
 	TO_LOW_HIGH(CommandTables[commandIndex]->PRDTEntries[0].DataBaseLow, CommandTables[commandIndex]->PRDTEntries[0].DataBaseHigh, bufferPhysical);
@@ -599,19 +591,8 @@ uint64_t CdromPort::ReadSectorCD(uint64_t lba, uint8_t* buffer)
 	CommandLists[commandIndex].Write = 0; // This is a read
 	CommandLists[commandIndex].PRDByteCount = 0; // Clear, this is set by the hardware
 
-	LogStatus();
-
-	/*while(!(Port->SATAStatus & STS_DRDY)) // If the device is ready
-	{
-		// Device is not ready
-	}*/
-
-	HexDump((const uint8_t*)cmdFis, sizeof(FISRegisterHostToDevice), 16);
-
 	// Start command and wait for completion
 	StartCommand(commandIndex);
-
-
 
 	// Wait for command to complete
 	const uint32_t BusyMask = STS_BSY | STS_DRQ;
@@ -624,8 +605,6 @@ uint64_t CdromPort::ReadSectorCD(uint64_t lba, uint8_t* buffer)
 			return 0; // Return 0 bytes read on failure
 		}
 	}
-
-	HexDump((const uint8_t*)cmdFis, sizeof(FISRegisterHostToDevice), 16);
 
 	uint8_t ErrorCode = (Port->TaskFileData >> 8) & 0xFF;
 	if(Port->TaskFileData & STS_ERR || ErrorCode != 0)
@@ -666,6 +645,7 @@ uint64_t CdromPort::ReadToc(uint8_t* buffer, uint32_t bufferSize)
     volatile FISRegisterHostToDevice* cmdFis = (volatile FISRegisterHostToDevice*)&(CommandTables[commandIndex]->CommandFIS[0]);
     memset(cmdFis, 0, sizeof(FISRegisterHostToDevice));
     cmdFis->FISType = (uint8_t)FISType::RegisterHostToDevice;
+	cmdFis->FeatureLow = 1; // Set feature to 1 - DMA
     cmdFis->Command = ATA_CMD_PACKET;
     cmdFis->CommandControl = 1;
 
@@ -691,14 +671,8 @@ uint64_t CdromPort::ReadToc(uint8_t* buffer, uint32_t bufferSize)
     CommandLists[commandIndex].Write = 0;
     CommandLists[commandIndex].PRDByteCount = 0;
 
-    LogStatus();
-
-	HexDump((const uint8_t*)cmdFis, sizeof(FISRegisterHostToDevice), 16);
-
     // Start command and wait for completion
     StartCommand(commandIndex);
-
-	HexDump((const uint8_t*)cmdFis, sizeof(FISRegisterHostToDevice), 16);
 
     // Wait for command to complete
     const uint32_t BusyMask = STS_BSY | STS_DRQ;
