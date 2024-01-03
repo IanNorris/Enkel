@@ -38,6 +38,9 @@ $(KERNEL_OUT): $(KERNEL)
 
 $(BOOT_IMAGE): $(BOOTLOADER_OUT) $(KERNEL_OUT)
 	#Calculate the actual size of the boot partition folder
+
+	cp ../assets/AnotherLogo.tga $(BOOT_PART)/Logo.tga
+
 	$(eval BOOT_PART_SIZE := $(shell du -cb $(BOOT_PART) | tail -n 1 | awk '{print $$1}'))
 	#Now calculate how many sectors we need by inflating it by about 30% and adding 512kb on top.
 	$(eval BOOT_PART_SIZE_SECTORS := $(shell expr $(shell expr $(shell expr $(BOOT_PART_SIZE) \* 130) + $(shell expr $(INFLATED_IMAGE_KB) \* 1024 \* 100)) / $(shell expr 100 \* $(SECTOR_SIZE))))

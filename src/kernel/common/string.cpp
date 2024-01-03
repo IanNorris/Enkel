@@ -341,6 +341,24 @@ char16_t* _strncpy(char16_t* dest, const char16_t* src, size_t n)
 	return dest;
 }
 
+char* _strcat(char* dest, const char* src)
+{
+	char* save = dest;
+	while (*dest)
+		dest++;
+	while ((*dest++ = *src++));
+	return save;
+}
+
+char16_t* _strcat(char16_t* dest, const char16_t* src)
+{
+	char16_t* save = dest;
+	while (*dest)
+		dest++;
+	while ((*dest++ = *src++));
+	return save;
+}
+
 int _isalpha(int c)
 {
 	return ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'));

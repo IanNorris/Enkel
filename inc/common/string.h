@@ -43,6 +43,8 @@ char* _strcpy(char* dest, const char* src);
 char* _strncpy(char* dest, const char* src, size_t n);
 char16_t* _strcpy(char16_t* dest, const char16_t* src);
 char16_t* _strncpy(char16_t* dest, const char16_t* src, size_t n);
+char* _strcat(char* dest, const char* src);
+char16_t* _strcat(char16_t* dest, const char16_t* src);
 
 #define strlen _strlen
 #define strcmp _strcmp
@@ -50,3 +52,4 @@ char16_t* _strncpy(char16_t* dest, const char16_t* src, size_t n);
 #define _strncasecmp _strnicmp
 #define strcpy _strcpy
 #define strncpy _strncpy
+#define strcat _strcat

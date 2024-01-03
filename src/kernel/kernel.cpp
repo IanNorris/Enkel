@@ -20,12 +20,16 @@
 #include "Protocol/DevicePath.h"
 #include "kernel/devices/ahci/cdrom.h"
 
+#include <ff.h>
+
 void EnterUserModeTest();
 void InitializeSyscalls();
 
 KernelBootData GBootData;
 
 extern const char16_t* KernelBuildId;
+
+CdRomDevice* GCDRomDevice;
 
 #include "common/string.h"
 
@@ -84,6 +88,42 @@ void FinalizeRuntimeServices()
 }
 
 KernelState NextTask;
+
+FRESULT scan_files (
+    char16_t* path        /* Start node to be scanned (***also used as work area***) */
+)
+{
+    FRESULT res;
+    DIR dir;
+    UINT i;
+    static FILINFO fno;
+
+
+    res = f_opendir(&dir, (const TCHAR*)path);                       /* Open the directory */
+    if (res == FR_OK) {
+        for (;;) {
+            res = f_readdir(&dir, &fno);                   /* Read a directory item */
+            if (res != FR_OK || fno.fname[0] == 0) break;  /* Break on error or end of dir */
+            if (fno.fattrib & AM_DIR) {                    /* It is a directory */
+                i = strlen(path);
+				strcat(&path[i], u"/");
+				strcat(&path[i+1], (const char16_t*)fno.fname);
+                //sprintf(&path[i], "/%s", fno.fname);
+                res = scan_files(path);                    /* Enter the directory */
+                if (res != FR_OK) break;
+                path[i] = 0;
+            } else {                                       /* It is a file. */
+				ConsolePrint(path);
+				ConsolePrint(u"/");
+				ConsolePrint((const char16_t*)fno.fname);
+                ConsolePrint(u"\n");
+            }
+        }
+        f_closedir(&dir);
+    }
+
+    return res;
+}
 
 extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootData * BootData)
 {
@@ -144,13 +184,14 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 
 	CdRomDevice* cdromDevice = (CdRomDevice*)rpmalloc(sizeof(CdRomDevice));
 	cdromDevice->Initialize(devicePath, sataBus);
+	GCDRomDevice = cdromDevice;
 
 	//uint64_t tocSize = 800;
 	//uint8_t* tocBuffer = (uint8_t*)rpmalloc(tocSize);
 	//cdromDevice->ReadToc(tocBuffer, tocSize);
 	//HexDump((uint8_t*)tocBuffer, tocSize, 64);
 
-	uint64_t fileSystemImageSize = 32 * 1024 * 1024;
+	/*uint64_t fileSystemImageSize = 32 * 1024 * 1024;
 	uint8_t* fileSystemImage = (uint8_t*)rpmalloc(fileSystemImageSize);
 
 	int sectorSize = 2048;
@@ -168,34 +209,37 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 		offsetSector += sectorCountToRead;
 		
 		sectorCount -= sectorCountToRead;
-	} while(sectorCount > 0);
+	} while(sectorCount > 0);*/
 
-	FILE_SYSTEM_FAT mode = GetFileSystemType(fileSystemImage);
+	FATFS fs;
+    FRESULT res;
+    char16_t buff[256];
 
-    struct direntry* rootEntry;
 
-    bootsector* bootsect = (bootsector*)fileSystemImage;
+    res = f_mount(&fs, (const TCHAR*)u"", 1);
+    if (res == FR_OK) {
+        strcpy(buff, u"/");
+        res = scan_files(buff);
+    }
 
-    const char* filename = "LOGO.TGA";
+	FIL logoFile;
 
-    //Can read these variables as they alias in all three FATs.
-    bpb33* bpb = (bpb33*)(bootsect->bs33.bsBPB);
-    uint32_t root_dir_sector = bpb->bpbResSectors + (bpb->bpbFATs * bpb->bpbFATsecs);
-    rootEntry = (struct direntry*)(fileSystemImage + bpb->bpbBytesPerSec * root_dir_sector);
-    
-    const direntry* fileEntry = GetFileCluster(fileSystemImage, rootEntry, bpb, bpb->bpbRootDirEnts, filename);
+	FRESULT fr = f_open(&logoFile, (const TCHAR*)u"//Logo.tga", FA_READ);
+	if(fr == FR_OK)
+	{
+		uint64_t fileSize = f_size(&logoFile);
 
-    uint32_t fileSize = *(uint32_t*)fileEntry->deFileSize;
+		uint8_t* buffer = (uint8_t*)rpmalloc(fileSize);
+		UINT bytesRead;
+		fr = f_read(&logoFile, buffer, fileSize, &bytesRead);
+		if(fr == FR_OK)
+		{
+			RenderTGA(&GBootData.Framebuffer, buffer, GBootData.Framebuffer.Width / 2, GBootData.Framebuffer.Height / 2, AlignImage::Middle, AlignImage::Middle, false);
+		}
 
-    uint32_t unpackedCluster = *(uint16_t*)fileEntry->deStartCluster | ((*(uint16_t*)fileEntry->deHighClust) << 16);
-    uint32_t data_sector = root_dir_sector +
-        (bpb->bpbRootDirEnts * 32 + bpb->bpbBytesPerSec - 1) / bpb->bpbBytesPerSec +
-        (unpackedCluster - 2) * bpb->bpbSecPerClust;
+		rpfree(buffer);
+	}
 
-	uint8_t* logoBuffer = (uint8_t*)rpmalloc(fileSize);
-
-    CopyFileToBuffer(mode, fileSystemImage, bpb, unpackedCluster, fileSize, logoBuffer, fileSize);
-	
 	ConsolePrint(u"Ready!\n");
 	//HaltPermanently();
 
