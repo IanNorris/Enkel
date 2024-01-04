@@ -25,6 +25,8 @@
 void EnterUserModeTest();
 void InitializeSyscalls();
 
+void RunElf(const uint8_t* elfStart);
+
 KernelBootData GBootData;
 
 extern const char16_t* KernelBuildId;
@@ -125,6 +127,31 @@ FRESULT scan_files (
     return res;
 }
 
+void RunApp(const char16_t* appName)
+{
+	FIL file;
+
+	ConsolePrint(u"Running ");
+	ConsolePrint(appName);
+	ConsolePrint(u"\n");
+
+	FRESULT fr = f_open(&file, (const TCHAR*)appName, FA_READ);
+	if(fr == FR_OK)
+	{
+		uint64_t fileSize = f_size(&file);
+
+		uint64_t alignedSize = AlignSize(fileSize, 4096);
+
+		uint8_t* buffer = (uint8_t*)VirtualAlloc(alignedSize,  PrivilegeLevel::User);
+		UINT bytesRead;
+		fr = f_read(&file, buffer, fileSize, &bytesRead);
+
+		RunElf(buffer);
+
+		VirtualFree(buffer, alignedSize);
+	}
+}
+
 extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootData * BootData)
 {
 	OnKernelMainHook();
@@ -169,8 +196,6 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 
 	ConsolePrint(u"Initializing syscalls...\n");
 	InitializeSyscalls();
-
-	//EnterUserModeTest();
 
 	ConsolePrint(u"Initializing ACPI...\n");
 	InitializeAcpica();
@@ -222,23 +247,10 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
         res = scan_files(buff);
     }
 
-	FIL logoFile;
+	RunApp(u"//hello_world.a");
 
-	FRESULT fr = f_open(&logoFile, (const TCHAR*)u"//Logo.tga", FA_READ);
-	if(fr == FR_OK)
-	{
-		uint64_t fileSize = f_size(&logoFile);
-
-		uint8_t* buffer = (uint8_t*)rpmalloc(fileSize);
-		UINT bytesRead;
-		fr = f_read(&logoFile, buffer, fileSize, &bytesRead);
-		if(fr == FR_OK)
-		{
-			RenderTGA(&GBootData.Framebuffer, buffer, GBootData.Framebuffer.Width / 2, GBootData.Framebuffer.Height / 2, AlignImage::Middle, AlignImage::Middle, false);
-		}
-
-		rpfree(buffer);
-	}
+	//Crashes accessing FS[0x28]...
+	RunApp(u"//count.a");
 
 	ConsolePrint(u"Ready!\n");
 	//HaltPermanently();

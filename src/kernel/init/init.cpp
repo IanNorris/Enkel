@@ -47,7 +47,7 @@ void InitVirtualMemory(KernelBootData* bootData)
 
 	ConsolePrint(u"Loading TLS...\n");
 
-	InitializeTLS(false);
+	InitializeKernelTLS();
 
 	ConsolePrint(u"Initializing rpmalloc...\n");
 	InitRPMalloc();

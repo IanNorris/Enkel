@@ -55,10 +55,12 @@ The technical bits I've done so far. Hopefully useful to any would-be adventurer
 * Keyboard input
 * Syscalls
 * User mode
+* PCI, AHCI and reading from ATAPI CD
+* FAT12, 16 & 32 (via library)
 
 # Next steps
 
-* AHCI and opening files from the ISO
+* User mode TLS (FS & GS registers)
 * Scheduling
 
 (Not necessarily in this order)

@@ -1,6 +1,7 @@
 #include "memory/memory.h"
 #include "utilities/termination.h"
 #include "kernel/init/gdt.h"
+#include "kernel/init/tls.h"
 #include "kernel/console/console.h"
 #include "kernel/memory/state.h"
 #include "memory/virtual.h"
@@ -28,7 +29,8 @@ void OnBinaryLoadHook(uint64_t baseAddress, uint64_t segmentAddress, bool text)
 void RunElf(const uint8_t* elfStart)
 {
 	Elf64_Ehdr* elfHeader = (Elf64_Ehdr*)elfStart;
-	Elf64_Phdr* programHeader = (Elf64_Phdr*)((const char*)elfStart + elfHeader->e_phoff);
+	Elf64_Phdr* segments = (Elf64_Phdr*)((const char*)elfStart + elfHeader->e_phoff);
+	Elf64_Shdr* sections = (Elf64_Shdr*)((const char*)elfStart + elfHeader->e_shoff);
 
 	//Verify the ELF is in the correct format
 
@@ -55,24 +57,38 @@ void RunElf(const uint8_t* elfStart)
 	Elf64_Addr lowestAddress = ~0;
 	Elf64_Addr highestAddress = 0;
 
-	for (int sectionHeader = 0; sectionHeader < elfHeader->e_phnum; sectionHeader++)
-	{
-		Elf64_Phdr& section = programHeader[sectionHeader];
+	uint64_t tdataSize = 0; //Size of data to be copied into the TLS
+	uint64_t tbssSize = 0; //Size of data to be zeroed in the TLS
+	uint8_t* tdataStart = nullptr; //Start of the data to be copied into the TLS
 
-		if (section.p_type != PT_LOAD)
+	uint64_t tlsAlign = 0;
+
+	for (int segmentHeader = 0; segmentHeader < elfHeader->e_phnum; segmentHeader++)
+	{
+		Elf64_Phdr& segment = segments[segmentHeader];
+
+		if(segment.p_type == PT_TLS)
+		{
+			tdataSize = segment.p_filesz;
+			tbssSize = segment.p_memsz - segment.p_filesz;
+			tdataStart = (uint8_t*)elfStart + segment.p_offset;
+			tlsAlign = segment.p_align;
+		}
+
+		if(segment.p_type != PT_LOAD)
 		{
 			continue;
 		}
 
-		if (section.p_vaddr < lowestAddress)
+		if (segment.p_vaddr < lowestAddress)
 		{
-			lowestAddress = section.p_vaddr;
+			lowestAddress = segment.p_vaddr;
 		}
 
-		if (section.p_vaddr + section.p_memsz > highestAddress)
+		if (segment.p_vaddr + segment.p_memsz > highestAddress)
 		{
-			highestAddress = section.p_vaddr + section.p_memsz;
-		}
+			highestAddress = segment.p_vaddr + segment.p_memsz;
+		}		
 	}
 
 	uint64_t programSize = highestAddress - lowestAddress;
@@ -82,22 +98,35 @@ void RunElf(const uint8_t* elfStart)
 
 	uint64_t programStart = (uint64_t)VirtualAlloc(programSize, PrivilegeLevel::User);
 
-	for (int sectionHeader = 0; sectionHeader < elfHeader->e_phnum; sectionHeader++)
+	for (int segmentHeader = 0; segmentHeader < elfHeader->e_phnum; segmentHeader++)
 	{
-		Elf64_Phdr& section = programHeader[sectionHeader];
+		Elf64_Phdr& segment = segments[segmentHeader];
 
-		if (section.p_type != PT_LOAD)
+		if (segment.p_type != PT_LOAD)
 		{
 			continue;
 		}
 
-		section.p_vaddr += (Elf64_Addr)programStart;
+		segment.p_vaddr += (Elf64_Addr)programStart;
 
-		memcpy((void*)section.p_vaddr, elfStart + section.p_offset, section.p_filesz);
-		memset((uint8_t*)section.p_vaddr + section.p_filesz, 0, section.p_memsz - section.p_filesz);
+		memcpy((void*)segment.p_vaddr, elfStart + segment.p_offset, segment.p_filesz);
+		memset((uint8_t*)segment.p_vaddr + segment.p_filesz, 0, segment.p_memsz - segment.p_filesz);
+
+		if(segment.p_flags & SHF_EXECINSTR)
+		{
+			VirtualProtect((uint8_t*)((uint64_t)segment.p_vaddr & PAGE_MASK), AlignSize(segment.p_memsz, 4096), MemoryProtection::Execute);
+		}
+		else if(segment.p_flags & SHF_WRITE)
+		{
+			VirtualProtect((uint8_t*)((uint64_t)segment.p_vaddr & PAGE_MASK), AlignSize(segment.p_memsz, 4096), MemoryProtection::ReadWrite);
+		}
+		else
+		{
+			VirtualProtect((uint8_t*)((uint64_t)segment.p_vaddr & PAGE_MASK), AlignSize(segment.p_memsz, 4096), MemoryProtection::ReadOnly);
+		}
 	}
 
-	VirtualProtect((void*)programStart, programSize, MemoryProtection::Execute);
+	ConsolePrintNumeric(u"Base address: ", programStart, u"\n");
 
 	const uint64_t stackSize = 128*1024;
 
@@ -106,6 +135,10 @@ void RunElf(const uint8_t* elfStart)
 
 	uint16_t umCS = ((uint16_t)GDTEntryIndex::UserCode * sizeof(GDTEntry)) | 0x3; // | ring3
 	uint16_t umDS = ((uint16_t)GDTEntryIndex::UserData * sizeof(GDTEntry)) | 0x3;
+
+	void* tlsBase = InitializeUserModeTLS(tdataSize, tbssSize, tdataStart, tlsAlign);
+
+	SetFSBase((uint64_t)tlsBase);
 
 	SwitchToUserMode(stackTop,programStart + elfHeader->e_entry, umCS, umDS);
 }
