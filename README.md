@@ -60,7 +60,11 @@ The technical bits I've done so far. Hopefully useful to any would-be adventurer
 
 # Next steps
 
-* User mode TLS (FS & GS registers)
+* Reading files from user mode
+* Major refactor, especially around SATA & CD-ROM support
+* Joliet/ISO 9660 CD format
+* HDD support
+* Basic shell and commands
 * Scheduling
 
 # Known issues
