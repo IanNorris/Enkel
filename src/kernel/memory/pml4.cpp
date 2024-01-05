@@ -10,6 +10,8 @@
 #include "kernel/init/tls.h"
 #include "utilities/qrdump.h"
 
+#define PRINT_MEMORY_MAP 0
+
 struct SPagingStructurePage
 {
     union
@@ -88,15 +90,12 @@ const int NextPagingBlockSize = 0x1000;
 
 void AllocateNextFreePageTableEntries()
 {
-	ConsolePrint(u"Alloc...\n");
 	NextFreePageTableEntriesBlock = VirtualAlloc(sizeof(SPagingStructurePage) * NextPagingBlockSize, PrivilegeLevel::Kernel);
-	ConsolePrint(u"memset...\n");
+
 	memset(NextFreePageTableEntriesBlock, 0, sizeof(SPagingStructurePage) * NextPagingBlockSize);
 
-	ConsolePrint(u"Init 1...\n");
 	PhysicalMemoryState.InitDynamic();
 
-	ConsolePrint(u"Init 2...\n");
 	VirtualMemoryState.InitDynamic();
 }
 
@@ -426,6 +425,8 @@ void BuildPML4(KernelBootData* bootData)
 	#define PRINT_RANGE(block) LogPrintNumeric(u"Range of " #block u" From: ", block.PhysicalStart, u", "); LogPrintNumeric(u"To: ", block.PhysicalStart + block.ByteSize, u"\n")
 
 	uint64_t PhysicalFramebuffer = GetPhysicalAddress(framebuffer.VirtualStart);
+
+#if PRINT_MEMORY_MAP
 	LogPrintNumeric(u"Framebuffer Virtual from: ", stack.VirtualStart, u"\n");
 	LogPrintNumeric(u"Framebuffer Physical from: ", PhysicalFramebuffer, u"\n");
 
@@ -434,6 +435,7 @@ void BuildPML4(KernelBootData* bootData)
 	PRINT_RANGE(framebuffer);
 	PRINT_RANGE(stack);
 	PRINT_RANGE(tables);
+#endif
 
 	uint64_t HighestAddressUntrimmmed = HighestAddress;
 
@@ -479,6 +481,7 @@ void BuildPML4(KernelBootData* bootData)
 			Desc.Attribute |= ENKEL_MEMORY_FLAG_FRAMEBUFFER;
 		}
 
+#if PRINT_MEMORY_MAP
 		SerialPrint("Type: ");
 		SerialPrint(MemoryMapTypeToString((EFI_MEMORY_TYPE)Desc.Type));
 		SerialPrint(", ");
@@ -513,6 +516,7 @@ void BuildPML4(KernelBootData* bootData)
 		if(Desc.Attribute & ENKEL_MEMORY_FLAG_BINARY){ if(PrevBit){ SerialPrint("|"); } SerialPrint("E_BINARY"); PrevBit = true; }
 
 		SerialPrint("\n");
+#endif
 
 		uint64_t Size = Desc.NumberOfPages * EFI_PAGE_SIZE;
 
@@ -588,6 +592,7 @@ void BuildPML4(KernelBootData* bootData)
 
 			PhysicalMemoryState.TagRange(StartP, lowest, MemoryState::RangeState::Reserved);
 
+#if PRINT_MEMORY_MAP
 			LogPrintNumeric(u"Unmapped range from: ", StartP, u"");
 			LogPrintNumeric(u" to: ", lowest, u"");
 
@@ -615,6 +620,7 @@ void BuildPML4(KernelBootData* bootData)
 			}
 
 			SerialPrint(u"\n");
+#endif
 			
 			StartP = lowest;
 		}

@@ -13,6 +13,9 @@
 #include "kernel/devices/pci.h"
 #include "kernel/devices/ahci/cdrom.h"
 
+//#define VerboseSataLog(x) SerialPrint(x)
+#define VerboseSataLog(x)
+
 #define AHCI_ENABLE_FLAG 0x80000000
 #define HBA_CAP2_BOH (1 << 0)
 #define HBA_PORT_DET_PRESENT 0x3
@@ -43,7 +46,7 @@ bool SataBus::Initialize(EFI_DEV_PATH* devicePath)
 			if(devicePath->DevPath.SubType == HW_PCI_DP)
 			{
 				acpiDevicePath = (ACPI_HID_DEVICE_PATH*)devicePath;
-				ConsolePrint(u"ACPI bus boot device.\n");
+				VerboseSataLog(u"ACPI bus boot device.\n");
 			}
 		}
 		else if(devicePath->DevPath.Type == HARDWARE_DEVICE_PATH)
@@ -51,7 +54,7 @@ bool SataBus::Initialize(EFI_DEV_PATH* devicePath)
 			if(devicePath->DevPath.SubType == HW_PCI_DP)
 			{
 				pciDevicePath = (PCI_DEVICE_PATH*)devicePath;
-				ConsolePrint(u"PCI-hosted boot device.\n");
+				VerboseSataLog(u"PCI-hosted boot device.\n");
 			}
 		}
 
@@ -75,7 +78,7 @@ bool SataBus::Initialize(EFI_DEV_PATH* devicePath)
 		ACPI_STATUS status = AcpiOsReadPciConfiguration(&PciId, 0x08, &classCode, 32);
 		if (status == AE_OK && ((classCode >> 16) & 0xFFFF) == ((AHCI_CLASS_CODE << 8) | AHCI_SUBCLASS_CODE))
 		{
-			ConsolePrint(u"Valid bus found.\n");
+			VerboseSataLog(u"Valid bus found.\n");
 
 			// Read BAR5 to get ABAR (AHCI Base Memory Register)
 			UINT64 abar;
@@ -94,7 +97,7 @@ bool SataBus::Initialize(EFI_DEV_PATH* devicePath)
 			//Memory map BAR 5 register as uncacheable.
 			Memory = (HBAMemory*)PhysicalAlloc(physicalAddress, alignedSize, PrivilegeLevel::Kernel, PageFlags_Cache_Disable);
 
-			ConsolePrint(u"Valid bus processed.\n");
+			VerboseSataLog(u"Valid bus processed.\n");
 
 			//break;
 		}
@@ -115,7 +118,7 @@ bool SataBus::Initialize(EFI_DEV_PATH* devicePath)
 		while(Memory->BIOSHandoffControlStatus & HBA_BOHC_BIOS_OWNED_SEMAPHORE);
 	}
 
-	ConsolePrint(u"Resetting HBA.\n");	
+	VerboseSataLog(u"Resetting HBA.\n");	
 	Memory->GlobalHostControl |= HBA_HR_BIT;
 	while(Memory->GlobalHostControl & HBA_HR_BIT);
 

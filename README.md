@@ -63,4 +63,8 @@ The technical bits I've done so far. Hopefully useful to any would-be adventurer
 * User mode TLS (FS & GS registers)
 * Scheduling
 
+# Known issues
+
+* AHCI CD drive doesn't work on Windows under qemu
+
 (Not necessarily in this order)

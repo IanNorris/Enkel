@@ -74,10 +74,10 @@ int witoabuf(char* buffer, T value, int base, int padDigits)
 		currentValue = nextValue;
 	} while (currentValue != 0);
 
-	do
+	while(padDigits > offset)
 	{
 		buffer[offset++] = '0';
-	} while(padDigits > offset);
+	}
 
 	if (isNegative)
 	{
@@ -164,38 +164,8 @@ void __attribute__((sysv_abi,noreturn,noinline)) _start()
 		PrintString("\n");
 	}
 
-	char buffer[64] = {};
-
-	witoabuf<uint64_t>(buffer, TLSThing3, 16, 0);
-
-	PrintString("TLS TDATA says: ");
-	PrintString(buffer);
-	PrintString("\n");
-
 	thread_local uint64_t tlsTBSS;
 	tlsTBSS = TLSThing2;
-
-	witoabuf<uint64_t>(buffer, tlsTBSS, 16, 0);
-
-	PrintString("TLS TBSS says: ");
-	PrintString(buffer);
-	PrintString("\n");
-
-	for(int i = -0x64; i < 0x64; i+=8)
-	{
-		char buffer[64] = {};
-
-		PrintString("TLS at ");
-		witoabuf<int>(buffer, i, 10, 0);
-		PrintString(buffer);
-
-		PrintString(" = 0x");
-
-		witoabuf<uint64_t>(buffer, read_fs_offset(i), 16, 0);
-
-		PrintString(buffer);
-		PrintString("\n");
-	}
 
 	if(tlsTBSS == 0xcccccccccccccccc)
 	{

@@ -131,10 +131,6 @@ void RunApp(const char16_t* appName)
 {
 	FIL file;
 
-	ConsolePrint(u"Running ");
-	ConsolePrint(appName);
-	ConsolePrint(u"\n");
-
 	FRESULT fr = f_open(&file, (const TCHAR*)appName, FA_READ);
 	if(fr == FR_OK)
 	{
@@ -162,9 +158,9 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 
 	RenderTGA(&GBootData.Framebuffer, SplashLogo_tga_data, GBootData.Framebuffer.Width, 0, AlignImage::Right, AlignImage::Top, true);
 
-	ConsolePrint(u"Enkel (v ");
+	ConsolePrint(u"Enkel ");
 	ConsolePrint(KernelBuildId);
-	ConsolePrint(u")...\n");
+	ConsolePrint(u"\n");
 
 	if (IsDebuggerPresent())
 	{
@@ -173,21 +169,16 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 
 	InitVirtualMemory(&GBootData);
 
-	ConsolePrint(u"Initializing CRT...\n");
 	CRTInit();
 
-	ConsolePrint(u"Initializing interrupts...\n");
 	InitInterrupts(&GBootData);
 
 	//FinalizeRuntimeServices();
 
-	ConsolePrint(u"Initializing PIC...\n");
 	InitPIC();
 
-	ConsolePrint(u"Initializing APIC...\n");
 	InitApic(GBootData.Rsdt, GBootData.Xsdt);
 
-	ConsolePrint(u"Initializing keyboard...\n");
 	InitKeyboard();
 
 #ifdef _DEBUG
@@ -202,6 +193,7 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 
 	//WalkAcpiTree();
 
+	ConsolePrint(u"Mounting filesystem...\n");
 	EFI_DEV_PATH* devicePath = (EFI_DEV_PATH*)BootData->BootDevicePath;
 
 	SataBus* sataBus = (SataBus*)rpmalloc(sizeof(SataBus));
@@ -211,50 +203,19 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 	cdromDevice->Initialize(devicePath, sataBus);
 	GCDRomDevice = cdromDevice;
 
-	//uint64_t tocSize = 800;
-	//uint8_t* tocBuffer = (uint8_t*)rpmalloc(tocSize);
-	//cdromDevice->ReadToc(tocBuffer, tocSize);
-	//HexDump((uint8_t*)tocBuffer, tocSize, 64);
-
-	/*uint64_t fileSystemImageSize = 32 * 1024 * 1024;
-	uint8_t* fileSystemImage = (uint8_t*)rpmalloc(fileSystemImageSize);
-
-	int sectorSize = 2048;
-	int startSector = 33; //(0x10800 / 2048 - which seems to be where our file system starts)
-	int sectorCount = fileSystemImageSize / sectorSize;
-
-	uint8_t* fileSystemImagePointer = fileSystemImage;
-	int offsetSector = 0;
-	do
-	{
-		int sectorCountToRead = sectorCount > 255 ? 255 : sectorCount;
-
-		cdromDevice->ReadSectors(startSector + offsetSector, sectorCountToRead, fileSystemImagePointer);
-		fileSystemImagePointer += sectorCountToRead * sectorSize;
-		offsetSector += sectorCountToRead;
-		
-		sectorCount -= sectorCountToRead;
-	} while(sectorCount > 0);*/
-
 	FATFS fs;
-    FRESULT res;
-    char16_t buff[256];
+    f_mount(&fs, (const TCHAR*)u"", 1);
 
+	ConsolePrint(u"Kernel booted.\n\n");
 
-    res = f_mount(&fs, (const TCHAR*)u"", 1);
-    if (res == FR_OK) {
-        strcpy(buff, u"/");
-        res = scan_files(buff);
-    }
-
+	ConsolePrint(u"#> hello_world.a\n");
 	RunApp(u"//hello_world.a");
 
-	//Crashes accessing FS[0x28]...
+	ConsolePrint(u"\n#> count.a\n");
 	RunApp(u"//count.a");
 
-	ConsolePrint(u"Ready!\n");
-	//HaltPermanently();
-
+	ConsolePrint(u"\n#>\n");
+	
 	while(true)
 	{
 		asm volatile("hlt");

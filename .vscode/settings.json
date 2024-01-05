@@ -1,5 +1,17 @@
 {
 	"files.associations": {
-		"*.htemp": "cpp"
+		"*.htemp": "cpp",
+		"*.cpptemp": "cpp",
+		"*.bin.cpp": "cpp",
+		"*.bin.h": "cpp"
+	},
+	"files.exclude": {
+		"**/.git": true,
+		"**/*.a": true,
+		"**/*.bin.cpp": true,
+		"**/*.bin.h": true,
+		"**/*.lst": true,
+		"**/*.cpptemp": true,
+		"**/*.htemp": true
 	}
 }

@@ -18,7 +18,6 @@ void InitInterrupts(KernelBootData* bootData)
 	unsigned int codeSelector = 1;
 
 	//Construct our IDT into the tables block
-    ConsolePrint(u"Initializing IDT...\n");
 	uint8_t* TableOffset = (uint8_t*)bootData->MemoryLayout.SpecialLocations[SpecialMemoryLocation_Tables].VirtualStart;
     size_t IDTTableSize = InitIDT(TableOffset, codeSelector);
 
@@ -49,10 +48,7 @@ void InitVirtualMemory(KernelBootData* bootData)
 
 	InitializeKernelTLS();
 
-	ConsolePrint(u"Initializing rpmalloc...\n");
 	InitRPMalloc();
-
-	ConsolePrint(u"Preparing page table layouts...\n");
 
 	AllocateNextFreePageTableEntries();
 

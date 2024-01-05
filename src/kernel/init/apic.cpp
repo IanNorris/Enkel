@@ -93,7 +93,7 @@ extern "C" void KERNEL_API __attribute__((__noreturn__, used)) APEntryFunction()
 
 	int32_t X = 700;
 	int32_t Y = 40 * NewCoreIndex;
-	ConsolePrintAtPos(u"CORE ONLINE!\n", X, Y, 0, nullptr);
+	//ConsolePrintAtPos(u"CORE ONLINE!\n", X, Y, 0, nullptr);
 
 	while(true)
 	{

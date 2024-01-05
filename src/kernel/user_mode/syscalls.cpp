@@ -27,12 +27,12 @@ extern "C" void __attribute__((sysv_abi,noreturn)) ReturnToKernel();
 
 void sys_exit(int64_t exitCode)
 {
-	ConsolePrint(u"Exit 0x");
+	/*ConsolePrint(u"Exit 0x");
 
 	char16_t Buffer[10];
 	witoabuf(Buffer, (int32_t)exitCode, 10);
 	ConsolePrint(Buffer);
-	ConsolePrint(u"\n");
+	ConsolePrint(u"\n");*/
 
 	ReturnToKernel();
 }

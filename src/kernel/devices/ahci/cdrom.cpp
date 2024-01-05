@@ -12,6 +12,9 @@
 #include "kernel/devices/pci.h"
 #include "kernel/devices/ahci/cdrom.h"
 
+//#define VerboseSataLog(x) SerialPrint(x)
+#define VerboseSataLog(x)
+
 // Standard AHCI and SATA definitions
 #define SATA_SIG_ATAPI 0xEB140101 // SATA signature for ATAPI devices
 #define HBA_PORT_DET_PRESENT 0x3
@@ -107,7 +110,7 @@ bool CdRomDevice::Initialize(EFI_DEV_PATH* devicePath, SataBus* sataBus)
 			if(devicePath->DevPath.SubType == MSG_SATA_DP)
 			{
 				sataDevicePath = (SATA_DEVICE_PATH*)devicePath;
-				ConsolePrint(u"SATA boot device found.\n");
+				VerboseSataLog(u"SATA boot device found.\n");
 			}
 		}
 		else if(devicePath->DevPath.Type == MEDIA_DEVICE_PATH)
@@ -115,27 +118,27 @@ bool CdRomDevice::Initialize(EFI_DEV_PATH* devicePath, SataBus* sataBus)
 			if(devicePath->DevPath.SubType == MEDIA_CDROM_DP)
 			{
 				cdromDevicePath = (CDROM_DEVICE_PATH*)devicePath;
-				ConsolePrint(u"CD-ROM media.\n");
+				VerboseSataLog(u"CD-ROM media.\n");
 			}
 			else if(devicePath->DevPath.SubType == MEDIA_HARDDRIVE_DP)
 			{
 				hddDevicePath = (HARDDRIVE_DEVICE_PATH*)devicePath;
-				ConsolePrint(u"HDD media.\n");
+				VerboseSataLog(u"HDD media.\n");
 			}
 			else if(devicePath->DevPath.SubType == MSG_USB_DP)
 			{
 				usbDevicePath = (USB_DEVICE_PATH*)devicePath;
-				ConsolePrint(u"USB media.\n");
+				VerboseSataLog(u"USB media.\n");
 			}
 			else if(devicePath->DevPath.SubType == MSG_USB_CLASS_DP)
 			{
 				usbClassDevicePath = (USB_CLASS_DEVICE_PATH*)devicePath;
-				ConsolePrint(u"USB class media.\n");
+				VerboseSataLog(u"USB class media.\n");
 			}
 			else if(devicePath->DevPath.SubType == MSG_USB_WWID_DP)
 			{
 				usbWwidDevicePath = (USB_WWID_DEVICE_PATH*)devicePath;
-				ConsolePrint(u"USB WWID media.\n");
+				VerboseSataLog(u"USB WWID media.\n");
 			}
 		}
 
@@ -428,14 +431,14 @@ bool CdromPort::IdentifyDrive()
 		ConvertToString(serial, SerialNumberPtr, 10);
 		ConvertToString(firmware, FirmwareRevPtr, 4);
 
-		SerialPrint(u"Drive model: ");
-		SerialPrint(modelName);
+		VerboseSataLog(u"Drive model: ");
+		VerboseSataLog(modelName);
 
-		SerialPrint(u"\nSerial: ");
-		SerialPrint(serial);
+		VerboseSataLog(u"\nSerial: ");
+		VerboseSataLog(serial);
 
-		SerialPrint(u"\nFirmware: ");
-		SerialPrint(firmware);
+		VerboseSataLog(u"\nFirmware: ");
+		VerboseSataLog(firmware);
 
 		//ConsolePrintNumeric(u"\nLBA count: ", LBA48AddressableSectors, u"\n", 10);
 		//ConsolePrintNumeric(u"Sector size: ", BytesPerSector, u"\n", 10);

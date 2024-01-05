@@ -126,7 +126,7 @@ void RunElf(const uint8_t* elfStart)
 		}
 	}
 
-	ConsolePrintNumeric(u"Base address: ", programStart, u"\n");
+	//ConsolePrintNumeric(u"Base address: ", programStart, u"\n");
 
 	const uint64_t stackSize = 128*1024;
 
