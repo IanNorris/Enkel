@@ -74,5 +74,6 @@ void QRDump(const char* Data)
 	int written = Base45_encode(Encoded, 10*1000, (const char*)Output, OutputSize);
 	Encoded[written] = '\0';
 
+	//Use 9 for Surface Go
 	RenderQR(&GBootData.Framebuffer, Encoded, 200, 50, 7, true);
 }
