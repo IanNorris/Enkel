@@ -55,6 +55,7 @@ void* InitializeTLS(bool kernel, uint64_t tdataSize, uint64_t tbssSize, uint8_t*
 
 	TLSData kernelData;
 	memset(&kernelData, 0, sizeof(TLSData));
+	kernelData.Self = (uint64_t)tls + alignedSize;
 	kernelData.StackCanary = 0xDEADC0DEDEADC0DE;
 
 	memcpy(tls + alignedSize, &kernelData, sizeof(TLSData));

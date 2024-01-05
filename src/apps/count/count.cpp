@@ -113,12 +113,13 @@ void PrintString(const char* message)
 
 char SpecialMessage[] = "Hello from static!\n";
 
-thread_local uint64_t TLSThing0 = 0xaaaaaaaaaaaaaaaa;
-thread_local uint64_t TLSThing1 = 0xbbbbbbbbbbbbbbbb;
-thread_local uint64_t TLSThing2 = 0xcccccccccccccccc;
-thread_local uint64_t TLSThing3 = 0xdddddddddddddddd;
-thread_local uint64_t TLSThing4 = 0xeeeeeeeeeeeeeeee;
-thread_local uint64_t TLSThing5 = 0xffffffffffffffff;
+volatile thread_local uint64_t TLSThing0 = 0xaaaaaaaaaaaaaaaa;
+volatile thread_local uint64_t TLSThing1 = 0xbbbbbbbbbbbbbbbb;
+volatile thread_local uint64_t TLSThing2 = 0xcccccccccccccccc;
+volatile thread_local uint64_t TLSThing3 = 0xdddddddddddddddd;
+volatile thread_local uint64_t TLSThing4 = 0xeeeeeeeeeeeeeeee;
+volatile thread_local uint64_t TLSThing5 = 0xffffffffffffffff;
+volatile thread_local uint64_t TLSThing6 = 0x0;
 
 uint64_t read_fs_offset(uint64_t offset)
 {
@@ -165,7 +166,7 @@ void __attribute__((sysv_abi,noreturn,noinline)) _start()
 
 	char buffer[64] = {};
 
-	witoabuf<int>(buffer, TLSThing3, 16, 0);
+	witoabuf<uint64_t>(buffer, TLSThing3, 16, 0);
 
 	PrintString("TLS TDATA says: ");
 	PrintString(buffer);
@@ -174,7 +175,7 @@ void __attribute__((sysv_abi,noreturn,noinline)) _start()
 	thread_local uint64_t tlsTBSS;
 	tlsTBSS = TLSThing2;
 
-	witoabuf<int>(buffer, tlsTBSS, 16, 0);
+	witoabuf<uint64_t>(buffer, tlsTBSS, 16, 0);
 
 	PrintString("TLS TBSS says: ");
 	PrintString(buffer);
@@ -190,11 +191,28 @@ void __attribute__((sysv_abi,noreturn,noinline)) _start()
 
 		PrintString(" = 0x");
 
-		witoabuf<int>(buffer, read_fs_offset(i), 16, 0);
+		witoabuf<uint64_t>(buffer, read_fs_offset(i), 16, 0);
 
 		PrintString(buffer);
 		PrintString("\n");
 	}
+
+	if(tlsTBSS == 0xcccccccccccccccc)
+	{
+		PrintString("TLS test data 1 aligned\n");
+	}
+
+	if(TLSThing4 == 0xeeeeeeeeeeeeeeee)
+	{
+		PrintString("TLS test data 2 aligned\n");
+	}
+
+	if(TLSThing3 == 0xdddddddddddddddd)
+	{
+		PrintString("TLS test data 3 aligned\n");
+	}
+
+	TLSThing6 = 0x1234567890abcdef;
 
 	Exit(0);
 }
