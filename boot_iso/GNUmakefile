@@ -28,8 +28,8 @@ $(BOOTLOADER):
 $(KERNEL):
 	make -C $(KERNEL_ROOT)
 	
-count_app:
-	make -C ../src/apps/count
+tls_test:
+	make -C ../src/apps/tls_test
 
 $(BOOTLOADER_OUT): $(BOOTLOADER)
 	mkdir -p $(BOOTLOADER_OUT_DIR)
@@ -39,12 +39,12 @@ $(KERNEL_OUT): $(KERNEL)
 	mkdir -p $(KERNEL_OUT_DIR)
 	cp $(KERNEL) $(KERNEL_OUT)
 
-$(BOOT_IMAGE): $(BOOTLOADER_OUT) $(KERNEL_OUT) count_app
+$(BOOT_IMAGE): $(BOOTLOADER_OUT) $(KERNEL_OUT) tls_test
 	#Calculate the actual size of the boot partition folder
 
 	cp ../assets/AnotherLogo.tga $(BOOT_PART)/Logo.tga
-	cp ../src/apps/hello_world/hello_world.a $(BOOT_PART)/hello_world.a
-	cp ../src/apps/count/count.a $(BOOT_PART)/count.a
+	cp ../src/apps/hello_world/hello_world.a $(BOOT_PART)/hello_world
+	cp ../src/apps/tls_test/tls_test.a $(BOOT_PART)/tls_test
 
 	$(eval BOOT_PART_SIZE := $(shell du -cb $(BOOT_PART) | tail -n 1 | awk '{print $$1}'))
 	#Now calculate how many sectors we need by inflating it by about 30% and adding 512kb on top.

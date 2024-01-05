@@ -208,11 +208,11 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 
 	ConsolePrint(u"Kernel booted.\n\n");
 
-	ConsolePrint(u"#> hello_world.a\n");
-	RunApp(u"//hello_world.a");
+	ConsolePrint(u"#> hello_world\n");
+	RunApp(u"//hello_world");
 
-	ConsolePrint(u"\n#> count.a\n");
-	RunApp(u"//count.a");
+	ConsolePrint(u"\n#> tls_test\n");
+	RunApp(u"//tls_test");
 
 	ConsolePrint(u"\n#>\n");
 	

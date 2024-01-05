@@ -22,7 +22,7 @@ extern "C"
 {
 void __attribute__((sysv_abi,noreturn,noinline)) _start()
 {
-	PrintString("Hello from user mode!\n");
+	PrintString("Hello World!\n");
 
 	Exit(0);
 }

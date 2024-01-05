@@ -8,10 +8,10 @@ LDFLAGS := -nostdlib
 NASMFLAGS := -Wall -f elf64
 
 # Name of the executable
-TARGET := count.a
+TARGET := tls_test.a
 
 # Source and object files
-SRC := count.cpp
+SRC := tls_test.cpp
 override NASMFILES := $(shell find -L . -type f -name '*.asm')
 OBJ := $(SRC:.cpp=.o) $(NASMFILES:.asm=.asm.o)
 

@@ -270,7 +270,7 @@ void InitAPs()
 		}
     }
 
-	ConsolePrint(u"All cores online.\n");
+	ConsolePrint(u"All AP cores online.\n");
 }
 
 void InitMADT(EFI_ACPI_2_0_MULTIPLE_APIC_DESCRIPTION_TABLE_HEADER* MADT)
@@ -304,7 +304,6 @@ void InitMADT(EFI_ACPI_2_0_MULTIPLE_APIC_DESCRIPTION_TABLE_HEADER* MADT)
 
 			case EFI_ACPI_2_0_IO_APIC:
 				{
-					ConsolePrint(u"Found IO APIC\n");
 					break;
 				}
 
@@ -322,7 +321,7 @@ void InitMADT(EFI_ACPI_2_0_MULTIPLE_APIC_DESCRIPTION_TABLE_HEADER* MADT)
 		Data += Length;
 	}
 
-	ConsolePrint(u"Found ");
+	ConsolePrint(u"Processor has ");
 	witoabuf(Buffer, ProcessorCount, 10);
 	ConsolePrint(Buffer);
 	ConsolePrint(u" cores.\n");

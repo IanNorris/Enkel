@@ -111,7 +111,7 @@ void PrintString(const char* message)
 	Write(1, message, _strlen(message));
 }
 
-char SpecialMessage[] = "Hello from static!\n";
+char SpecialMessage[] = "TLS test suite... ";
 
 volatile thread_local uint64_t TLSThing0 = 0xaaaaaaaaaaaaaaaa;
 volatile thread_local uint64_t TLSThing1 = 0xbbbbbbbbbbbbbbbb;
@@ -154,35 +154,46 @@ void __attribute__((sysv_abi,noreturn,noinline)) _start()
 
 	PrintString(SpecialMessage);
 
-	for(int i = 0; i < 10; ++i)
+	for(int i = 0; i < 3; ++i)
 	{
-		char buffer[64] = {};
+		GetMyStatic();
+	}
 
-		witoabuf<int>(buffer, GetMyStatic(), 10, 0);
-
-		PrintString(buffer);
-		PrintString("\n");
+	if(GetMyStatic() != 4)
+	{
+		PrintString("Static data mismatch!\n");
 	}
 
 	thread_local uint64_t tlsTBSS;
 	tlsTBSS = TLSThing2;
 
-	if(tlsTBSS == 0xcccccccccccccccc)
+	if(tlsTBSS != 0xcccccccccccccccc)
 	{
-		PrintString("TLS test data 1 aligned\n");
+		PrintString("TLS test data 1 not aligned!\n");
+		Exit(1);
 	}
 
-	if(TLSThing4 == 0xeeeeeeeeeeeeeeee)
+	if(TLSThing4 != 0xeeeeeeeeeeeeeeee)
 	{
-		PrintString("TLS test data 2 aligned\n");
+		PrintString("TLS test data 2 not aligned!\n");
+		Exit(2);
 	}
 
-	if(TLSThing3 == 0xdddddddddddddddd)
+	if(TLSThing3 != 0xdddddddddddddddd)
 	{
-		PrintString("TLS test data 3 aligned\n");
+		PrintString("TLS test data 3 not aligned!\n");
+		Exit(3);
 	}
 
 	TLSThing6 = 0x1234567890abcdef;
+
+	if(TLSThing6 != 0x1234567890abcdef)
+	{
+		PrintString("TLS test data 4 not written back!\n");
+		Exit(4);
+	}
+
+	PrintString("OK\n");
 
 	Exit(0);
 }
