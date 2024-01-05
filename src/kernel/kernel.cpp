@@ -162,7 +162,7 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 
 	RenderTGA(&GBootData.Framebuffer, SplashLogo_tga_data, GBootData.Framebuffer.Width, 0, AlignImage::Right, AlignImage::Top, true);
 
-	ConsolePrint(u"Starting Enkel (Revision ");
+	ConsolePrint(u"Enkel (v ");
 	ConsolePrint(KernelBuildId);
 	ConsolePrint(u")...\n");
 
