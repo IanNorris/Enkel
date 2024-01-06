@@ -3,7 +3,9 @@
 		"*.htemp": "cpp",
 		"*.cpptemp": "cpp",
 		"*.bin.cpp": "cpp",
-		"*.bin.h": "cpp"
+		"*.bin.h": "cpp",
+		"cstddef": "cpp",
+		"functional": "cpp"
 	},
 	"files.exclude": {
 		"**/.git": true,

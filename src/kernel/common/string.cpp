@@ -230,7 +230,7 @@ int _strcmp(const char* str1, const char* str2)
 		str1++;
 		str2++;
 	}
-	return *(int*)str1 - *(int*)str2;
+	return *(char*)str1 - *(char*)str2;
 }
 
 int _strcmp(const char16_t* str1, const char16_t* str2)
@@ -240,7 +240,7 @@ int _strcmp(const char16_t* str1, const char16_t* str2)
 		str1++;
 		str2++;
 	}
-	return *(int*)str1 - *(int*)str2;
+	return *(char16_t*)str1 - *(char16_t*)str2;
 }
 
 int _stricmp(const char* str1, const char* str2)

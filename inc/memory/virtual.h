@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#define PAGE_SIZE 4096
+
 enum class PrivilegeLevel
 {
 	Kernel,

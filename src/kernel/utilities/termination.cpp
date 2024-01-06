@@ -22,12 +22,17 @@ void __attribute__((used, noinline, noreturn)) HaltPermanently(void)
     }
 }
 
-void __attribute__((used, noinline)) PrintStackTrace(int maxFrames)
+void __attribute__((used, noinline)) PrintStackTrace(int maxFrames, uint64_t stackRIP, uint64_t stackRBP)
 {
 	char16_t buffer[2048];
 
+	StackFrame FromSyscall;
+	FromSyscall.RBP = (StackFrame*)stackRBP;
+	FromSyscall.RIP = stackRIP;
+
 	//Skip ourself
-	StackFrame* Top = GetCurrentStackFrame();
+	StackFrame* Top = stackRBP == 0 ? GetCurrentStackFrame() : &FromSyscall;
+
 	StackFrame* Prev = nullptr;
 	int stackIndex = 0;
 	while(true)

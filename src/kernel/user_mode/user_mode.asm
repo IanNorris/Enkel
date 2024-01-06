@@ -43,6 +43,8 @@ SwitchToUserMode:
 	push 0x08 ; CS register offset
 	push rdi
 
+	mov rbp, rdi ; set the stack base
+
 	push rcx ;UM DS
 	push rdi ;UM stack
 	push 0x202 ; rflags

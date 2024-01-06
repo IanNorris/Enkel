@@ -7,6 +7,7 @@
 #include "kernel/init/pic.h"
 #include "kernel/init/tls.h"
 #include "kernel/init/msr.h"
+#include "kernel/init/long_mode.h"
 #include "kernel/init/interrupts.h"
 #include "kernel/texture/render.h"
 #include "fs/fat/fat.h"
@@ -22,10 +23,9 @@
 
 #include <ff.h>
 
-void EnterUserModeTest();
 void InitializeSyscalls();
 
-void RunElf(const uint8_t* elfStart);
+void RunElf(const char16_t* programName, const uint8_t* elfStart);
 
 KernelBootData GBootData;
 
@@ -142,7 +142,7 @@ void RunApp(const char16_t* appName)
 		UINT bytesRead;
 		fr = f_read(&file, buffer, fileSize, &bytesRead);
 
-		RunElf(buffer);
+		RunElf(appName+2, buffer);
 
 		VirtualFree(buffer, alignedSize);
 	}
@@ -166,6 +166,17 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 	{
 		ConsolePrint(u"DEBUGGER ATTACHED!\n");
 	}
+
+	//Init SSE3
+	uint64_t cr0 = GetCR0();
+	cr0 &= ~(1 << 2); // Clear EM
+	cr0 |= (1 << 1) | (1 << 5); //Set MP and NE
+	SetCR0(cr0);
+
+	uint64_t cr4 = GetCR4();
+	cr4 |= (1 << 10); //Set OSXMMEXCPT
+	cr4 |= (1 << 9); //Set OSXSAVE
+	SetCR4(cr4);
 
 	InitVirtualMemory(&GBootData);
 
@@ -208,11 +219,14 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 
 	ConsolePrint(u"Kernel booted.\n\n");
 
-	ConsolePrint(u"#> hello_world\n");
-	RunApp(u"//hello_world");
+	//ConsolePrint(u"#> hello_world\n");
+	//RunApp(u"//hello_world");
 
 	ConsolePrint(u"\n#> tls_test\n");
 	RunApp(u"//tls_test");
+
+	ConsolePrint(u"\n#> libc_test\n");
+	RunApp(u"//libc_test");
 
 	ConsolePrint(u"\n#>\n");
 	

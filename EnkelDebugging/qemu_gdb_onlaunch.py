@@ -1,5 +1,17 @@
 import gdb
 
+def GetRegisterValue(registerName):
+    # Execute the "info registers <reg>" command and capture its output
+    output = gdb.execute("info registers {}".format(registerName), to_string=True)
+
+    # Extract the PDBR value from the output string
+    return int(output.split()[1], 16)
+
+def GetRegisterString(registerName):
+	address = GetRegisterValue(registerName)
+	message = int(address.cast(gdb.lookup_type('string')))
+	return message
+
 def GetFunctionAddress(functionName):
 	address = gdb.parse_and_eval("&{}".format(functionName))
 	address = int(address.cast(gdb.lookup_type('int'))) # Magic incantation to get the address only
@@ -45,12 +57,59 @@ class OnKernelMainHook(gdb.Breakpoint):
         MainScript()
         return False
 
-def get_pml4_base():
-    # Execute the "info registers cr3" command and capture its output
-    output = gdb.execute("info registers cr3", to_string=True)
+class OnBinaryLoadHook(gdb.Breakpoint):
+    def __init__(self, functionName):
+        print("Creating breakpoint for UM symbol loading at {}".format(functionName))
+        self.functionName = functionName
+        address = GetFunctionAddress(functionName)
+        super(OnBinaryLoadHook, self).__init__("*{}".format(address), gdb.BP_BREAKPOINT)
+        
+    def stop (self):
+        gdb.execute("up 1");
+        address = gdb.parse_and_eval("programName")
+        binary_name = self.read_wide_string(address)
+        print("Loading {} symbols".format(binary_name))
+        gdb.execute("add-symbol-file boot_iso/boot_part/{} -readnow -o baseAddress".format(binary_name))
+        return False
+    
+    def read_wide_string(self, addr):
+        result = ""
+        while True:
+            char = gdb.selected_inferior().read_memory(addr, 2).tobytes()
+            if char == b'\x00\x00':
+                break
+            result += char.decode('utf-16le')
+            addr += 1
+        return result
 
+class OnBinaryUnloadHook(gdb.Breakpoint):
+    def __init__(self, functionName):
+        print("Creating breakpoint for UM symbol loading at {}".format(functionName))
+        self.functionName = functionName
+        address = GetFunctionAddress(functionName)
+        super(OnBinaryUnloadHook, self).__init__("*{}".format(address), gdb.BP_BREAKPOINT)
+        
+    def stop (self):
+        gdb.execute("up 1");
+        address = gdb.parse_and_eval("programName")
+        binary_name = self.read_wide_string(address)
+        print("Unloading {} symbols".format(binary_name))
+        gdb.execute("remove-symbol-file -a textSectionOffset")
+        return False
+    
+    def read_wide_string(self, addr):
+        result = ""
+        while True:
+            char = gdb.selected_inferior().read_memory(addr, 2).tobytes()
+            if char == b'\x00\x00':
+                break
+            result += char.decode('utf-16le')
+            addr += 1
+        return result
+
+def get_pml4_base():
     # Extract the PDBR value from the output string
-    pml4_base = int(output.split()[1], 16)
+    pml4_base = GetRegisterValue("cr3")
 
     return pml4_base
 
@@ -134,9 +193,6 @@ def MainScript():
 
     print("Setting debugger hook")
     DebuggerHook("DebuggerHook")
-
-    print("Setting halt hook")
-    DebuggerHook("HaltPermanently")
     
     print("Setting hooks")
     AsmBreakpointWithError("DebugHook_ISR_GeneralProtectionFault")
@@ -146,10 +202,11 @@ def MainScript():
     #AsmBreakpointWithError("AccessViolationException")
     AsmBreakpointWithError("DebugHook_ISR_PageFault")
     
+    OnBinaryUnloadHook("OnBinaryUnloadHook_Inner")
+    OnBinaryLoadHook("OnBinaryLoadHook_Inner")
+    
     print("Setup complete!")
     gdb.execute("continue")
-    
-    print("Continued!")
 
 gdb.execute("set logging overwrite on")
 gdb.execute("set logging enabled")

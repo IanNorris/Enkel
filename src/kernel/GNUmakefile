@@ -5,7 +5,7 @@ override MAKEFLAGS += -rR
 # Change as needed.
 override KERNEL := enkel.elf
 
-override DEBUG_FLAGS := -g3 -O0 -D_DEBUG -DACPI_DEBUG_OUTPUT -DENABLE_STATISTICS=1
+override DEBUG_FLAGS := -g3 -O0 -DDEBUG -D_DEBUG -DACPI_DEBUG_OUTPUT -DENABLE_STATISTICS=1
 #override DEBUG_FLAGS := -O3
 
 # The name of the font
@@ -159,7 +159,7 @@ uefi-headers:
 
 kernel_build.cpptemp.o:
 	rm -f kernel_build.cpptemp
-	echo "const char16_t* KernelBuildId = u\"$(shell git rev-parse HEAD | cut -c 1-8) $(shell date '+%FT')\";\n" > kernel_build.cpptemp
+	echo "const char16_t* KernelBuildId = u\"$(shell git rev-parse HEAD | cut -c 1-8) $(shell date '+%F')\";\n" > kernel_build.cpptemp
 	$(CC) -x c++ $(CFLAGS) $(CPPFLAGS) -c kernel_build.cpptemp -o kernel_build.cpptemp.o
 
 $(FONT_CPP_FILES) $(FONT_H_FILES):

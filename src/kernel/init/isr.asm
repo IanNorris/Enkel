@@ -42,12 +42,13 @@ section .data
 ISR_%2:
 	nop
 DebugHook_ISR_%2:
+	push rbp
     PushGeneralPurposeRegisters
 
     ; Get the value of CR2 (where the faulting instruction accessed)
     mov rax, cr2
 
-    mov rdi, [rsp + 14*8] ; RIP from EIP
+    mov rdi, [rsp + 15*8] ; RIP from EIP
     mov rsi, cr2
     xor rdx, rdx
 	mov rcx, %1
@@ -56,6 +57,7 @@ DebugHook_ISR_%2:
     call ISR_Int_%2
 
     PopGeneralPurposeRegisters
+	pop rbp
 
     ; Return from the interrupt
     iretq
@@ -66,22 +68,39 @@ DebugHook_ISR_%2:
     global ISR_%2
 	global DebugHook_ISR_%2
 ISR_%2:
-	; Bodge to get GDB to see the callstack correctly
-	add rsp, 8 
-DebugHook_ISR_%2:
-	sub rsp, 8
 
+	push rax
+	push rbx
+	mov rax, rsp
+
+	; Bodge to get GDB to see the callstack correctly
+	; + 2 for the pushes above but don't add the 14 from the GPRs
+	mov rbx, [rsp + 3*8] ; RIP from EIP
+	mov rsp, rbx
+DebugHook_ISR_%2:
+	mov rsp, rax
+
+	pop rax
+	pop rbx
+
+	push rbp
     PushGeneralPurposeRegisters
 
+	mov rdx, [rsp + 14*8] ; Error code
+	mov rsi, cr2
     mov rdi, [rsp + 15*8] ; RIP from EIP
-    mov rsi, cr2
-    mov rdx, [rsp + 14*8] ; Error code
 	mov rcx, %1
+	mov r8,  [rsp + 16*8] ; CS
+	mov r9,  [rsp + 17*8] ; EFLAGS
+	mov r10, [rsp + 18*8] ; ESP
+	mov r11, [rsp + 19*8] ; SS
+
    
     ; Call the function named ISR_Int_ followed by the given ISR name
     call ISR_Int_%2
 
     PopGeneralPurposeRegisters
+	pop rbp
 
     ; Return from the interrupt
     iretq
