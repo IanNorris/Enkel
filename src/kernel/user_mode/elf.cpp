@@ -184,7 +184,7 @@ void RunElf(const char16_t* programName, const uint8_t* elfStart)
 		memcpy((void*)segment.p_vaddr, elfStart + segment.p_offset, segment.p_filesz);
 		memset((uint8_t*)segment.p_vaddr + segment.p_filesz, 0, segment.p_memsz - segment.p_filesz);
 
-		/*if(segment.p_flags & SHF_EXECINSTR)
+		if(segment.p_flags & SHF_EXECINSTR)
 		{
 			VirtualProtect((uint8_t*)((uint64_t)segment.p_vaddr & PAGE_MASK), AlignSize(segment.p_memsz, 4096), MemoryProtection::Execute);
 		}
@@ -195,7 +195,7 @@ void RunElf(const char16_t* programName, const uint8_t* elfStart)
 		else
 		{
 			VirtualProtect((uint8_t*)((uint64_t)segment.p_vaddr & PAGE_MASK), AlignSize(segment.p_memsz, 4096), MemoryProtection::ReadOnly);
-		}*/
+		}
 	}
 
 #if _DEBUG
