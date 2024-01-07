@@ -10,10 +10,19 @@ struct TLSData
 	uint64_t StackCanary;
 } PACKED_ALIGNMENT;
 
+struct TLSAllocation
+{
+	uint64_t Allocation;
+	uint64_t Size;
+	uint64_t FSBase;
+};
+
 extern "C" KERNEL_API void SetTLSBase(void* TlsBase);
 
-void* InitializeKernelTLS();
-void* InitializeUserModeTLS(uint64_t tdataSize, uint64_t tbssSize, uint8_t* tdataStart, uint64_t tlsAlign);
+void CreateTLS(TLSAllocation* allocationOut, bool kernel, uint64_t tdataSize, uint64_t tbssSize, uint8_t* tdataStart, uint64_t tlsAlign);
+void InitializeKernelTLS();
+TLSAllocation* CreateUserModeTLS(uint64_t tdataSize, uint64_t tbssSize, uint8_t* tdataStart, uint64_t tlsAlign);
+void DestroyTLS(TLSAllocation* allocation);
 
 uint64_t GetFSBase();
 void SetFSBase(uint64_t fsBase);

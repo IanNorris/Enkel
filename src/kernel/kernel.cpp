@@ -17,6 +17,7 @@
 #include "../../assets/SplashLogo.h"
 #include "kernel/init/acpi.h"
 #include "kernel/user_mode/syscall.h"
+#include "kernel/user_mode/elf.h"
 
 #include "Protocol/DevicePath.h"
 #include "kernel/devices/ahci/cdrom.h"
@@ -24,8 +25,6 @@
 #include <ff.h>
 
 void InitializeSyscalls();
-
-void RunElf(const char16_t* programName, const uint8_t* elfStart);
 
 KernelBootData GBootData;
 
@@ -127,27 +126,6 @@ FRESULT scan_files (
     return res;
 }
 
-void RunApp(const char16_t* appName)
-{
-	FIL file;
-
-	FRESULT fr = f_open(&file, (const TCHAR*)appName, FA_READ);
-	if(fr == FR_OK)
-	{
-		uint64_t fileSize = f_size(&file);
-
-		uint64_t alignedSize = AlignSize(fileSize, 4096);
-
-		uint8_t* buffer = (uint8_t*)VirtualAlloc(alignedSize,  PrivilegeLevel::User);
-		UINT bytesRead;
-		fr = f_read(&file, buffer, fileSize, &bytesRead);
-
-		RunElf(appName+2, buffer);
-
-		VirtualFree(buffer, alignedSize);
-	}
-}
-
 extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootData * BootData)
 {
 	OnKernelMainHook();
@@ -217,16 +195,18 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 	FATFS fs;
     f_mount(&fs, (const TCHAR*)u"", 1);
 
+	InitializeUserMode(&fs);
+
 	ConsolePrint(u"Kernel booted.\n\n");
 
-	//ConsolePrint(u"#> hello_world\n");
-	//RunApp(u"//hello_world");
+	ConsolePrint(u"#> hello_world\n");
+	RunProgram(u"hello_world");
 
 	ConsolePrint(u"\n#> tls_test\n");
-	RunApp(u"//tls_test");
+	RunProgram(u"tls_test");
 
 	ConsolePrint(u"\n#> libc_test\n");
-	RunApp(u"//libc_test");
+	RunProgram(u"libc_test");
 
 	ConsolePrint(u"\n#>\n");
 	

@@ -6,6 +6,9 @@
 #include "kernel/memory/state.h"
 #include "memory/virtual.h"
 #include "common/string.h"
+#include "kernel/user_mode/elf.h"
+#include <ff.h>
+#include <rpmalloc.h>
 
 //Header guard to stop it pulling extra stuff in
 #define __APPLE__
@@ -17,6 +20,19 @@
 #define FLAG_MASK_TRAP 0x00000100
 #define FLAG_MASK_ALIGNMENT 0x00040000
 #define FLAG_MASK_NESTED_TASK 0x00004000
+
+FATFS* GUserModeFS = nullptr;
+int GELFBinaryCount = 0;
+ElfBinary** GELFBinaries = nullptr;
+
+void InitializeUserMode(void* fsPtr)
+{
+	FATFS* fs = (FATFS*)fsPtr;
+
+	GUserModeFS = fs;
+	GELFBinaries = (ElfBinary**)rpmalloc(sizeof(ElfBinary*) * 16);
+	GELFBinaryCount = 0;
+}
 
 extern "C" void SwitchToUserMode(uint64_t stackPointer, uint64_t entry, uint16_t userModeCS, uint16_t userModeDS);
 
@@ -46,10 +62,21 @@ extern "C" void __attribute__((used, noinline)) OnBinaryUnloadHook(uint64_t base
 	asm("nop");
 }
 
-
-// Function to validate and retrieve the entry point
-void RunElf(const char16_t* programName, const uint8_t* elfStart)
+ElfBinary* LoadElfFromMemory(const char16_t* programName, const uint8_t* elfStart)
 {
+	for(int existing = 0; existing < GELFBinaryCount; existing++)
+	{
+		if(strcmp(GELFBinaries[existing]->Name, programName) == 0)
+		{
+			return GELFBinaries[existing];
+		}
+	}
+
+	ElfBinary* elfBinary = (ElfBinary*)rpmalloc(sizeof(ElfBinary));
+	memset(elfBinary, 0, sizeof(ElfBinary));
+
+	strcpy(elfBinary->Name, programName);
+
 	Elf64_Ehdr* elfHeader = (Elf64_Ehdr*)elfStart;
 	Elf64_Phdr* segments = (Elf64_Phdr*)((const char*)elfStart + elfHeader->e_phoff);
 	Elf64_Shdr* sections = (Elf64_Shdr*)((const char*)elfStart + elfHeader->e_shoff);
@@ -125,7 +152,17 @@ void RunElf(const char16_t* programName, const uint8_t* elfStart)
                 const char* libraryName = dynStrTable + entry.d_un.d_val;
 				SerialPrint(libraryName);
 				SerialPrint("\n");
-                //LoadLibrary(libraryName);
+
+				int wideIndex = 0;
+				char16_t libraryWide[256];
+				while(*libraryName)
+				{
+					libraryWide[wideIndex++] = *libraryName;
+					libraryName++;
+				}
+				libraryWide[wideIndex] = 0;
+
+                LoadElf(libraryWide);
             }
 		}
 	}
@@ -134,18 +171,12 @@ void RunElf(const char16_t* programName, const uint8_t* elfStart)
 	{
 		Elf64_Phdr& segment = segments[segmentHeader];
 
-		if(segment.p_type == PT_TLS)
-		{
-			tdataSize = segment.p_filesz;
-			tbssSize = segment.p_memsz - segment.p_filesz;
-			tdataStart = (uint8_t*)elfStart + segment.p_offset;
-			tlsAlign = segment.p_align;
-		}
-
-		if(segment.p_type != PT_LOAD)
+#if _DEBUG
+		if(!(segment.p_type == PT_LOAD || segment.p_type == PT_TLS))
 		{
 			continue;
 		}
+#endif
 
 		if (segment.p_vaddr < lowestAddress)
 		{
@@ -172,8 +203,16 @@ void RunElf(const char16_t* programName, const uint8_t* elfStart)
 		segment.p_vaddr = segment.p_vaddr + (Elf64_Addr)programStart;
 		segment.p_paddr = segment.p_paddr + (Elf64_Addr)programStart;
 
+		if(segment.p_type == PT_TLS)
+		{
+			tdataSize = segment.p_filesz;
+			tbssSize = segment.p_memsz - segment.p_filesz;
+			tdataStart = (uint8_t*)segment.p_vaddr;
+			tlsAlign = segment.p_align;
+		}
+
 #if _DEBUG
-		if (segment.p_type != PT_LOAD)
+		if(!(segment.p_type == PT_LOAD || segment.p_type == PT_TLS))
 		{
 			continue;
 		}
@@ -184,6 +223,7 @@ void RunElf(const char16_t* programName, const uint8_t* elfStart)
 		memcpy((void*)segment.p_vaddr, elfStart + segment.p_offset, segment.p_filesz);
 		memset((uint8_t*)segment.p_vaddr + segment.p_filesz, 0, segment.p_memsz - segment.p_filesz);
 
+#if ENABLE_NX
 		if(segment.p_flags & SHF_EXECINSTR)
 		{
 			VirtualProtect((uint8_t*)((uint64_t)segment.p_vaddr & PAGE_MASK), AlignSize(segment.p_memsz, 4096), MemoryProtection::Execute);
@@ -196,37 +236,142 @@ void RunElf(const char16_t* programName, const uint8_t* elfStart)
 		{
 			VirtualProtect((uint8_t*)((uint64_t)segment.p_vaddr & PAGE_MASK), AlignSize(segment.p_memsz, 4096), MemoryProtection::ReadOnly);
 		}
+#endif
 	}
 
 #if _DEBUG
 	OnBinaryLoadHook(programStart, text_section, programName);
 #endif
 
-	ConsolePrintNumeric(u"Base address: ", programStart, u"\n");
+	elfBinary->BaseAddress = programStart;
+	elfBinary->AllocatedSize = programSize;
 
-	const uint64_t stackSize = 128*1024;
+	elfBinary->TextSection = text_section;
+	elfBinary->Entry = programStart + elfHeader->e_entry;
 
-	uint64_t stackStart = (uint64_t)VirtualAlloc(stackSize, PrivilegeLevel::User);
-	uint64_t stackTop = stackStart + stackSize - 64;
+	elfBinary->TLSData = tdataStart;
+	elfBinary->TLSDataSize = tdataSize;
+	elfBinary->TBSSSize = tbssSize;
+	elfBinary->TLSAlign = tlsAlign;
 
-	uint16_t umCS = ((uint16_t)GDTEntryIndex::UserCode * sizeof(GDTEntry)) | 0x3; // | ring3
-	uint16_t umDS = ((uint16_t)GDTEntryIndex::UserData * sizeof(GDTEntry)) | 0x3;
+	elfBinary->RefCount = 1;
 
-	void* tlsBase = InitializeUserModeTLS(tdataSize, tbssSize, tdataStart, tlsAlign);
-	SetFSBase((uint64_t)tlsBase);
-	//TODO: Leaking this pointer!
+	GELFBinaries[GELFBinaryCount++] = elfBinary;
 
-	uint64_t entry = programStart + elfHeader->e_entry;
+	return elfBinary;
+}
 
-	uint64_t* stackTopPtr = (uint64_t*)stackTop;
-	stackTopPtr -= 8; *stackTopPtr = 0;
-	stackTopPtr -= 8; *stackTopPtr = 0;
-	stackTopPtr -= 8; *stackTopPtr = 0;
-	stackTopPtr -= 8; *stackTopPtr = 0;
+ElfBinary* LoadElf(const char16_t* programName)
+{
+	char16_t filename[256];
+	strcpy(filename, u"//");
+	strcat(filename, programName);
 
-	SwitchToUserMode((uint64_t)stackTopPtr, entry, umCS, umDS);
+	FIL file;
 
+	FRESULT fr = f_open(&file, (const TCHAR*)filename, FA_READ);
+	if(fr == FR_OK)
+	{
+		uint64_t fileSize = f_size(&file);
+
+		uint64_t alignedSize = AlignSize(fileSize, 4096);
+
+		uint8_t* buffer = (uint8_t*)VirtualAlloc(alignedSize,  PrivilegeLevel::User);
+		UINT bytesRead;
+		fr = f_read(&file, buffer, fileSize, &bytesRead);
+
+		ElfBinary* binary = LoadElfFromMemory(programName, buffer);
+
+		VirtualFree(buffer, alignedSize);
+
+		return binary;
+	}
+	else
+	{
+		ConsolePrint(u"Failed to load ELF: ");
+		ConsolePrint(filename);
+		ConsolePrint(u"\n");
+	}
+
+	return nullptr;
+}
+
+void UnloadElf(ElfBinary* elfBinary)
+{
+	elfBinary->RefCount--;
+
+	if(elfBinary->RefCount == 0)
+	{
 #if _DEBUG
-	OnBinaryUnloadHook(programStart, text_section, programName);
+		OnBinaryUnloadHook(elfBinary->BaseAddress, elfBinary->TextSection, elfBinary->Name);
 #endif
+
+		VirtualFree((void*)elfBinary->BaseAddress, elfBinary->AllocatedSize);
+
+		rpfree(elfBinary);
+	}
+}
+
+void ScheduleProcess(Process* process)
+{
+	ConsolePrintNumeric(u"Base address: ", process->Binary->BaseAddress, u"\n");
+
+	const uint16_t userModeCodeSelector = ((uint16_t)GDTEntryIndex::UserCode * sizeof(GDTEntry)) | 0x3; // Selector | Ring 3
+	const uint16_t userModeDataSelector = ((uint16_t)GDTEntryIndex::UserData * sizeof(GDTEntry)) | 0x3;
+
+	uint64_t currentFSBase = GetFSBase();
+	SetFSBase(process->TLS->FSBase);
+
+	SwitchToUserMode((uint64_t)process->DefaultThreadStackStart, process->Binary->Entry, userModeCodeSelector, userModeDataSelector);
+
+	//Back in the kernel
+	SetFSBase(currentFSBase);
+}
+
+Process* CreateProcess(const char16_t* programName)
+{
+	Process* process = (Process*)rpmalloc(sizeof(Process));
+	memset(process, 0, sizeof(Process));
+
+	process->DefaultThreadStackSize = 128 * 1024;
+	process->DefaultThreadStackBase = (uint64_t)VirtualAlloc(process->DefaultThreadStackSize, PrivilegeLevel::User);
+	
+	process->Binary = LoadElf(programName);
+
+	process->TLS = CreateUserModeTLS(process->Binary->TLSDataSize, process->Binary->TBSSSize, process->Binary->TLSData, process->Binary->TLSAlign);
+
+	//Ensure we've got 
+	uint64_t* stackTopPtr = (uint64_t*)(process->DefaultThreadStackBase + process->DefaultThreadStackSize);
+	stackTopPtr -= 8; *stackTopPtr = 0;
+	stackTopPtr -= 8; *stackTopPtr = 0;
+	stackTopPtr -= 8; *stackTopPtr = 0;
+	stackTopPtr -= 8; *stackTopPtr = 0;
+
+	process->DefaultThreadStackStart = (uint64_t)stackTopPtr;
+
+	ScheduleProcess(process);
+
+	return process;
+
+}
+
+void DestroyProcess(Process* process)
+{
+	VirtualFree((void*)process->DefaultThreadStackBase, process->DefaultThreadStackSize);
+	process->DefaultThreadStackBase = 0;
+
+	DestroyTLS(process->TLS);
+	process->TLS = nullptr;
+
+	UnloadElf(process->Binary);
+	process->Binary = nullptr;
+
+	rpfree(process);
+}
+
+void RunProgram(const char16_t* programName)
+{
+	Process* process = CreateProcess(programName);
+
+	DestroyProcess(process);
 }

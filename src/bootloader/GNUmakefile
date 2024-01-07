@@ -37,7 +37,7 @@ string.o: ../kernel/common/string.cpp
 
 bootloader_build.h: force
 	rm -f bootloader_build.h
-	echo "#define BOOTLOADER_BUILD_ID u\"$(shell git rev-parse HEAD | cut -c 1-8) $(shell date '+%FT %T')\"" > bootloader_build.h
+	echo "#define BOOTLOADER_BUILD_ID u\"$(shell git rev-parse HEAD | cut -c 1-8) $(shell date '+%F')\"" > bootloader_build.h
 
 $(OUTPUT_NAME): uefi-headers $(CPPFILES) $(HFILES) $(KERNEL_OBJECTS) $(NASMFILES:.asm=.asm.o) bootloader_build.h
 	clang $(C_ARGS) $(CPPFILES) -c

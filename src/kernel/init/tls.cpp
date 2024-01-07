@@ -26,8 +26,10 @@ void SetFSBase(uint64_t fsBase)
 // TODO:
 // https://wiki.osdev.org/SWAPGS
 
-void* InitializeTLS(bool kernel, uint64_t tdataSize, uint64_t tbssSize, uint8_t* tdataStart, uint64_t tlsAlign)
+void CreateTLS(TLSAllocation* allocationOut, bool kernel, uint64_t tdataSize, uint64_t tbssSize, uint8_t* tdataStart, uint64_t tlsAlign)
 {
+	memset(allocationOut, 0, sizeof(TLSAllocation));
+
 	//https://stackoverflow.com/questions/67343020/understanding-elf-tbss-and-tdata-section-loading
 
 	//Payload looks like this:
@@ -70,22 +72,36 @@ void* InitializeTLS(bool kernel, uint64_t tdataSize, uint64_t tbssSize, uint8_t*
     memset(tls + alignedOffset + tdataSize, 0x0, tbssSize);
 
 	uint64_t tlsHigh = (uint64_t)tls + alignedSize;
-	SetFSBase(tlsHigh);
 
-	//TODO: LEAKY LEAKY!
-	return (void*)tlsHigh;
+	allocationOut->Allocation = (uint64_t)tls;
+	allocationOut->Size = tlsAllocationSize;
+	allocationOut->FSBase = tlsHigh;
 }
 
-void* InitializeKernelTLS()
+void InitializeKernelTLS()
 { 
     size_t tdata_size = (uint8_t*)&__tdata_end - (uint8_t*)&__tdata_start;
     size_t tbss_size = (uint8_t*)&__tbss_end - (uint8_t*)&__tbss_start;
     size_t tls_size = tdata_size + tbss_size;
 
-	return InitializeTLS(true, tdata_size, tbss_size, (uint8_t*)&__tdata_start, 0x1);
+	TLSAllocation allocation;
+
+	CreateTLS(&allocation, true, tdata_size, tbss_size, (uint8_t*)&__tdata_start, 0x1);
+
+	SetFSBase(allocation.FSBase);
 }
 
-void* InitializeUserModeTLS(uint64_t tdataSize, uint64_t tbssSize, uint8_t* tdataStart, uint64_t tlsAlign)
+TLSAllocation* CreateUserModeTLS(uint64_t tdataSize, uint64_t tbssSize, uint8_t* tdataStart, uint64_t tlsAlign)
 {
-	return InitializeTLS(false, tdataSize, tbssSize, tdataStart, tlsAlign);
+	TLSAllocation* allocation = (TLSAllocation*)rpmalloc(sizeof(TLSAllocation));
+
+	CreateTLS(allocation, false, tdataSize, tbssSize, tdataStart, tlsAlign);
+
+	return allocation;
+}
+
+void DestroyTLS(TLSAllocation* allocation)
+{
+	VirtualFree((void*)allocation->Allocation, allocation->Size);
+	rpfree(allocation);
 }

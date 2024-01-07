@@ -71,6 +71,7 @@ $(eval $(call DEFAULT_VAR,LDFLAGS,$(DEFAULT_LDFLAGS)))
 # -mgeneral-regs-only for interrupt handling (for now, see https://wiki.osdev.org/Interrupt_Service_Routines)
 override CFLAGS += \
     $(DEBUG_FLAGS) \
+	-DENABLE_NX=0 \
 	-D__ENKEL__ \
 	-DARCH_64BIT \
 	-DRPMALLOC_CONFIGURABLE=1 \

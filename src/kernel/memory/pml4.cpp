@@ -306,7 +306,9 @@ void MapPages(uint64_t virtualAddress, uint64_t physicalAddress, uint64_t size, 
             }
             if (!executable)
             {
+#if ENABLE_NX
                 PT->Entries[ptIndex] |= NOT_EXECUTABLE;
+#endif
             }
 
 			if(pageFlags == PageFlags_Cache_Disable)
