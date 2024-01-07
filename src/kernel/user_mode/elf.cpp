@@ -62,6 +62,26 @@ extern "C" void __attribute__((used, noinline)) OnBinaryUnloadHook(uint64_t base
 	asm("nop");
 }
 
+void* ResolveSymbol(const char* name)
+{
+	for(int i = 0; i < GELFBinaryCount; i++)
+	{
+		ElfBinary* binary = GELFBinaries[i];
+
+		for(int symbol = 0; symbol < binary->SymbolCount; symbol++)
+		{
+			ElfSymbolExport& exportSymbol = binary->Symbols[symbol];
+
+			if(strcmp((const char*)exportSymbol.SymbolName, name) == 0)
+			{
+				return (void*)(exportSymbol.SymbolAddress + binary->BaseAddress);
+			}
+		}
+	}
+
+	return nullptr;
+}
+
 ElfBinary* LoadElfFromMemory(const char16_t* programName, const uint8_t* elfStart)
 {
 	for(int existing = 0; existing < GELFBinaryCount; existing++)
@@ -81,7 +101,13 @@ ElfBinary* LoadElfFromMemory(const char16_t* programName, const uint8_t* elfStar
 	Elf64_Phdr* segments = (Elf64_Phdr*)((const char*)elfStart + elfHeader->e_phoff);
 	Elf64_Shdr* sections = (Elf64_Shdr*)((const char*)elfStart + elfHeader->e_shoff);
 	char* stringTable = (char*)(elfStart + sections[elfHeader->e_shstrndx].sh_offset);
-	char* dynStrTable = nullptr;
+	char* dynamicStringTable = nullptr;
+
+	uint32_t dynamicSectionItemCount = 0;
+	Elf64_Dyn* dynamicSection = nullptr;
+
+	uint64_t symbolsItemCount = 0;
+	Elf64_Sym* symbols = nullptr;
 
 	//Verify the ELF is in the correct format
 
@@ -125,45 +151,45 @@ ElfBinary* LoadElfFromMemory(const char16_t* programName, const uint8_t* elfStar
             const char* sectionName = (char*)(elfStart + sections[elfHeader->e_shstrndx].sh_offset + section.sh_name);
             if (strcmp(sectionName, ".dynstr") == 0)
             {
-                dynStrTable = (char*)(elfStart + section.sh_offset);
-                break;
+                dynamicStringTable = (char*)(elfStart + section.sh_offset);
             }
+        }
+		else if(section.sh_type == SHT_DYNAMIC)
+		{
+			dynamicSection = (Elf64_Dyn*)(elfStart + section.sh_offset);
+            dynamicSectionItemCount = section.sh_size / section.sh_entsize;
+		}
+		else if (section.sh_type == SHT_DYNSYM)
+		{
+			symbols = (Elf64_Sym*)(elfStart + section.sh_offset);
+			symbolsItemCount = section.sh_size / section.sh_entsize;
         }
 	}
 
-	for (uint16_t i = 0; i < elfHeader->e_shnum; ++i)
-    {
-        Elf64_Shdr& section = sections[i];
-		const char* sectionName = stringTable + section.sh_name;
-
-		if(section.sh_type == SHT_DYNAMIC)
+	if(dynamicSection)
+	{
+		for (uint32_t j = 0; j < dynamicSectionItemCount; ++j)
 		{
-			Elf64_Dyn* dynamicSection = (Elf64_Dyn*)(elfStart + section.sh_offset);
-            uint32_t entryCount = section.sh_size / section.sh_entsize;
+			Elf64_Dyn& entry = dynamicSection[j];
+			if (entry.d_tag != DT_NEEDED)
+			{
+				break;
+			}
 
-            for (uint32_t j = 0; j < entryCount; ++j)
-            {
-                Elf64_Dyn& entry = dynamicSection[j];
-                if (entry.d_tag != DT_NEEDED)
-				{
-                    break;
-				}
+			const char* libraryName = dynamicStringTable + entry.d_un.d_val;
+			SerialPrint(libraryName);
+			SerialPrint("\n");
 
-                const char* libraryName = dynStrTable + entry.d_un.d_val;
-				SerialPrint(libraryName);
-				SerialPrint("\n");
+			int wideIndex = 0;
+			char16_t libraryWide[256];
+			while(*libraryName)
+			{
+				libraryWide[wideIndex++] = *libraryName;
+				libraryName++;
+			}
+			libraryWide[wideIndex] = 0;
 
-				int wideIndex = 0;
-				char16_t libraryWide[256];
-				while(*libraryName)
-				{
-					libraryWide[wideIndex++] = *libraryName;
-					libraryName++;
-				}
-				libraryWide[wideIndex] = 0;
-
-                LoadElf(libraryWide);
-            }
+			LoadElf(libraryWide);
 		}
 	}
 
@@ -222,7 +248,117 @@ ElfBinary* LoadElfFromMemory(const char16_t* programName, const uint8_t* elfStar
 
 		memcpy((void*)segment.p_vaddr, elfStart + segment.p_offset, segment.p_filesz);
 		memset((uint8_t*)segment.p_vaddr + segment.p_filesz, 0, segment.p_memsz - segment.p_filesz);
+	}
 
+	if (symbols != nullptr)
+	{
+		uint64_t totalStringLength = 0;
+		uint64_t symbolCount = 0;
+
+		for (Elf32_Word i = 0; i < symbolsItemCount; ++i)
+		{
+            Elf64_Sym& sym = symbols[i];
+			const char* name = dynamicStringTable + sym.st_name;
+
+			uint64_t currentSymbolNameLength = strlen(name);
+
+            if((ELF64_ST_BIND(sym.st_info) != STB_LOCAL) && currentSymbolNameLength)
+			{
+				totalStringLength += currentSymbolNameLength + 1;
+				symbolCount++;
+			}
+        }
+
+		elfBinary->SymbolCount = 0;
+		elfBinary->SymbolStringTableSize = totalStringLength;
+		elfBinary->SymbolStringTable = (uint8_t*)rpmalloc(totalStringLength);
+		elfBinary->Symbols = (ElfSymbolExport*)rpmalloc(sizeof(ElfSymbolExport) * symbolCount);
+
+		uint8_t* currentStringTableOffset = elfBinary->SymbolStringTable;
+
+        for (Elf32_Word i = 0; i < symbolsItemCount; ++i)
+		{
+            Elf64_Sym& sym = symbols[i];
+			const char* name = dynamicStringTable + sym.st_name;
+
+			uint64_t currentSymbolNameLength = strlen(name);
+
+            if (sym.st_shndx == SHN_UNDEF && currentSymbolNameLength)
+			{
+                void* addr = ResolveSymbol(name);
+
+                if (addr == nullptr)
+				{
+                    // Handle unresolved symbol
+                    SerialPrint("Unresolved symbol: ");
+                    SerialPrint(name);
+					SerialPrint("\n");
+					addr = (void*)0xBADF00D5;
+                }
+
+                sym.st_value = (Elf64_Addr)addr;
+            }
+			else if((ELF64_ST_BIND(sym.st_info) != STB_LOCAL) && currentSymbolNameLength)
+			{
+				ElfSymbolExport& exportSymbol = elfBinary->Symbols[elfBinary->SymbolCount++];
+				exportSymbol.SymbolName = currentStringTableOffset;
+				exportSymbol.SymbolAddress = sym.st_value;
+
+				strcpy((char*)currentStringTableOffset, name);
+				currentStringTableOffset += currentSymbolNameLength + 1;
+			}
+        }
+    }
+
+	for (uint16_t i = 0; i < elfHeader->e_shnum; ++i)
+    {
+        Elf64_Shdr& section = sections[i];
+		const char* sectionName = stringTable + section.sh_name;
+
+		if (section.sh_type == SHT_RELA)
+		{
+            Elf64_Rela* relas = (Elf64_Rela*)(elfStart + section.sh_offset);
+			for (Elf64_Xword i = 0; i < section.sh_size / section.sh_entsize; ++i)
+			{
+				Elf64_Rela& rela = relas[i];
+				uint64_t symIndex = ELF64_R_SYM(rela.r_info);
+				uint64_t type = ELF64_R_TYPE(rela.r_info);
+
+				if (type == R_X86_64_GLOB_DAT || type == R_X86_64_JUMP_SLOT)
+				{
+					Elf64_Sym& sym = symbols[symIndex];
+					*((Elf64_Addr*)(programStart + rela.r_offset)) = sym.st_value;
+				}
+				else
+				{
+					//*((Elf64_Addr*)(programStart + rela.r_offset)) = 0xE1FBADADD;
+				}
+			}
+        }
+		else if (section.sh_type == SHT_REL)
+		{
+            Elf64_Rel* rels = (Elf64_Rel*)(elfStart + section.sh_offset);
+			for (Elf64_Xword i = 0; i < section.sh_size / section.sh_entsize; ++i)
+			{
+				Elf64_Rel& rel = rels[i];
+				uint64_t symIndex = ELF64_R_SYM(rel.r_info);
+				uint64_t type = ELF64_R_TYPE(rel.r_info);
+
+				if (type == R_X86_64_GLOB_DAT || type == R_X86_64_JUMP_SLOT)
+				{
+					Elf64_Sym& sym = symbols[symIndex];
+					*((Elf64_Addr*)(programStart + rel.r_offset)) = sym.st_value;
+				}
+				else
+				{
+					//*((Elf64_Addr*)(programStart + rel.r_offset)) = nullptr; //0xE1FBAD000
+				}
+			}
+        }
+	}
+
+	for (int segmentHeader = 0; segmentHeader < elfHeader->e_phnum; segmentHeader++)
+	{
 #if ENABLE_NX
 		if(segment.p_flags & SHF_EXECINSTR)
 		{

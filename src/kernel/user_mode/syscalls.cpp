@@ -20,6 +20,11 @@
 
 #define ARCH_CET_STATUS 0x3001
 
+extern "C"
+{
+	uint64_t SyscallStack;
+}
+
 extern "C" void __attribute__((sysv_abi,noreturn)) ReturnToKernel();
 
 uint64_t sys_not_implemented()
@@ -370,4 +375,6 @@ void InitializeSyscalls()
     uint64_t efer = GetMSR(IA32_EFER);
     efer |= EFER_SCE;
     SetMSR(IA32_EFER, efer);
+
+	SyscallStack = (uint64_t)VirtualAlloc(16 * 1024, PrivilegeLevel::Kernel) + (16 * 1024);
 }

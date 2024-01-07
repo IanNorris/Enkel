@@ -1,5 +1,11 @@
 #pragma once
 
+struct ElfSymbolExport
+{
+	uint8_t* SymbolName;
+	uint64_t SymbolAddress;
+};
+
 struct ElfBinary
 {
 	char16_t Name[64];
@@ -15,6 +21,11 @@ struct ElfBinary
 	uint64_t TLSDataSize;
 	uint64_t TBSSSize;
 	uint16_t TLSAlign;
+
+	uint8_t* SymbolStringTable;
+	uint64_t SymbolStringTableSize;
+	uint64_t SymbolCount;
+	ElfSymbolExport* Symbols;
 };
 
 struct Process

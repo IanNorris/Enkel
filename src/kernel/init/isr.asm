@@ -69,13 +69,13 @@ DebugHook_ISR_%2:
 	global DebugHook_ISR_%2
 ISR_%2:
 
-	push rax
-	push rbx
-	mov rax, rsp
+	push rax ; Backup rax
+	push rbx ; Backup rbx
+	mov rax, rsp ; Backup rsp
 
 	; Bodge to get GDB to see the callstack correctly
 	; + 2 for the pushes above but don't add the 14 from the GPRs
-	mov rbx, [rsp + 3*8] ; RIP from EIP
+	mov rbx, [rsp + 6*8] ; RIP from EIP
 	mov rsp, rbx
 DebugHook_ISR_%2:
 	mov rsp, rax

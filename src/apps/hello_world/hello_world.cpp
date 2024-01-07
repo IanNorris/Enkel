@@ -11,6 +11,7 @@ size_t _strlen(const char* str)
 }
 
 extern "C" size_t __attribute__((sysv_abi)) Write(int fd, const void *buf, size_t count);
+extern "C" size_t __attribute__((sysv_abi)) InvSysCall();
 extern "C" void __attribute__((sysv_abi,noreturn)) Exit(int errorCode);
 
 void PrintString(const char* message)
@@ -23,6 +24,8 @@ extern "C"
 void __attribute__((sysv_abi,noreturn,noinline)) _start()
 {
 	PrintString("Hello World!\n");
+
+	//InvSysCall();
 
 	Exit(0);
 }

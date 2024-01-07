@@ -128,7 +128,14 @@ void AccessViolationCommon(uint64_t rip, uint64_t cr2, uint64_t errorCode, uint6
 	witoabuf(Buffer, rip, 16);
 	ConsolePrint(Buffer);
 
-    PrintStackTrace(30);
+	if(codeSegment & 0x3 == 0x3)
+	{
+	    PrintStackTrace(30);
+	}
+	else
+	{
+		PrintStackTrace(30);
+	}
 }
 
 DEFINE_NAMED_INTERRUPT(UnsetExceptionHandler)(uint64_t rip, uint64_t cr2, uint64_t errorCode, uint32_t interruptNumber, uint64_t codeSegment)
