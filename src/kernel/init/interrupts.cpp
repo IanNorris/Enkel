@@ -55,7 +55,7 @@ bool IsDebuggerPresent()
 	{DebugBreak();} 	\
 	else{HaltPermanently();}
 
-void AccessViolationCommon(uint64_t rip, uint64_t cr2, uint64_t errorCode, uint64_t codeSegment)
+void AccessViolationCommon(uint64_t interruptNumber, uint64_t rip, uint64_t cr2, uint64_t errorCode, uint64_t codeSegment, uint64_t triggeringRBP)
 {
 	char16_t Buffer[32];
 
@@ -130,7 +130,7 @@ void AccessViolationCommon(uint64_t rip, uint64_t cr2, uint64_t errorCode, uint6
 
 	if(codeSegment & 0x3 == 0x3)
 	{
-	    PrintStackTrace(30);
+	    PrintStackTrace(30, rip, triggeringRBP);
 	}
 	else
 	{
@@ -138,29 +138,29 @@ void AccessViolationCommon(uint64_t rip, uint64_t cr2, uint64_t errorCode, uint6
 	}
 }
 
-DEFINE_NAMED_INTERRUPT(UnsetExceptionHandler)(uint64_t rip, uint64_t cr2, uint64_t errorCode, uint32_t interruptNumber, uint64_t codeSegment)
+DEFINE_NAMED_INTERRUPT(UnsetExceptionHandler)(uint64_t interruptNumber, uint64_t rip, uint64_t cr2, uint64_t errorCode, uint64_t codeSegment, uint64_t triggeringRBP)
 {
 	STOP();
 
 	OutPort(0x20, 0x20);
 }
 
-void __attribute__((used,noinline)) AccessViolationException(uint64_t rip, uint64_t cr2, uint64_t errorCode, uint64_t codeSegment)
+void __attribute__((used,noinline)) AccessViolationException(uint64_t interruptNumber, uint64_t rip, uint64_t cr2, uint64_t errorCode, uint64_t codeSegment, uint64_t triggeringRBP)
 {
-	AccessViolationCommon(rip, cr2, errorCode, codeSegment);
+	AccessViolationCommon(interruptNumber, rip, cr2, errorCode, codeSegment, triggeringRBP);
 	STOP();
 }
 
-DEFINE_NAMED_INTERRUPT(PageFault)(uint64_t rip, uint64_t cr2, uint64_t errorCode, uint32_t interruptNumber, uint64_t codeSegment)
+DEFINE_NAMED_INTERRUPT(PageFault)(uint64_t interruptNumber, uint64_t rip, uint64_t cr2, uint64_t errorCode, uint64_t codeSegment, uint64_t triggeringRBP)
 {
 	//Paging will go here eventually
 
-	AccessViolationException(rip, cr2, errorCode, codeSegment);
+	AccessViolationException(interruptNumber, rip, cr2, errorCode, codeSegment, triggeringRBP);
 
 	OutPort(0x20, 0x20);
 }
 
-DEFINE_NAMED_INTERRUPT(Breakpoint)(uint64_t rip, uint64_t cr2, uint64_t errorCode, uint32_t interruptNumber, uint64_t codeSegment)
+DEFINE_NAMED_INTERRUPT(Breakpoint)(uint64_t interruptNumber, uint64_t rip, uint64_t cr2, uint64_t errorCode, uint64_t codeSegment, uint64_t triggeringRBP)
 {
 	STOP();
 
@@ -170,7 +170,7 @@ DEFINE_NAMED_INTERRUPT(Breakpoint)(uint64_t rip, uint64_t cr2, uint64_t errorCod
 //GCC bug! If this is not tagged with noinline, if this function can be inlined it
 //this inlined function will be labelled as an ISR itself and it'll generate:
 // "error : interrupt service routine cannot be called directly" which is incorrect.
-void __attribute__((used,noinline)) InterruptDummy(const char16_t* message, int64_t rip, uint64_t cr2, uint64_t errorCode, uint32_t interruptNumber, uint64_t codeSegment, bool terminate, bool hook)
+void __attribute__((used,noinline)) InterruptDummy(const char16_t* message, uint64_t interruptNumber, uint64_t rip, uint64_t cr2, uint64_t errorCode, uint64_t codeSegment, uint64_t triggeringRBP, bool terminate, bool hook)
 {
 	if(!hook)
 	{
@@ -221,7 +221,7 @@ static uint32_t DefaultInterrupt(void* Context)
 
 extern "C" void __attribute__((naked)) ISR_InterruptHandlerWithContext(void);
 
-DEFINE_NAMED_INTERRUPT(InterruptHandlerWithContext)(uint64_t rip, uint64_t cr2, uint64_t errorCode, uint32_t interruptNumber, uint64_t codeSegment)
+DEFINE_NAMED_INTERRUPT(InterruptHandlerWithContext)(uint64_t interruptNumber, uint64_t rip, uint64_t cr2, uint64_t errorCode, uint64_t codeSegment, uint64_t triggeringRBP)
 {
 	ISR_Callbacks[interruptNumber](ISR_Contexts[interruptNumber]);
 
@@ -241,13 +241,13 @@ void ClearInterruptHandler(int InterruptNumber)
 
 #define CALLBACK_INTERRUPT(n) \
 	extern "C" void __attribute__((naked)) ISR_Callback##n(void); \
-	extern "C" void KERNEL_API __attribute__((used,noinline)) ISR_Int_Callback##n(uint64_t rip, uint64_t cr2, uint64_t errorCode, uint32_t interruptNumber, uint64_t codeSegment) \
-	{ ISR_Int_InterruptHandlerWithContext(rip, cr2, errorCode, interruptNumber, codeSegment); }
+	extern "C" void KERNEL_API __attribute__((used,noinline)) ISR_Int_Callback##n(uint64_t interruptNumber, uint64_t rip, uint64_t cr2, uint64_t errorCode, uint64_t codeSegment, uint64_t triggeringRBP) \
+	{ ISR_Int_InterruptHandlerWithContext(interruptNumber, rip, cr2, errorCode, codeSegment, triggeringRBP); }
 
-#define NAMED_INTERRUPT(functionName) extern "C" void __attribute__((naked)) ISR_##functionName(void); extern "C" void KERNEL_API __attribute__((used,noinline)) ISR_Int_##functionName(uint64_t rip, uint64_t cr2, uint64_t errorCode, uint32_t interruptNumber, uint64_t codeSegment);
+#define NAMED_INTERRUPT(functionName) extern "C" void __attribute__((naked)) ISR_##functionName(void); extern "C" void KERNEL_API __attribute__((used,noinline)) ISR_Int_##functionName(uint64_t interruptNumber, uint64_t rip, uint64_t cr2, uint64_t errorCode, uint64_t codeSegment, uint64_t triggeringRBP);
 
-#define PRINT_NAMED_INTERRUPT(functionName, message, hook) extern "C" void __attribute__((naked)) ISR_##functionName(void); extern "C" void KERNEL_API __attribute__((used,noinline)) ISR_Int_##functionName(uint64_t rip, uint64_t cr2, uint64_t errorCode, uint32_t interruptNumber, uint64_t codeSegment){ InterruptDummy(message, rip, cr2, errorCode, interruptNumber, codeSegment, false, hook); }
-#define PRINT_NAMED_INTERRUPT_HALT(functionName, message) extern "C" void __attribute__((naked)) ISR_##functionName(void); extern "C" void KERNEL_API __attribute__((used,noinline)) ISR_Int_##functionName(uint64_t rip, uint64_t cr2, uint64_t errorCode, uint32_t interruptNumber, uint64_t codeSegment){ InterruptDummy(message, rip, cr2, errorCode, interruptNumber, codeSegment, true, true); }
+#define PRINT_NAMED_INTERRUPT(functionName, message, hook) extern "C" void __attribute__((naked)) ISR_##functionName(void); extern "C" void KERNEL_API __attribute__((used,noinline)) ISR_Int_##functionName(uint64_t interruptNumber, uint64_t rip, uint64_t cr2, uint64_t errorCode, uint64_t codeSegment, uint64_t triggeringRBP){ InterruptDummy(message, interruptNumber, rip, cr2, errorCode, codeSegment, triggeringRBP, false, hook); }
+#define PRINT_NAMED_INTERRUPT_HALT(functionName, message) extern "C" void __attribute__((naked)) ISR_##functionName(void); extern "C" void KERNEL_API __attribute__((used,noinline)) ISR_Int_##functionName(uint64_t interruptNumber, uint64_t rip, uint64_t cr2, uint64_t errorCode, uint64_t codeSegment, uint64_t triggeringRBP){ InterruptDummy(message, interruptNumber, rip, cr2, errorCode, codeSegment, triggeringRBP, true, true); }
 
 PRINT_NAMED_INTERRUPT(DivideByZero, u"Divide by 0", true) //0
 PRINT_NAMED_INTERRUPT_HALT(SingleStep, u"Single step") //1
@@ -370,7 +370,7 @@ void EnableInterrupts()
     __asm("sti");
 }
 
-DEFINE_NAMED_INTERRUPT(SpuriousInterrupt)(uint64_t rip, uint64_t cr2, uint64_t errorCode, uint32_t interruptNumber, uint64_t codeSegment)
+DEFINE_NAMED_INTERRUPT(SpuriousInterrupt)(uint64_t interruptNumber, uint64_t rip, uint64_t cr2, uint64_t errorCode, uint64_t codeSegment, uint64_t triggeringRBP)
 {
 }
 

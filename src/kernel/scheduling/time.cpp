@@ -132,7 +132,7 @@ void HpetSleepMS(uint64_t milliseconds)
 
 volatile uint64_t PITReceived = false;
 
-DEFINE_NAMED_INTERRUPT(PITInterrupt)(uint64_t rip, uint64_t cr2, uint64_t errorCode, uint32_t interruptNumber)
+DEFINE_NAMED_INTERRUPT(PITInterrupt)(uint64_t interruptNumber, uint64_t rip, uint64_t cr2, uint64_t errorCode, uint64_t codeSegment, uint64_t triggeringRBP)
 {
 	PITReceived = 1;
 

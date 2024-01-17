@@ -45,13 +45,12 @@ DebugHook_ISR_%2:
 	push rbp
     PushGeneralPurposeRegisters
 
-    ; Get the value of CR2 (where the faulting instruction accessed)
-    mov rax, cr2
-
-    mov rdi, [rsp + 15*8] ; RIP from EIP
-    mov rsi, cr2
-    xor rdx, rdx
-	mov rcx, %1
+    mov rdi, %1							; Interrupt number
+    mov rsi, [rsp + (15*8) + (0*8)] 	; RIP from EIP (param 1)
+	mov rdx, cr2 						; CR2 (param 2)
+	mov rcx, 0						 	; Error code (param 3)
+	mov r8,  [rsp + (15*8) + (1*8)] 	; CS 
+	mov r9,  rbp					 	; RBP
 
     ; Call the function named ISR_Int_ followed by the given ISR name
     call ISR_Int_%2
@@ -69,32 +68,20 @@ DebugHook_ISR_%2:
 	global DebugHook_ISR_%2
 ISR_%2:
 
-	push rax ; Backup rax
-	push rbx ; Backup rbx
-	mov rax, rsp ; Backup rsp
-
-	; Bodge to get GDB to see the callstack correctly
-	; + 2 for the pushes above but don't add the 14 from the GPRs
-	mov rbx, [rsp + 6*8] ; RIP from EIP
-	mov rsp, rbx
+	sub rsp, 32
 DebugHook_ISR_%2:
-	mov rsp, rax
+	add rsp, 32
 
-	pop rax
-	pop rbx
-
+	; push 15 regs
 	push rbp
     PushGeneralPurposeRegisters
 
-	mov rdx, [rsp + 14*8] ; Error code
-	mov rsi, cr2
-    mov rdi, [rsp + 15*8] ; RIP from EIP
-	mov rcx, %1
-	mov r8,  [rsp + 16*8] ; CS
-	mov r9,  [rsp + 17*8] ; EFLAGS
-	mov r10, [rsp + 18*8] ; ESP
-	mov r11, [rsp + 19*8] ; SS
-
+	mov rdi, %1							; Interrupt number
+    mov rsi, [rsp + (15*8) + (1*8)] 	; RIP from EIP (param 1)
+	mov rdx, cr2 						; CR2 (param 2)
+	mov rcx, [rsp + (15*8) + (0*8)] 	; Error code (param 3)
+	mov r8,  [rsp + (15*8) + (2*8)] 	; CS 
+	mov r9,  rbp					 	; RBP
    
     ; Call the function named ISR_Int_ followed by the given ISR name
     call ISR_Int_%2
