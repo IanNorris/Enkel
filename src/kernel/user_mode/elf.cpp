@@ -80,10 +80,6 @@ void* ResolveSymbol(const char* name)
 		}
 	}
 
-	SerialPrint(u"Failed to resolve symbol: ");
-	SerialPrint(name);
-	SerialPrint(u"\n");
-
 	return nullptr;
 }
 
@@ -99,7 +95,25 @@ void WriteRelocationA(Elf64_Rela& rel, const uint64_t programStart, const uint64
 	if (type == R_X86_64_GLOB_DAT || type == R_X86_64_64)
 	{
 		const char* name = dynamicStringTable + sym.st_name;
-		*target = (uint64_t)ResolveSymbol(name) + rel.r_addend;
+
+		uint64_t address = sym.st_value + programStart;
+		if (sym.st_shndx == SHN_UNDEF)
+		{
+			address = (uint64_t)ResolveSymbol(name);
+		}
+
+		if(address == 0)
+		{
+			SerialPrint("Failed to resolve symbol: ");
+			SerialPrint(name);
+			SerialPrint(" @ 0x");
+			char buffer[32];
+			witoabuf(buffer, (uint64_t)rel.r_offset, 16, 0);
+			SerialPrint(buffer);
+			SerialPrint("\n");
+		}
+
+		*target = address + rel.r_addend;
 
 		//*target = 0xFADF00D5;
 	}
