@@ -207,6 +207,19 @@ int ascii_to_wide(char16_t* bufferOut, const char* bufferIn, int bufferOutBytes)
 	return index;
 }
 
+int wide_to_ascii(char* bufferOut, const char16_t* bufferIn, int bufferOutBytes)
+{
+	int index = 0;
+	while (bufferIn[index] != '\0' && index < bufferOutBytes)
+	{
+		bufferOut[index] = bufferIn[index];
+		index++;
+	}
+	bufferOut[index] = '\0';
+
+	return index;
+}
+
 size_t _strlen(const char* str)
 {
 	const char* s = str;

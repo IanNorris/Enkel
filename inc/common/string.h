@@ -17,6 +17,7 @@ template<typename T>
 int witoabuf(char* buffer, T value, int base, int padDigits = 0);
 
 int ascii_to_wide(char16_t* bufferOut, const char* bufferIn, int bufferOutBytes);
+int wide_to_ascii(char* bufferOut, const char16_t* bufferIn, int bufferOutBytes);
 
 int _isalpha(int c);
 int _isupper(int c);
