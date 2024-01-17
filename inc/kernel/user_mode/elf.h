@@ -28,11 +28,25 @@ struct ElfBinary
 	ElfSymbolExport* Symbols;
 };
 
+//Pointers are user mode relative for the process
+//that we're creating.
+struct EnvironmentData
+{
+	void* AllocatedAddress;
+	uint64_t AllocatedSize;
+
+	char** argv;
+	char** envp;
+	int argc;
+};
+
 struct Process
 {
 	uint64_t DefaultThreadStackStart;
 	uint64_t DefaultThreadStackBase;
 	uint64_t DefaultThreadStackSize;
+
+	EnvironmentData Environment;
 
 	ElfBinary* Binary;
 	TLSAllocation* TLS;

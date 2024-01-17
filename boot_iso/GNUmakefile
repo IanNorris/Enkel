@@ -47,6 +47,9 @@ $(BOOT_IMAGE): $(BOOTLOADER_OUT) $(KERNEL_OUT) tls_test libc_test
 
 	cp /lib/x86_64-linux-gnu/libc.so.6 $(BOOT_PART)/
 	cp /lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 $(BOOT_PART)/
+	cp /lib/x86_64-linux-gnu/libstdc++.so.6 $(BOOT_PART)/
+	cp /lib/x86_64-linux-gnu/libm.so.6 $(BOOT_PART)/
+	cp /lib/x86_64-linux-gnu/libgcc_s.so.1 $(BOOT_PART)/
 	cp ../assets/AnotherLogo.tga $(BOOT_PART)/Logo.tga
 	cp ../src/apps/hello_world/hello_world.a $(BOOT_PART)/hello_world
 	cp ../src/apps/tls_test/tls_test.a $(BOOT_PART)/tls_test

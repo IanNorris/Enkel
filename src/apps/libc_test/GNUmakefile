@@ -1,34 +1,25 @@
-TOOLS := ../../../tools
-
 # Define compiler and flags
 CXX := g++
 CXXFLAGS := -g3 -O0 -D_DEBUG -Wall -Wextra -pedantic -std=c++17 -m64
-LDFLAGS := 
 
-NASMFLAGS := -Wall -f elf64
+CURRENT_DIR := $(shell basename $(CURDIR))
 
 # Name of the executable
-TARGET := libc_test.a
+TARGET := $(CURRENT_DIR).a
 
 # Source and object files
-SRC := libc_test.cpp
-override NASMFILES := $(shell find -L . -type f -name '*.asm')
-OBJ := $(SRC:.cpp=.o) $(NASMFILES:.asm=.asm.o)
+SRC := $(shell find -L . -type f -name '*.cpp')
+OBJ := $(SRC:.cpp=.o)
 
 # Default target
 all: $(TARGET)
 
-# Link the target with object files
-$(TARGET): $(OBJ)
-	$(CXX) $(LDFLAGS) -o $@ $^
-	python3 $(TOOLS)/bin2c.py $@ $(basename $@).bin
-
-# Compile source files into object files
+# Compile source files into target
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-%.asm.o: %.asm
-	nasm $(NASMFLAGS) -l $(basename $<).lst $< -o $@
+$(TARGET): $(OBJ)
+	$(CXX) $(LDFLAGS) -o $@ $^
 
 # Clean up build artifacts
 clean:

@@ -20,4 +20,4 @@ section .text
 
 DefineSyscall Write, 1
 DefineSyscall Exit, 60
-DefineSyscall InvSysCall, 999
+DefineSyscall InvSysCall, 184

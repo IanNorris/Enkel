@@ -25,7 +25,8 @@ void __attribute__((sysv_abi,noreturn,noinline)) _start()
 {
 	PrintString("Hello World!\n");
 
-	//InvSysCall();
+	PrintString("Invalid syscall test.\n");
+	InvSysCall();
 
 	Exit(0);
 }

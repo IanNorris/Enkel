@@ -65,6 +65,8 @@ void CheckStatus(EFI_STATUS status, const char16_t* message)
 
 extern "C" void AssertionFailed(const char* expression, const char* message, const char* filename, size_t lineNumber, uint64_t v1, uint64_t v2, uint64_t v3)
 {
+	DebuggerHook();
+
 	char16_t buffer[2048];
 
 	SetColor(EFI_BACKGROUND_RED | EFI_WHITE);
@@ -89,11 +91,14 @@ extern "C" void AssertionFailed(const char* expression, const char* message, con
 	SetColor(EFI_WHITE);
 	Print(buffer);
 
-	SetColor(EFI_YELLOW);
-	Print(u"\r\nMESSAGE:    ");
-	ascii_to_wide(buffer, message, sizeof(buffer));
-	SetColor(EFI_WHITE);
-	Print(buffer);
+	if(message)
+	{
+		SetColor(EFI_YELLOW);
+		Print(u"\r\nMESSAGE:    ");
+		ascii_to_wide(buffer, message, sizeof(buffer));
+		SetColor(EFI_WHITE);
+		Print(buffer);
+	}
 
 	SetColor(EFI_BACKGROUND_RED | EFI_WHITE);
 	Print(u"\r\n__________ ASSERTION FAILED __________");

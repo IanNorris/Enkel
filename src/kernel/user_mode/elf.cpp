@@ -7,6 +7,7 @@
 #include "memory/virtual.h"
 #include "common/string.h"
 #include "kernel/user_mode/elf.h"
+#include "kernel/user_mode/ehframe.h"
 #include <ff.h>
 #include <rpmalloc.h>
 
@@ -34,7 +35,7 @@ void InitializeUserMode(void* fsPtr)
 	GELFBinaryCount = 0;
 }
 
-extern "C" void SwitchToUserMode(uint64_t stackPointer, uint64_t entry, uint16_t userModeCS, uint16_t userModeDS);
+extern "C" void SwitchToUserMode(uint64_t stackPointer, uint64_t entry, uint16_t userModeCS, uint16_t userModeDS, int argc, char** argv, char** envp);
 
 extern "C" void __attribute__((used, noinline)) OnBinaryLoadHook_Inner()
 {
@@ -68,7 +69,7 @@ void* ResolveSymbol(const char* name)
 	{
 		ElfBinary* binary = GELFBinaries[i];
 
-		for(int symbol = 0; symbol < binary->SymbolCount; symbol++)
+		for(int symbol = 0; symbol < (int)binary->SymbolCount; symbol++)
 		{
 			ElfSymbolExport& exportSymbol = binary->Symbols[symbol];
 
@@ -79,7 +80,118 @@ void* ResolveSymbol(const char* name)
 		}
 	}
 
+	SerialPrint(u"Failed to resolve symbol: ");
+	SerialPrint(name);
+	SerialPrint(u"\n");
+
 	return nullptr;
+}
+
+void WriteRelocationA(Elf64_Rela& rel, const uint64_t programStart, const uint64_t gotStart, const uint64_t tlsStart, const char* dynamicStringTable, Elf64_Sym* symbols)
+{
+	// https://docs.oracle.com/cd/E19120-01/open.solaris/819-0690/chapter7-2/index.html
+
+	uint64_t symIndex = ELF64_R_SYM(rel.r_info);
+	uint64_t type = ELF64_R_TYPE(rel.r_info) & 0xffffffff;
+	Elf64_Sym& sym = symbols[symIndex];
+	Elf64_Addr* target = (Elf64_Addr*)(programStart + rel.r_offset);
+
+	if (type == R_X86_64_GLOB_DAT || type == R_X86_64_64)
+	{
+		const char* name = dynamicStringTable + sym.st_name;
+		*target = (uint64_t)ResolveSymbol(name) + rel.r_addend;
+
+		//*target = 0xFADF00D5;
+	}
+	else if (type == R_X86_64_JUMP_SLOT)
+	{
+		_ASSERTF(rel.r_addend == 0, "R_X86_64_JUMP_SLOT with non-zero addend");
+
+		*target = sym.st_value;
+	}
+	else if(type == R_X86_64_RELATIVE)
+	{
+		*target = programStart + rel.r_addend;
+
+		//*target = 0xEADF00D5;
+	}
+	else if(type == R_X86_64_IRELATIVE)
+	{
+    	uint64_t* offsetIndirect = (uint64_t*)(programStart + rel.r_offset);
+		*target = (Elf64_Addr)(programStart + *offsetIndirect + rel.r_addend);
+
+		//*target = 0xBADF00D5;
+	}
+	else if(type == R_X86_64_PC32)
+	{
+		int64_t relocation = static_cast<int64_t>(programStart + sym.st_value + rel.r_addend - (programStart + rel.r_offset));
+
+		*(uint32_t*)target = static_cast<uint32_t>(relocation);
+
+		//*target = 0xCADF00D5;
+	}
+	else if(type == R_X86_64_GOTOFF64)
+	{
+		_ASSERT(gotStart != 0);
+		*target = rel.r_addend + gotStart + sym.st_value;
+
+		//*target = 0xAADF00D5;
+	}
+	else if(type == R_X86_64_TPOFF64)
+	{
+		_ASSERT(tlsStart != 0);
+		*target = rel.r_addend + tlsStart + sym.st_value;
+
+		//*target = 0x0ADF00D5;
+	}
+	else
+	{
+		NOT_IMPLEMENTED();
+	}
+}
+
+template<typename RelType>
+void WriteRelocation(RelType& rel, const uint64_t programStart, const uint64_t gotStart, const uint64_t tlsStart, const char* dynamicStringTable, Elf64_Sym* symbols)
+{
+	// https://docs.oracle.com/cd/E19120-01/open.solaris/819-0690/chapter7-2/index.html
+
+	uint64_t symIndex = ELF64_R_SYM(rel.r_info);
+	uint64_t type = ELF64_R_TYPE(rel.r_info) & 0xffffffff;
+	Elf64_Sym& sym = symbols[symIndex];
+	Elf64_Addr* target = (Elf64_Addr*)(programStart + rel.r_offset);
+
+	if (type == R_X86_64_GLOB_DAT || type == R_X86_64_JUMP_SLOT || type == R_X86_64_64)
+	{
+		*target = sym.st_value;
+	}
+	else if(type == R_X86_64_RELATIVE)
+	{
+		NOT_IMPLEMENTED();
+	}
+	else if(type == R_X86_64_IRELATIVE)
+	{
+		uint64_t* offsetIndirect = (uint64_t*)(programStart + rel.r_offset);
+		*target = programStart + (Elf64_Addr)*offsetIndirect;
+	}
+	else if(type == R_X86_64_PC32)
+	{
+		int64_t relocation = static_cast<int64_t>(sym.st_value - (programStart + rel.r_offset));
+		*target = static_cast<uint32_t>(relocation);
+	}
+	else if(type == R_X86_64_GOTOFF64)
+	{
+		_ASSERT(gotStart != 0);
+		*target = gotStart +  sym.st_value;
+	}
+	else if(type == R_X86_64_TPOFF64)
+	{
+		_ASSERT(tlsStart != 0);
+		*target = tlsStart + sym.st_value;
+	}
+	else
+	{
+		NOT_IMPLEMENTED();
+	}
 }
 
 ElfBinary* LoadElfFromMemory(const char16_t* programName, const uint8_t* elfStart)
@@ -108,6 +220,9 @@ ElfBinary* LoadElfFromMemory(const char16_t* programName, const uint8_t* elfStar
 
 	uint64_t symbolsItemCount = 0;
 	Elf64_Sym* symbols = nullptr;
+
+	uint64_t gotStart = 0;
+	uint64_t tlsStart = 0;
 
 	//Verify the ELF is in the correct format
 
@@ -148,7 +263,6 @@ ElfBinary* LoadElfFromMemory(const char16_t* programName, const uint8_t* elfStar
         if (section.sh_type == SHT_STRTAB) // Check if it's a string table
         {
             // Compare section name with ".dynstr"
-            const char* sectionName = (char*)(elfStart + sections[elfHeader->e_shstrndx].sh_offset + section.sh_name);
             if (strcmp(sectionName, ".dynstr") == 0)
             {
                 dynamicStringTable = (char*)(elfStart + section.sh_offset);
@@ -164,6 +278,10 @@ ElfBinary* LoadElfFromMemory(const char16_t* programName, const uint8_t* elfStar
 			symbols = (Elf64_Sym*)(elfStart + section.sh_offset);
 			symbolsItemCount = section.sh_size / section.sh_entsize;
         }
+		else if(strcmp(sectionName, ".got") == 0)
+		{
+			gotStart = section.sh_offset + (uint64_t)elfStart;
+		}
 	}
 
 	if(dynamicSection)
@@ -177,6 +295,7 @@ ElfBinary* LoadElfFromMemory(const char16_t* programName, const uint8_t* elfStar
 			}
 
 			const char* libraryName = dynamicStringTable + entry.d_un.d_val;
+			SerialPrint("Loading dynamic library ");
 			SerialPrint(libraryName);
 			SerialPrint("\n");
 
@@ -218,6 +337,8 @@ ElfBinary* LoadElfFromMemory(const char16_t* programName, const uint8_t* elfStar
 	uint64_t programSize = highestAddress;
 	programSize = AlignSize(programSize, PAGE_SIZE);
 
+	_ASSERTF(programSize != 0, "No loadable segments in ELF file");
+	
 	uint64_t programStart = (uint64_t)VirtualAlloc(programSize, PrivilegeLevel::User);
 
 	uint64_t text_section = 0;
@@ -231,6 +352,11 @@ ElfBinary* LoadElfFromMemory(const char16_t* programName, const uint8_t* elfStar
 
 		if(segment.p_type == PT_TLS)
 		{
+			if(tlsStart == 0)
+			{
+				tlsStart = segment.p_vaddr + programStart;
+			}
+
 			tdataSize = segment.p_filesz;
 			tbssSize = segment.p_memsz - segment.p_filesz;
 			tdataStart = (uint8_t*)segment.p_vaddr;
@@ -295,6 +421,16 @@ ElfBinary* LoadElfFromMemory(const char16_t* programName, const uint8_t* elfStar
 					SerialPrint("\n");
 					addr = (void*)0xBADF00D5;
                 }
+				else
+				{
+					SerialPrint("Resolved symbol: ");
+                    SerialPrint(name);
+					SerialPrint(" @ 0x");
+					char buffer[32];
+					witoabuf(buffer, (uint64_t)addr, 16, 0);
+					SerialPrint(buffer);
+					SerialPrint("\n");
+				}
 
                 sym.st_value = (Elf64_Addr)addr;
             }
@@ -321,18 +457,8 @@ ElfBinary* LoadElfFromMemory(const char16_t* programName, const uint8_t* elfStar
 			for (Elf64_Xword i = 0; i < section.sh_size / section.sh_entsize; ++i)
 			{
 				Elf64_Rela& rela = relas[i];
-				uint64_t symIndex = ELF64_R_SYM(rela.r_info);
-				uint64_t type = ELF64_R_TYPE(rela.r_info);
 
-				if (type == R_X86_64_GLOB_DAT || type == R_X86_64_JUMP_SLOT)
-				{
-					Elf64_Sym& sym = symbols[symIndex];
-					*((Elf64_Addr*)(programStart + rela.r_offset)) = sym.st_value;
-				}
-				else
-				{
-					//*((Elf64_Addr*)(programStart + rela.r_offset)) = 0xE1FBADADD;
-				}
+				WriteRelocationA(rela, programStart, gotStart, tlsStart, dynamicStringTable, symbols);
 			}
         }
 		else if (section.sh_type == SHT_REL)
@@ -341,22 +467,59 @@ ElfBinary* LoadElfFromMemory(const char16_t* programName, const uint8_t* elfStar
 			for (Elf64_Xword i = 0; i < section.sh_size / section.sh_entsize; ++i)
 			{
 				Elf64_Rel& rel = rels[i];
-				uint64_t symIndex = ELF64_R_SYM(rel.r_info);
-				uint64_t type = ELF64_R_TYPE(rel.r_info);
+				WriteRelocation(rel, programStart, gotStart, tlsStart, dynamicStringTable, symbols);
+			}
+        }
+		else if (strcmp(sectionName, ".eh_frame") == 0)
+		{
+			/*uint8_t* ehFrame = (uint8_t*)(elfStart + section.sh_offset);
+			
+			uint8_t* current = ehFrame;
+			while (current < ehFrame + section.sh_size)
+			{
+				uint32_t length = *reinterpret_cast<uint32_t*>(current);
+				uint8_t* nextRecord = current + 4 + length;
 
-				if (type == R_X86_64_GLOB_DAT || type == R_X86_64_JUMP_SLOT)
+				if (length == 0)
 				{
-					Elf64_Sym& sym = symbols[symIndex];
-					*((Elf64_Addr*)(programStart + rel.r_offset)) = sym.st_value;
+					break;
+				}
+
+				uint64_t cieId = *reinterpret_cast<uint32_t*>(current + 4);
+				if (cieId == 0) // This is a CIE
+				{ 
+					// CIEs don't typically contain pointers needing patching
 				}
 				else
 				{
-					//*((Elf64_Addr*)(programStart + rel.r_offset)) = nullptr; //0xE1FBAD000
+					// This is an FDE
+
+					uint64_t* fdePtr = reinterpret_cast<uint64_t*>(current + 8);
+					*fdePtr += programStart; // Patch the FDE pointer
 				}
+
+				current = nextRecord;
 			}
-        }
+
+			_ASSERTF(current == ehFrame + section.sh_size, "Didn't parse the entire .eh_frame section");*/
+		}
+		else if (strcmp(sectionName, ".eh_frame_hdr") == 0)
+		{
+			Elf64_EhFrameHdr_Header* ehFrameHdrHeader = (Elf64_EhFrameHdr_Header*)(programStart + section.sh_offset);
+
+			Elf64_EhFrameHdrEntry* ehFrameHdr = (Elf64_EhFrameHdrEntry*)(ehFrameHdrHeader+1);
+
+			for (uint32_t i = 0; i < ehFrameHdrHeader->TableEntryCount; ++i)
+			{
+				ehFrameHdr->FDEAddress += programStart;
+				ehFrameHdr->StartAddress += programStart;
+
+				ehFrameHdr++;
+			}
+		}
 	}
 
+	//Do this last, as we can't modify most of the segments once the protection flags are configured.
 	for (int segmentHeader = 0; segmentHeader < elfHeader->e_phnum; segmentHeader++)
 	{
 #if ENABLE_NX
@@ -418,6 +581,10 @@ ElfBinary* LoadElf(const char16_t* programName)
 
 		ElfBinary* binary = LoadElfFromMemory(programName, buffer);
 
+		ConsolePrint(programName);
+		ConsolePrintNumeric(u" loaded at ", binary->BaseAddress, u"");
+		ConsolePrintNumeric(u"-", binary->BaseAddress + binary->AllocatedSize, u"\n");
+
 		VirtualFree(buffer, alignedSize);
 
 		return binary;
@@ -450,15 +617,13 @@ void UnloadElf(ElfBinary* elfBinary)
 
 void ScheduleProcess(Process* process)
 {
-	ConsolePrintNumeric(u"Base address: ", process->Binary->BaseAddress, u"\n");
-
 	const uint16_t userModeCodeSelector = ((uint16_t)GDTEntryIndex::UserCode * sizeof(GDTEntry)) | 0x3; // Selector | Ring 3
 	const uint16_t userModeDataSelector = ((uint16_t)GDTEntryIndex::UserData * sizeof(GDTEntry)) | 0x3;
 
 	uint64_t currentFSBase = GetFSBase();
 	SetFSBase(process->TLS->FSBase);
 
-	SwitchToUserMode((uint64_t)process->DefaultThreadStackStart, process->Binary->Entry, userModeCodeSelector, userModeDataSelector);
+	SwitchToUserMode((uint64_t)process->DefaultThreadStackStart, process->Binary->Entry, userModeCodeSelector, userModeDataSelector, process->Environment.argc, process->Environment.argv, process->Environment.envp);
 
 	//Back in the kernel
 	SetFSBase(currentFSBase);
@@ -485,6 +650,62 @@ Process* CreateProcess(const char16_t* programName)
 
 	process->DefaultThreadStackStart = (uint64_t)stackTopPtr;
 
+	const uint64_t envDataSize = 4096;
+
+	//Prepare environment data.
+	//TODO: Artificial limit to 4k of data
+	uint64_t** processCommandArgs = (uint64_t**)VirtualAlloc(envDataSize, PrivilegeLevel::User);
+	int argc = 3;
+	int envc = 2;
+
+	process->Environment.AllocatedAddress = processCommandArgs;
+	process->Environment.AllocatedSize = envDataSize;
+	process->Environment.argc = argc;
+	process->Environment.argv = (char**)processCommandArgs;
+	process->Environment.envp = (char**)&processCommandArgs[argc];
+
+	const char* firstArg = "--mode";
+	const char* secondArg = "awesome";
+
+	const char* env1 = "OS_NAME=Enkel";
+	const char* env2 = "LANGUAGE=en-GB";
+
+	processCommandArgs[argc+envc] = 0;
+
+	uint8_t* dataPointer = (uint8_t*)&processCommandArgs[argc+envc+2];
+	size_t writing;
+
+	int stringIndex = 0;
+
+	//Arg 0 is the program name
+	processCommandArgs[stringIndex++] = (uint64_t*)dataPointer;
+	writing = wide_to_ascii((char*)dataPointer, programName, 256);
+	dataPointer+=writing;
+
+	//Arg 1
+	processCommandArgs[stringIndex++] = (uint64_t*)dataPointer;
+	writing = strlen(firstArg) + 1;
+	memcpy(dataPointer, firstArg, writing);
+	dataPointer+=writing;
+
+	//Arg 2
+	processCommandArgs[stringIndex++] = (uint64_t*)dataPointer;
+	writing = strlen(secondArg) + 1;
+	memcpy(dataPointer, secondArg, writing);
+	dataPointer+=writing;
+
+	//Env 0
+	processCommandArgs[stringIndex++] = (uint64_t*)dataPointer;
+	writing = strlen(env1) + 1;
+	memcpy(dataPointer, env1, writing);
+	dataPointer+=writing;
+
+	//Env 2
+	processCommandArgs[stringIndex++] = (uint64_t*)dataPointer;
+	writing = strlen(env2) + 1;
+	memcpy(dataPointer, env2, writing);
+	dataPointer+=writing;
+
 	ScheduleProcess(process);
 
 	return process;
@@ -493,6 +714,12 @@ Process* CreateProcess(const char16_t* programName)
 
 void DestroyProcess(Process* process)
 {
+	if(process->Environment.AllocatedAddress)
+	{
+		VirtualFree(process->Environment.AllocatedAddress, process->Environment.AllocatedSize);
+		process->Environment.AllocatedAddress = nullptr;
+	}
+
 	VirtualFree((void*)process->DefaultThreadStackBase, process->DefaultThreadStackSize);
 	process->DefaultThreadStackBase = 0;
 

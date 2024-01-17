@@ -9,6 +9,12 @@ SwitchToUserMode:
 	;   rsi - uint64_t entry (user mode entry point address)
 	;	rdx - uint16_t userModeCS
 	;	rcx - uint16_t userModeDS
+	;	 r8 - argc
+	;	 r9 - argv
+	;	[rsp + (1*8)] - envp
+
+	push r15
+	mov r15, [rsp+(2*8)] ;envp
 
 	push rax
     push rbx
@@ -23,7 +29,6 @@ SwitchToUserMode:
     push r12
     push r13
     push r14
-    push r15
     pushfq
 
 	push rax
@@ -43,13 +48,38 @@ SwitchToUserMode:
 	push 0x08 ; CS register offset
 	push rdi
 
-	mov rbp, rdi ; set the stack base
+	;mov rbp, 0 ; set the stack base
+	mov rbp, rdi
 
 	push rcx ;UM DS
 	push rdi ;UM stack
 	push 0x202 ; rflags
 	push rdx ;UM CS
 	push rsi ;UM entry
+
+	mov rdi, r8 ; argc
+	mov rsi, r9 ; argv
+	mov rdx, r15 ; envp
+	mov rcx, 0
+
+	; Clear all unused registers to 0
+	; so the program doesn't get any data from
+	; the kernel
+
+
+	mov rax, 0
+	mov rbx, 0
+	mov r8, 0
+	mov r9, 0
+	mov r10, 0
+	mov r11, 0
+	mov r12, 0
+	mov r13, 0
+	mov r14, 0
+	mov r15, 0
+	; TODO XMM registers
+
+	
 
     ; Switch to user mode by performing a far return
     iretq
