@@ -22,6 +22,9 @@
 #include "Protocol/DevicePath.h"
 #include "kernel/devices/ahci/cdrom.h"
 
+#include "fs/volume.h"
+#include "fs/volumes/stdio.h"
+
 #include <ff.h>
 
 void InitializeSyscalls();
@@ -183,6 +186,9 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 	//WalkAcpiTree();
 
 	ConsolePrint(u"Mounting filesystem...\n");
+	InitializeVolumeSystem();
+	InitializeStdioVolumes();
+
 	EFI_DEV_PATH* devicePath = (EFI_DEV_PATH*)BootData->BootDevicePath;
 
 	SataBus* sataBus = (SataBus*)rpmalloc(sizeof(SataBus));
@@ -203,12 +209,14 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 	RunProgram(u"hello_world");
 
 	ConsolePrint(u"\n#> tls_test\n");
-	RunProgram(u"tls_test");*/
+	RunProgram(u"tls_test");
 
 	ConsolePrint(u"\n#> libc_test\n");
 	RunProgram(u"libc_test");
 
-	ConsolePrint(u"\n#>\n");
+	ConsolePrint(u"\n#>\n");*/
+
+	MountPointHash hash = VolumeHashPath(u"/mount/dev1/");
 	
 	while(true)
 	{
