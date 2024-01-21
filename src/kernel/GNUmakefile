@@ -146,13 +146,16 @@ override HEADER_DEPS := $(CPPFILES:.cpp=.cpp.d) $(CFILES:.c=.c.d) $(ASFILES:.S=.
 
 # Default target.
 .PHONY: force all
-all: vendor embedded_apps $(VENDOR_ROOT)/acpica_out/acpica.a $(NASMBINFILES) $(KERNEL) kernel_build.cpptemp.o $(NASMFILES) $(FONT_CPP_FILES) $(FONT_H_FILES) $(EMBEDDED_IMAGE_CPP_FILES) $(EMBEDDED_IMAGE_H_FILES) $(QRCODE_C_FILES) $(STM32_MW_FATFS_C_FILES) $(EMBEDDED_APP_BINCPP_FILES)
+all: vendor embedded_assets embedded_apps $(VENDOR_ROOT)/acpica_out/acpica.a $(NASMBINFILES) $(KERNEL) kernel_build.cpptemp.o $(NASMFILES) $(FONT_CPP_FILES) $(FONT_H_FILES) $(EMBEDDED_IMAGE_CPP_FILES) $(EMBEDDED_IMAGE_H_FILES) $(QRCODE_C_FILES) $(STM32_MW_FATFS_C_FILES) $(EMBEDDED_APP_BINCPP_FILES)
 
 vendor:
 	make -C $(VENDOR_ROOT)
 
 embedded_apps $(EMBEDDED_APP_BINCPP_FILES) $(EMBEDDED_APP_BINH_FILES): $(EMBEDDED_APP_DIRECTORIES)
 	make -C $<
+
+embedded_assets:
+	$(MAKE) -C ../../assets
 
 $(VENDOR_ROOT)/acpica_out/acpica.a:
 	make -C $(VENDOR_ROOT)/acpica_out
@@ -162,14 +165,11 @@ uefi-headers:
 
 kernel_build.cpptemp.o:
 	rm -f kernel_build.cpptemp
-	echo "const char16_t* KernelBuildId = u\"$(shell git rev-parse HEAD | cut -c 1-8) $(shell date '+%F')\";\n" > kernel_build.cpptemp
+	echo "const char16_t* KernelBuildId = u\"$(shell git rev-parse HEAD | cut -c 1-8) $(shell date '+%F')\";" > kernel_build.cpptemp
 	$(CC) -x c++ $(CFLAGS) $(CPPFLAGS) -c kernel_build.cpptemp -o kernel_build.cpptemp.o
 
 $(FONT_CPP_FILES) $(FONT_H_FILES):
 	$(MAKE) -C ../../fonts
-
-$(EMBEDDED_IMAGE_CPP_FILES) $(EMBEDDED_IMAGE_H_FILES): $(EMBEDDED_IMAGE_FILES)
-	$(MAKE) -C ../../assets
 
 # Link rules for the final kernel executable.
 $(KERNEL): $(VENDOR_ROOT)/acpica_out/acpica.a $(NASMBINFILES:.asmb=.asmb.o) $(OBJ) $(CPPFILES) $(CFILES) $(LDTEMPLATE) $(NASMFILES) uefi-headers kernel_build.cpptemp.o

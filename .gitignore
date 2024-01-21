@@ -396,3 +396,4 @@ temp/
 #Generated code
 assets/*.cpp
 assets/*.h
+vendor/zlib

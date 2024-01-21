@@ -10,7 +10,7 @@
 #include "kernel/init/tls.h"
 #include "utilities/qrdump.h"
 
-#define PRINT_MEMORY_MAP 0
+#define PRINT_MEMORY_MAP 1
 
 struct SPagingStructurePage
 {

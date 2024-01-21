@@ -21,9 +21,7 @@ SOFTWARE.
 */
 // Modifications move to remove dynamic allocation and pow.
 
-#include <stdlib.h>
-#include <string.h>
-#include <math.h>
+#include <stddef.h>
 
 #include "kernel/utilities/base45.h"
 

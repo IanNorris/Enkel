@@ -6,10 +6,14 @@
                 "${workspaceFolder}/inc",
                 "${workspaceFolder}/vendor/uefi-headers/Include",
                 "${workspaceFolder}/vendor/uefi-headers/Include/X64",
-                "${workspaceFolder}/fonts"
+                "${workspaceFolder}/vendor/rpmalloc/rpmalloc/",
+                "${workspaceFolder}/vendor/acpica/source/include",
+                "${workspaceFolder}/vendor/stm32_mw_fatfs-master/source/",
+                "${workspaceFolder}/fonts",
+                "${workspaceFolder}/assets"
             ],
             "defines": [],
-            "compilerPath": "/usr/bin/g++-11",
+            "compilerPath": "/usr/bin/g++",
             "cStandard": "c17",
             "cppStandard": "c++20",
             "intelliSenseMode": "linux-gcc-x64",
