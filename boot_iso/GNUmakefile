@@ -9,6 +9,9 @@ BOOT_PART=boot_part
 SECTOR_SIZE=512
 INFLATED_IMAGE_KB=256
 
+GLIBC_ROOT=/lib/x86_64-linux-gnu/#Debian based (eg Ubuntu)
+#GLIBC_ROOT=/usr/lib64/#Fedora based
+
 BOOTLOADER_ROOT=../src/bootloader
 BOOTLOADER=$(BOOTLOADER_ROOT)/bootloader.img
 KERNEL_ROOT=../src/kernel
@@ -45,11 +48,11 @@ $(KERNEL_OUT): $(KERNEL)
 $(BOOT_IMAGE): $(BOOTLOADER_OUT) $(KERNEL_OUT) tls_test libc_test
 	#Calculate the actual size of the boot partition folder
 
-	cp /usr/lib64/libc.so.6 $(BOOT_PART)/
-	cp /usr/lib64/ld-linux-x86-64.so.2 $(BOOT_PART)/
-	cp /usr/lib64/libstdc++.so.6 $(BOOT_PART)/
-	cp /usr/lib64/libm.so.6 $(BOOT_PART)/
-	cp /usr/lib64/libgcc_s.so.1 $(BOOT_PART)/
+	cp $(GLIBC_ROOT)/libc.so.6 $(BOOT_PART)/
+	cp $(GLIBC_ROOT)/ld-linux-x86-64.so.2 $(BOOT_PART)/
+	cp $(GLIBC_ROOT)/libstdc++.so.6 $(BOOT_PART)/
+	cp $(GLIBC_ROOT)/libm.so.6 $(BOOT_PART)/
+	cp $(GLIBC_ROOT)/libgcc_s.so.1 $(BOOT_PART)/
 	cp ../assets/AnotherLogo.tga $(BOOT_PART)/Logo.tga
 	cp ../src/apps/hello_world/hello_world.a $(BOOT_PART)/hello_world
 	cp ../src/apps/tls_test/tls_test.a $(BOOT_PART)/tls_test
@@ -61,7 +64,7 @@ $(BOOT_IMAGE): $(BOOTLOADER_OUT) $(KERNEL_OUT) tls_test libc_test
 	# Size needed is $(BOOT_PART_SIZE_SECTORS) sectors.
 
 	dd if=/dev/zero of=$(BOOT_IMAGE) bs=$(SECTOR_SIZE) count=$(BOOT_PART_SIZE_SECTORS)
-	mkfs.fat -F 16 -n '$(ISO_LABEL)' $(BOOT_IMAGE)
+	mkfs.fat -F 12 -n '$(ISO_LABEL)' $(BOOT_IMAGE)
 	mcopy -s -i $(BOOT_IMAGE) $(BOOT_PART)/* ::
 	
 $(BIOS_BIN):

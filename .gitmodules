@@ -1,0 +1,16 @@
+[submodule "vendor/xxHash"]
+	path = vendor/xxHash
+	url = https://github.com/Cyan4973/xxHash.git
+	ignore = dirty
+[submodule "vendor/zlib"]
+	path = vendor/zlib
+	url = https://github.com/madler/zlib.git
+	ignore = dirty
+[submodule "vendor/uefi-headers"]
+	path = vendor/uefi-headers
+	url = https://github.com/kiznit/uefi-headers.git
+	ignore = dirty
+[submodule "vendor/acpica"]
+	path = vendor/acpica
+	url = https://github.com/acpica/acpica.git
+	ignore = dirty
