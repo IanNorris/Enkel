@@ -10,7 +10,6 @@
 #include "kernel/init/long_mode.h"
 #include "kernel/init/interrupts.h"
 #include "kernel/texture/render.h"
-#include "fs/fat/fat.h"
 #include "memory/memory.h"
 #include "memory/virtual.h"
 #include "rpmalloc.h"

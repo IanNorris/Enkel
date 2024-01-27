@@ -12,69 +12,10 @@
 #include "kernel/devices/pci.h"
 #include "kernel/devices/ahci/cdrom.h"
 
+#include "fs/volume.h"
+
 //#define VerboseSataLog(x) SerialPrint(x)
 #define VerboseSataLog(x)
-
-// Standard AHCI and SATA definitions
-#define SATA_SIG_ATAPI 0xEB140101 // SATA signature for ATAPI devices
-#define HBA_PORT_DET_PRESENT 0x3
-#define HBA_PORT_IPM_ACTIVE 0x1
-
-#define HBA_PxIE_DHR 0x80000000 // Device to host register FIS interrupt enable
-#define HBA_PxIS_TFES 0x40000000 // Task file error status
-#define ATA_CMD_IDENTIFY 0xEC
-#define ATA_CMD_IDENTIFY_ATAPI 0xA1
-#define ATA_CMD_PACKET 0xA0
-
-#define PCI_BAR5_OFFSET 0x24
-
-// https://wiki.osdev.org/ATAPI#Complete_Command_Set
-#define ATAPI_CMD_READ_10 0x28
-#define ATAPI_CMD_READ_12 0xA8
-
-#define ATA_IDENTIFY_DEVICETYPE   		0
-#define ATA_IDENTIFY_SERIAL       		20
-#define ATA_IDENTIFY_BYTES_PER_SECTOR   120
-#define ATA_IDENTIFY_FIRMWARE_REV 		46
-#define ATA_IDENTIFY_MODEL        		54
-#define ATA_IDENTIFY_CAPABILITIES 		98
-#define ATA_IDENTIFY_MAX_LBA      		120
-#define ATA_IDENTIFY_COMMANDSETS  		164
-#define ATA_IDENTIFY_MAX_LBA_EXT  		200
-#define ATA_IDENTIFY_CAPABILITIES	    212
-
-#define STS_BSY (1 << 7) //Indicates the interface is busy
-#define STS_DRQ (1 << 3) //Indicates a data transfer is requested
-#define STS_ERR (1 << 0) //Indicates an error during the transfer.
-#define STS_DRDY (1 << 6) //Indicates the drive is ready to accept commands
-
-#define IS_ERR_FATAL (1 << 30)
-
-#define PCI_COMMAND_INTERRUPT_DISABLE (1 << 10)
-#define PCI_COMMAND_BUS_MASTER (1 << 2)
-#define PCI_COMMAND_MEMORY_SPACE (1 << 1)
-#define PCI_COMMAND_IO_SPACE (1 << 0)
-
-#define HBA_PxCMD_ST (1 << 0) //Start
-#define HBA_PxCMD_SUD (1 << 1) //Spin-up device
-#define HBA_PxCMD_POD (1 << 2) //Power on device
-#define HBA_PxCMD_CLO (1 << 3) //Command list override
-#define HBA_PxCMD_FRE (1 << 4) //FIS receive enable
-#define HBA_PxCMD_MPSS (1 << 13) //Mechanical switch state
-#define HBA_PxCMD_FR (1 << 14) //FIS receive running
-#define HBA_PxCMD_CR (1 << 15) //Command list running
-#define HBA_PxCMD_CPS (1 << 16) //Cold presence state
-#define HBA_PxCMD_PMA (1 << 17) //Port multiplier attached
-#define HBA_PxCMD_HPCP (1 << 18) //Hot plug capable
-#define HBA_PxCMD_MPSP (1 << 19) //Mechanical switch attached to port
-#define HBA_PxCMD_CPD (1 << 20) //Cold presence detect
-#define HBA_PxCMD_ESP (1 << 21) //External SATA port
-#define HBA_PxCMD_FBSCP (1 << 22) //FIS-based switching capable port
-#define HBA_PxCMD_APSTE (1 << 23) //Automatic partial to slumber transitions enabled
-#define HBA_PxCMD_ATAPI (1 << 24) //Device is ATAPI
-#define HBA_PxCMD_DLAE (1 << 25) //Device LED on ATAPI enable
-#define HBA_PxCMD_ALPE (1 << 26) //Aggressive link power management enable
-#define HBA_PxCMD_ASP (1 << 27) //Aggressive slumber/power management enable
 
 #define TO_LOW_HIGH(low, high, input) low = (uint32_t)((uint64_t)input & 0xffffffff); high = (uint32_t)(((uint64_t)input >> 32) & 0xffffffff);
 

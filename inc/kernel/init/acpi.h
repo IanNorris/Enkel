@@ -5,7 +5,14 @@ extern "C"
 	#include <acpi.h>
 }
 
+#undef FALSE
+#undef TRUE
+#undef NULL
+
 #include "Uefi.h"
+#undef FALSE
+#undef TRUE
+#undef NULL
 #include <Protocol/DevicePath.h>
 
 ACPI_MODULE_NAME("enkel")

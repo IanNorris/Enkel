@@ -20,7 +20,7 @@ override HFILES := $(shell find -L . -type f -name '*.h')
 override NASMFILES := $(shell find -L . -type f -name '*.asm')
 override OFILES := $(CPPFILES:.cpp=.o)
 
-override KERNEL_OBJECTS := memory.o fat.o string.o
+override KERNEL_OBJECTS := memory.o string.o
 
 memory.o: ../kernel/memory/memory.cpp
 	clang $(C_ARGS) $< -c -o $@

@@ -176,6 +176,9 @@ static ACPI_PHYSICAL_ADDRESS RsdpPhyAdd;
 
 #include "kernel/init/bootload.h"
 
+#define FALSE (0)
+#define TRUE (1)
+
 extern KernelBootData GBootData;
 
 
@@ -184,112 +187,16 @@ static void sys_out8(uint8_t data, uint16_t port)
 {
         __asm__ volatile("outb %b0, %w1" :: "a"(data), "Nd"(port));
 }
- 
-static uint8_t sys_in8(uint16_t port)
-{
-        uint8_t ret;
- 
-        __asm__ volatile("inb %w1, %b0" : "=a"(ret) : "Nd"(port));
- 
-        return ret;
-}
- 
+
 static void sys_out16(uint16_t data, uint16_t port)
 {
         __asm__ volatile("outw %w0, %w1" :: "a"(data), "Nd"(port));
 }
- 
-static uint16_t sys_in16(uint16_t port)
-{
-        uint16_t ret;
- 
-        __asm__ volatile("inw %w1, %w0" : "=a"(ret) : "Nd"(port));
- 
-        return ret;
-}
- 
+
 static void sys_out32(uint32_t data, uint16_t port)
 {
         __asm__ volatile("outl %0, %w1" :: "a"(data), "Nd"(port));
 }
- 
-static uint32_t sys_in32(uint16_t port)
-{
-        uint32_t ret;
- 
-        __asm__ volatile("inl %w1, %0" : "=a"(ret) : "Nd"(port));
- 
-        return ret;
-}
- 
-static void sys_write8(uint8_t data, uint64_t addr)
-{
-        __asm__ volatile("movb %0, %1"
-                         :
-                         : "q"(data), "m" (*(volatile uint8_t *)(uintptr_t) addr)
-                         : "memory");
-}
- 
-static uint8_t sys_read8(uint64_t addr)
-{
-        uint8_t ret;
- 
-        __asm__ volatile("movb %1, %0"
-                         : "=q"(ret)
-                         : "m" (*(volatile uint8_t *)(uintptr_t) addr)
-                         : "memory");
- 
-        return ret;
-}
- 
-static void sys_write16(uint16_t data, uint64_t addr)
-{
-        __asm__ volatile("movw %0, %1"
-                         :
-                         : "r"(data), "m" (*(volatile uint16_t *)(uintptr_t) addr)
-                         : "memory");
-}
- 
-static uint16_t sys_read16(uint64_t addr)
-{
-        uint16_t ret;
- 
-        __asm__ volatile("movw %1, %0"
-                         : "=r"(ret)
-                         : "m" (*(volatile uint16_t *)(uintptr_t) addr)
-                         : "memory");
- 
-        return ret;
-}
- 
-static void sys_write32(uint32_t data, uint64_t addr)
-{
-        __asm__ volatile("movl %0, %1"
-                         :
-                         : "r"(data), "m" (*(volatile uint32_t *)(uintptr_t) addr)
-                         : "memory");
-}
- 
-static uint32_t sys_read32(uint64_t addr)
-{
-        uint32_t ret;
- 
-        __asm__ volatile("movl %1, %0"
-                         : "=r"(ret)
-                         : "m" (*(volatile uint32_t *)(uintptr_t) addr)
-                         : "memory");
- 
-        return ret;
-}
- 
-static void sys_set_bit(uint64_t addr, unsigned int bit)
-{
-        __asm__ volatile("btsl %1, %0"
-                         : "+m" (*(volatile uint8_t *) (addr))
-                         : "Ir" (bit)
-                         : "memory");
-}
-
 
 /******************************************************************************
  *
@@ -749,13 +656,13 @@ ACPI_STATUS AcpiOsReadPciConfiguration(
     switch (Width)
     {
     case 8:
-        *reinterpret_cast<UINT8*>(Value) = static_cast<volatile UINT8>(*TargetAddress);
+        *reinterpret_cast<volatile UINT8*>(Value) = (UINT8)(*TargetAddress);
         break;
     case 16:
-        *reinterpret_cast<UINT16*>(Value) = static_cast<volatile UINT16>(*TargetAddress);
+        *reinterpret_cast<volatile UINT16*>(Value) = (UINT16)(*TargetAddress);
         break;
     case 32:
-        *reinterpret_cast<UINT32*>(Value) = static_cast<volatile UINT32>(*TargetAddress);
+        *reinterpret_cast<volatile UINT32*>(Value) = (UINT32)(*TargetAddress);
         break;
     case 64:
         *Value = *TargetAddress;
@@ -900,7 +807,7 @@ AcpiOsMapMemory (
     LOG_DBG ("");
 
 	uint64_t offset = (Where - (Where & PAGE_MASK));
-	return PhysicalAlloc(Where & PAGE_MASK, ((Length + offset) + PAGE_SIZE) & PAGE_MASK, PrivilegeLevel::Kernel, PageFlags_Cache_Disable) + offset;
+	return (uint8_t*)PhysicalAlloc(Where & PAGE_MASK, ((Length + offset) + PAGE_SIZE) & PAGE_MASK, PrivilegeLevel::Kernel, PageFlags_Cache_Disable) + offset;
 }
 #endif
 
@@ -1575,7 +1482,7 @@ ACPI_STATUS
 AcpiOsInitializeDebugger (
     void)
 {
-    ACPI_STATUS             Status;
+    //ACPI_STATUS             Status;
 
 	NOT_IMPLEMENTED();
 
@@ -1660,8 +1567,8 @@ const char *
 AcpiAhMatchUuid (
     UINT8                   *Data)
 {
-    const AH_UUID           *Info;
-    UINT8                   UuidBuffer[UUID_BUFFER_LENGTH];
+    //const AH_UUID           *Info;
+    //UINT8                   UuidBuffer[UUID_BUFFER_LENGTH];
 
 	NOT_IMPLEMENTED();
 /*

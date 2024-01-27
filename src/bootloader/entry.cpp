@@ -36,7 +36,7 @@ EFI_STATUS __attribute__((__noreturn__)) efi_main(EFI_HANDLE imageHandle, EFI_SY
 
 	SetColor(EFI_LIGHTGREEN);
 	UEFI_CALL(systemTable->ConOut, SetAttribute, EFI_LIGHTGREEN);
-	Print(u"Starting Enkel");
+	Print(u"Starting Enkel ");
 	Print(BOOTLOADER_BUILD_ID);
 	Print(u"...\r\n");
 	SetColor(EFI_WHITE);

@@ -13,6 +13,8 @@
 #define NULL nullptr
 
 #include "Uefi.h"
+#undef FALSE
+#undef TRUE
 #include "IndustryStandard/Acpi61.h"
 #include "Protocol/AcpiSystemDescriptionTable.h"
 

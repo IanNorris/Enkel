@@ -8,6 +8,8 @@
 #define OUT
 #define UINT64 uint64_t
 #include "Uefi.h"
+#undef FALSE
+#undef TRUE
 #include "Library/UefiBootServicesTableLib.h"
 #include "Protocol/SimpleFileSystem.h"
 

@@ -9,6 +9,8 @@
 #undef NULL
 #endif
 #define NULL nullptr
+#undef FALSE
+#undef TRUE
 #include "Protocol/GraphicsOutput.h"
 #include "IndustryStandard/Acpi61.h"
 #include "Protocol/AcpiSystemDescriptionTable.h"

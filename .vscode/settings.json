@@ -5,7 +5,11 @@
 		"*.bin.cpp": "cpp",
 		"*.bin.h": "cpp",
 		"cstddef": "cpp",
-		"functional": "cpp"
+		"functional": "cpp",
+		"array": "cpp",
+		"string_view": "cpp",
+		"initializer_list": "cpp",
+		"utility": "cpp"
 	},
 	"files.exclude": {
 		"**/.git": true,
@@ -14,6 +18,10 @@
 		"**/*.bin.h": true,
 		"**/*.lst": true,
 		"**/*.cpptemp": true,
-		"**/*.htemp": true
+		"**/*.htemp": true,
+		"**/*.d": true,
+		"**/*.o": true,
+		"**/*.elf": true,
+		"**/*.map": true
 	}
 }

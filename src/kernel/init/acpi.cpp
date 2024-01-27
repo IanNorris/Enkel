@@ -268,7 +268,7 @@ ACPI_STATUS InitializeAcpica (void)
 
     ACPI_INFO (("Loading ACPI tables"));
 
-    Status = AcpiInitializeTables (NULL, 16, FALSE);
+    Status = AcpiInitializeTables (NULL, 16, false);
     if (ACPI_FAILURE (Status))
     {
         ACPI_EXCEPTION ((AE_INFO, Status, "While initializing Table Manager"));
@@ -331,7 +331,7 @@ char GetAlphaOnly(char input)
 
 void DecodeHID(uint32_t hid)
 {
-	if(hid & 0xFFFF == 0x41D0)
+	if((hid & 0xFFFF) == 0x41D0)
 	{
 		uint32_t deviceHID = (hid >> 16);
 		char hidString[16] = {"PNP0"};
@@ -404,7 +404,7 @@ AcpiUtGetTypeName (
 
 void PrintIndent(UINT32 depth)
 {
-	for(int i = 0; i < depth; i++)
+	for(UINT32 i = 0; i < depth; i++)
 	{
 		SerialPrint("  ");
 	}
@@ -576,10 +576,7 @@ static ACPI_STATUS AcpiSpecificDeviceCallback(ACPI_HANDLE Device, UINT32 Level, 
 bool FindSpecificDevice(uint32_t hid, uint32_t uid, ACPI_HANDLE *outDevice)
 {
 	ACPI_STATUS status;
-	ACPI_HANDLE parent = ACPI_ROOT_OBJECT;
-	ACPI_BUFFER buffer;
 	ACPI_HANDLE currentDevice = nullptr;
-	ACPI_DEVICE_INFO *deviceInfo;
 
 	DeviceToFind device = { hid, uid };
 
