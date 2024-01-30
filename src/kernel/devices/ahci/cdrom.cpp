@@ -54,7 +54,7 @@ VolumeReadType CdromVolume_Read =
 	const uint64_t sectorSize = 2048;
 
 	uint64_t startSector = (offset & ~(sectorSize-1)) / sectorSize;
-	uint64_t sectorCount = (AlignSize(offset, sectorSize) / sectorSize) - startSector;
+	uint64_t sectorCount = (AlignSize(offset + size, sectorSize) / sectorSize) - startSector;
 	uint64_t sectorCountUpperBound = 1 + sectorCount;
 	uint64_t sectorUpperBoundSize = sectorCountUpperBound * sectorSize;
 
