@@ -19,9 +19,9 @@ def GetFunctionAddress(functionName):
 
 class AsmBreakpoint(gdb.Breakpoint):
     def __init__(self, functionName):
-        print("Creating breakpoint for asm for {}".format(functionName))
         self.functionName = functionName
         address = GetFunctionAddress(functionName)
+        print("Breakpoint for {} set at 0x{:08X}".format(functionName, address))
         super(AsmBreakpoint, self).__init__("*{}".format(address), gdb.BP_BREAKPOINT)
 
     def stop(self):
@@ -34,9 +34,9 @@ class AsmBreakpoint(gdb.Breakpoint):
 
 class AsmBreakpointWithError(gdb.Breakpoint):
     def __init__(self, functionName):
-        print("Creating breakpoint for asm with error for {}".format(functionName))
         self.functionName = functionName
         address = GetFunctionAddress(functionName)
+        print("Breakpoint with error for {} set at 0x{:08X}".format(functionName, address))
         super(AsmBreakpointWithError, self).__init__("*{}".format(address), gdb.BP_BREAKPOINT)
 
     def stop(self):
@@ -206,13 +206,13 @@ def MainScript():
     OnBinaryLoadHook("OnBinaryLoadHook_Inner")
     
     print("Setup complete!")
-    gdb.execute("continue")
+    #gdb.execute("continue")
 
 gdb.execute("set logging overwrite on")
 gdb.execute("set logging enabled")
 gdb.execute("set output-radix 16")
 gdb.execute("set disassembly-flavor intel")
 gdb.execute("set print asm-demangle on")
-#gdb.execute("directory ./ ~/glibc-2.35")
+gdb.execute("directory ./ ~/glibc-2.35")
 gdb.execute("add-symbol-file ~/Enkel/boot_iso/boot_part/kernel/enkel.elf")
 OnKernelMainHook("OnKernelMainHook", temporary=True)
