@@ -33,3 +33,6 @@ extern "C" void AssertionFailed(const char* expression, const char* message, con
 
 #define UNUSED(x) (void)(x)
 #define AlignSize(value, alignment) (((value) + ((alignment)-1)) & ~((alignment)-1))
+
+#define min(a,b) ((a) < (b) ? a : b)
+#define max(a,b) ((a) > (b) ? a : b)

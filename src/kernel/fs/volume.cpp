@@ -15,7 +15,7 @@ struct VolumePage
 
 VolumePage* VolumeIndices[MAX_SEGMENTS];
 
-static_assert(sizeof(VolumeIndex) == 16, "VolumeIndex should be 16b");
+static_assert(sizeof(VolumeIndex) == 24, "VolumeIndex should be 16b");
 static_assert(sizeof(VolumePage) == PAGE_SIZE, "VolumePage is not a page size");
 
 void InitializeVolumeSystem()
@@ -65,7 +65,7 @@ MountPointHash VolumeHashPath(const char16_t* path)
 	return out;
 }
 
-VolumeHandle MountVolume(const Volume* volume, const char16_t* rootPath)
+VolumeHandle MountVolume(const Volume* volume, const char16_t* rootPath, void* volumeContext)
 {
 	MountPointHash rootHash = VolumeHashPath(rootPath);
 	VolumePage* page = VolumeIndices[rootHash.Segments];
@@ -76,6 +76,7 @@ VolumeHandle MountVolume(const Volume* volume, const char16_t* rootPath)
 		{
 			page->Volumes[index].RootHash = rootHash.Hash;
 			page->Volumes[index].VolumeImplementation = volume;
+			page->Volumes[index].Context = volumeContext;
 
 			FileHandleMask handle;
 			handle.S.FileHandle = 0;
@@ -92,13 +93,111 @@ VolumeHandle MountVolume(const Volume* volume, const char16_t* rootPath)
 	return 0;
 }
 
-void UnmountVolume(VolumeHandle handle)
+VolumeIndex* GetVolumeIndex(VolumeHandle handle)
 {
 	FileHandleMask volumeMask;
 	volumeMask.FileHandle = handle;
 
 	VolumePage* page = VolumeIndices[volumeMask.S.Segments];
 
-	page->Volumes[volumeMask.S.VolumeIndex].VolumeImplementation = nullptr;
-	page->Volumes[volumeMask.S.VolumeIndex].RootHash = 0;
+	//TODO: Any kind of error checking
+
+	return &page->Volumes[volumeMask.S.VolumeIndex];
+}
+
+void UnmountVolume(VolumeHandle handle)
+{
+	VolumeIndex* volumeIndex = GetVolumeIndex(handle);
+
+	//TODO: Any kind of error checking
+
+	volumeIndex->VolumeImplementation = nullptr;
+	volumeIndex->RootHash = 0;
+}
+
+VolumeFileHandle VolumeOpenHandle(VolumeFileHandle volumeHandle, const char16_t* path, uint8_t mode)
+{
+	VolumeIndex* volumeIndex = volumeHandle == 0 ? nullptr : GetVolumeIndex(volumeHandle);
+
+	if(volumeIndex == nullptr)
+	{
+		volumeHandle = BreakPath(path);
+		volumeIndex = GetVolumeIndex(volumeHandle);
+	}
+
+	return volumeIndex->VolumeImplementation->OpenHandle(volumeHandle, volumeIndex->Context, path, mode);
+}
+
+void VolumeCloseHandle(VolumeFileHandle handle)
+{
+	VolumeIndex* volumeIndex = GetVolumeIndex(handle);
+
+	return volumeIndex->VolumeImplementation->CloseHandle(handle, volumeIndex->Context);
+}
+
+uint64_t VolumeRead(VolumeFileHandle handle, uint64_t offset, void* buffer, uint64_t size)
+{
+	VolumeIndex* volumeIndex = GetVolumeIndex(handle);
+
+	return volumeIndex->VolumeImplementation->Read(handle, volumeIndex->Context, offset, buffer, size);
+}
+
+uint64_t VolumeWrite(VolumeFileHandle handle, uint64_t offset, const void* buffer, uint64_t size)
+{
+	VolumeIndex* volumeIndex = GetVolumeIndex(handle);
+
+	return volumeIndex->VolumeImplementation->Write(handle, volumeIndex->Context, offset, buffer, size);
+}
+
+uint64_t VolumeGetSize(VolumeFileHandle handle)
+{
+	VolumeIndex* volumeIndex = GetVolumeIndex(handle);
+
+	return volumeIndex->VolumeImplementation->GetSize(handle, volumeIndex->Context);
+}
+
+//Pass in a path like /dev1/thing/abc and get
+//back the supporting volume, and any path remaining
+VolumeHandle BreakPath(const char16_t*& pathInOut)
+{
+	uint64_t stringLength = _strlen(pathInOut);
+
+	MountPointHash out;
+
+	FileHandleMask previousLongest;
+	previousLongest.FileHandle = (VolumeFileHandle)0;
+	const char16_t*& previousPathInOut = pathInOut;
+
+	int segments = 0;
+
+	for(uint64_t index = 0; index < stringLength; index++)
+	{
+		if(pathInOut[index] == '/')
+		{
+			segments++;
+
+			out.Hash = XXH64(pathInOut, (index+1) * sizeof(char16_t), 0);
+
+			VolumePage* page = VolumeIndices[segments];
+
+			for(int pageIndex = 0; pageIndex < VOLUMES_PER_PAGE; pageIndex++)
+			{
+				if(page->Volumes[pageIndex].RootHash == out.Hash)
+				{
+					if(segments > MAX_SEGMENTS)
+					{
+						segments = MAX_SEGMENTS-1;
+					}
+
+					previousLongest.S.Segments = segments;
+					previousLongest.S.VolumePageIndex = 0; //TODO
+					previousLongest.S.VolumeIndex = pageIndex;
+					previousPathInOut = &pathInOut[index];
+				}
+			}
+		}
+	}
+
+	pathInOut = previousPathInOut;
+	return (VolumeHandle)previousLongest.FileHandle;
 }

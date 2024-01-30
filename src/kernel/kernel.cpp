@@ -21,6 +21,7 @@
 #include "Protocol/DevicePath.h"
 #include "kernel/devices/ahci/cdrom.h"
 
+#include "fs/fs.h"
 #include "fs/volume.h"
 #include "fs/volumes/stdio.h"
 
@@ -31,8 +32,6 @@ void InitializeSyscalls();
 KernelBootData GBootData;
 
 extern const char16_t* KernelBuildId;
-
-CdRomDevice* GCDRomDevice;
 
 #include "common/string.h"
 
@@ -195,27 +194,23 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 
 	CdRomDevice* cdromDevice = (CdRomDevice*)rpmalloc(sizeof(CdRomDevice));
 	cdromDevice->Initialize(devicePath, sataBus);
-	GCDRomDevice = cdromDevice;
 
-	FATFS fs;
-    f_mount(&fs, (const TCHAR*)u"", 1);
+	MountFatVolume(u"/", cdromDevice->GetVolumeId());
 
-	InitializeUserMode(&fs);
+	InitializeUserMode();
 
 	ConsolePrint(u"Kernel booted.\n\n");
 
-	/*ConsolePrint(u"#> hello_world\n");
+	ConsolePrint(u"#> hello_world\n");
 	RunProgram(u"hello_world");
 
 	ConsolePrint(u"\n#> tls_test\n");
 	RunProgram(u"tls_test");
 
-	ConsolePrint(u"\n#> libc_test\n");
+	/*ConsolePrint(u"\n#> libc_test\n");
 	RunProgram(u"libc_test");
 
 	ConsolePrint(u"\n#>\n");*/
-
-	MountPointHash hash = VolumeHashPath(u"/mount/dev1/");
 	
 	while(true)
 	{

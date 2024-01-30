@@ -11,8 +11,8 @@ char16_t ConsoleBuffer[1024];
 
 BMFontColor StdErrColour = { 255, 0, 0 };
 
-VolumeRead StandardInputVolume_Read = 
-[](VolumeFileHandle handle, void* buffer, uint64_t size) -> uint64_t
+VolumeReadType StandardInputVolume_Read = 
+[](VolumeFileHandle handle, void* context, uint64_t offset, void* buffer, uint64_t size) -> uint64_t
 {
 	if (handle == 0)
 	{
@@ -27,8 +27,8 @@ VolumeRead StandardInputVolume_Read =
 	return 0ULL;
 };
 
-VolumeWrite StandardOutputVolume_Write = 
-[](VolumeFileHandle handle, const void* buffer, uint64_t size) -> uint64_t
+VolumeWriteType StandardOutputVolume_Write = 
+[](VolumeFileHandle handle, void* context, uint64_t offset, const void* buffer, uint64_t size) -> uint64_t
 {
 	const char* bufferString = (const char*)buffer;
 
@@ -49,8 +49,8 @@ VolumeWrite StandardOutputVolume_Write =
 	return size;
 };
 
-VolumeWrite StandardErrorVolume_Write = 
-[](VolumeFileHandle handle, const void* buffer, uint64_t size) -> uint64_t
+VolumeWriteType StandardErrorVolume_Write = 
+[](VolumeFileHandle handle, void* context, uint64_t offset, const void* buffer, uint64_t size) -> uint64_t
 {
 	const char* bufferString = (const char*)buffer;
 
@@ -75,14 +75,14 @@ VolumeWrite StandardErrorVolume_Write =
 	return size;
 };
 
-VolumeWrite StdioWriteFunctions[STDOUT_HANDLES] = 
+VolumeWriteType StdioWriteFunctions[STDOUT_HANDLES] = 
 {
 	nullptr,
 	StandardOutputVolume_Write,
 	StandardErrorVolume_Write
 };
 
-VolumeRead StdioReadFunctions[STDOUT_HANDLES] = 
+VolumeReadType StdioReadFunctions[STDOUT_HANDLES] = 
 {
 	StandardInputVolume_Read,
 	nullptr,
@@ -91,36 +91,36 @@ VolumeRead StdioReadFunctions[STDOUT_HANDLES] =
 
 Volume StandardIOVolume
 {
-	OpenHandle: [](const char16_t* path, uint8_t mode){ return (VolumeFileHandle)0ULL; },
-	CloseHandle: [](VolumeFileHandle handle){},
-	Read: [](VolumeFileHandle handle, void* buffer, uint64_t size) -> uint64_t
+	OpenHandle: [](VolumeFileHandle volumeHandle, void* context, const char16_t* path, uint8_t mode){ return (VolumeFileHandle)0ULL; },
+	CloseHandle: [](VolumeFileHandle handle, void* context){},
+	Read: [](VolumeFileHandle handle, void* context, uint64_t offset, void* buffer, uint64_t size) -> uint64_t
 	{
 		if(handle < STDOUT_HANDLES)
 		{
-			return StdioReadFunctions[handle](handle, buffer, size);
+			return StdioReadFunctions[handle](handle, context, offset, buffer, size);
 		}
 		else
 		{
 			return ~0ULL;
 		}
 	},
-	Write: [](VolumeFileHandle handle, const void* buffer, uint64_t size) -> uint64_t
+	Write: [](VolumeFileHandle handle, void* context, uint64_t offset, const void* buffer, uint64_t size) -> uint64_t
 	{
 		if(handle < STDOUT_HANDLES)
 		{
-			return StdioWriteFunctions[handle](handle, buffer, size);
+			return StdioWriteFunctions[handle](handle, context, offset, buffer, size);
 		}
 		else
 		{
 			return ~0ULL;
 		}
 	},
-	Seek: nullptr,
-	Tell: nullptr,
 	GetSize: nullptr
 };
 
 void InitializeStdioVolumes()
 {
-	MountVolume(&StandardIOVolume, u"stdio");
+	MountVolume(&StandardIOVolume, u"stdin", (void*)0);
+	MountVolume(&StandardIOVolume, u"stdout", (void*)1);
+	MountVolume(&StandardIOVolume, u"stderr", (void*)2);
 }

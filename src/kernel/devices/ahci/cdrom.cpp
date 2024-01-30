@@ -24,6 +24,71 @@
 extern "C" volatile UINT64* PciConfigGetMMIOAddress(UINT8 bus, UINT8 device, UINT8 function, UINT8 offset);
 extern "C" ACPI_STATUS AcpiOsReadPciConfiguration(ACPI_PCI_ID *PciId, UINT32 Register, UINT64 *Value, UINT32 Width);
 
+///////////////////////////////////////////////////////////////////////////////////////////////
+
+#define MAX_CDROM_DEVICES 64
+
+CdRomDevice* CdromDevices[MAX_CDROM_DEVICES] = {};
+uint64_t CdromDeviceCount = 0;
+
+//TODO: BAAAAAAAAAD
+uint64_t GTempCDRomBufferSize;
+uint8_t* GTempCDRomBuffer;
+
+
+VolumeOpenHandleType CdromVolume_OpenHandle = 
+[](VolumeFileHandle volumeHandle, void* context, const char16_t* path, uint8_t mode)
+{
+	return volumeHandle;
+};
+
+VolumeCloseHandleType CdromVolume_CloseHandle = 
+[](VolumeFileHandle handle, void* context)
+{};
+
+VolumeReadType CdromVolume_Read = 
+[](VolumeFileHandle handle, void* context, uint64_t offset, void* buffer, uint64_t size) -> uint64_t
+{
+	CdRomDevice* cdrom = (CdRomDevice*)context;
+
+	const uint64_t sectorSize = 2048;
+
+	uint64_t startSector = (offset & ~(sectorSize-1)) / sectorSize;
+	uint64_t sectorCount = (AlignSize(offset, sectorSize) / sectorSize) - startSector;
+	uint64_t sectorCountUpperBound = 1 + sectorCount;
+	uint64_t sectorUpperBoundSize = sectorCountUpperBound * sectorSize;
+
+	if(GTempCDRomBufferSize < sectorUpperBoundSize)
+	{
+		if(GTempCDRomBuffer)
+		{
+			rpfree(GTempCDRomBuffer);
+		}
+
+		GTempCDRomBufferSize = sectorUpperBoundSize;
+		GTempCDRomBuffer = (uint8_t*)rpmalloc(sectorUpperBoundSize);
+	}
+
+	uint64_t readSize = cdrom->ReadSectors(startSector, sectorCountUpperBound, GTempCDRomBuffer);
+
+	uint64_t writeSize = min(readSize, size);
+
+	memcpy(buffer, GTempCDRomBuffer + offset - (startSector*sectorSize), writeSize);
+	
+	return writeSize;
+};
+
+Volume CdromVolume
+{
+	OpenHandle: CdromVolume_OpenHandle,
+	CloseHandle: CdromVolume_CloseHandle,
+	Read: CdromVolume_Read,
+	Write: nullptr,
+	GetSize: nullptr
+};
+
+///////////////////////////////////////////////////////////////////////////////////////////////
+
 bool CdRomDevice::Initialize(EFI_DEV_PATH* devicePath, SataBus* sataBus)
 {
 	memset(this, 0, sizeof(CdRomDevice));
@@ -97,6 +162,18 @@ bool CdRomDevice::Initialize(EFI_DEV_PATH* devicePath, SataBus* sataBus)
 		ConsolePrint(u"CD-ROM drive not found on expected SATA port.\n");
 		return false;
 	}
+
+	int volumeId = CdromDeviceCount;
+
+	//Build the volume root: /device/cdrom/0 etc
+	char16_t volumeRoot[64];
+	char16_t volumeIdStr[16];
+	strcat(volumeRoot, u"/device/cdrom/");
+
+	witoabuf(volumeIdStr, (int)volumeId, 10);
+	strcat(volumeRoot, volumeIdStr);
+
+	VolumeId = MountVolume(&CdromVolume, volumeRoot, this);
 
 	return true;
 }

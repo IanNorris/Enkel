@@ -8,8 +8,9 @@
 #include "common/string.h"
 #include "kernel/user_mode/elf.h"
 #include "kernel/user_mode/ehframe.h"
-#include <ff.h>
 #include <rpmalloc.h>
+
+#include "fs/volume.h"
 
 //Header guard to stop it pulling extra stuff in
 #define __APPLE__
@@ -22,18 +23,16 @@
 #define FLAG_MASK_ALIGNMENT 0x00040000
 #define FLAG_MASK_NESTED_TASK 0x00004000
 
-FATFS* GUserModeFS = nullptr;
 int GELFBinaryCount = 0;
 ElfBinary** GELFBinaries = nullptr;
 
-void InitializeUserMode(void* fsPtr)
+void InitializeUserMode()
 {
-	FATFS* fs = (FATFS*)fsPtr;
-
-	GUserModeFS = fs;
 	GELFBinaries = (ElfBinary**)rpmalloc(sizeof(ElfBinary*) * 16);
 	GELFBinaryCount = 0;
 }
+
+//TODO: Digest https://gist.github.com/x0nu11byt3/bcb35c3de461e5fb66173071a2379779
 
 extern "C" void SwitchToUserMode(uint64_t stackPointer, uint64_t entry, uint16_t userModeCS, uint16_t userModeDS, int argc, char** argv, char** envp);
 
@@ -180,7 +179,7 @@ void WriteRelocation(RelType& rel, const uint64_t programStart, const uint64_t g
 	}
 	else if(type == R_X86_64_RELATIVE)
 	{
-		NOT_IMPLEMENTED();
+		*target += programStart;
 	}
 	else if(type == R_X86_64_IRELATIVE)
 	{
@@ -210,6 +209,8 @@ void WriteRelocation(RelType& rel, const uint64_t programStart, const uint64_t g
 
 ElfBinary* LoadElfFromMemory(const char16_t* programName, const uint8_t* elfStart)
 {
+	const bool performDynamicLinking = false;
+
 	for(int existing = 0; existing < GELFBinaryCount; existing++)
 	{
 		if(strcmp(GELFBinaries[existing]->Name, programName) == 0)
@@ -298,7 +299,7 @@ ElfBinary* LoadElfFromMemory(const char16_t* programName, const uint8_t* elfStar
 		}
 	}
 
-	if(dynamicSection)
+	if(dynamicSection && performDynamicLinking)
 	{
 		for (uint32_t j = 0; j < dynamicSectionItemCount; ++j)
 		{
@@ -552,6 +553,70 @@ ElfBinary* LoadElfFromMemory(const char16_t* programName, const uint8_t* elfStar
 #endif
 	}
 
+	for (uint16_t i = 0; i < elfHeader->e_shnum; ++i)
+    {
+        Elf64_Shdr& section = sections[i];
+		//const char* sectionName = stringTable + section.sh_name;
+
+		typedef void (*InitFunction)(void);
+
+		if (section.sh_type == SHT_PREINIT_ARRAY)
+		{
+			uint64_t entryCount = section.sh_size /= sizeof(InitFunction);
+
+			//TODO: DO NOT CALL THIS FROM THE KERNEL!!!!!
+			uint64_t* initFunctions = (uint64_t*)(programStart + section.sh_addr);
+
+			for (uint64_t i = 0; i < entryCount; ++i)
+			{
+				InitFunction* function = (InitFunction*)(initFunctions[i] + programStart);
+				(*function)();
+			}
+		}
+		//TODO .fini_array
+	}
+
+	for (uint16_t i = 0; i < elfHeader->e_shnum; ++i)
+    {
+        Elf64_Shdr& section = sections[i];
+		//const char* sectionName = stringTable + section.sh_name;
+
+		typedef void (*InitFunction)(void);
+
+		if (section.sh_type == SHT_INIT_ARRAY)
+		{
+			uint64_t entryCount = section.sh_size /= sizeof(InitFunction);
+
+			//TODO: DO NOT CALL THIS FROM THE KERNEL!!!!!
+			InitFunction* initFunctions = (InitFunction*)(programStart + section.sh_addr);
+
+			for (uint64_t i = 0; i < entryCount; ++i)
+			{
+				initFunctions[i]();
+			}
+		}
+		//TODO .fini_array
+	}
+
+	const char* interpreter = nullptr;
+
+	for (uint16_t i = 0; i < elfHeader->e_shnum; ++i)
+    {
+        Elf64_Shdr& section = sections[i];
+		const char* sectionName = stringTable + section.sh_name;
+
+		typedef void (*InitFunction)(void);
+
+		if (strcmp(sectionName, ".interp") == 0)
+		{
+			interpreter = (const char*)(elfStart + section.sh_offset);
+
+			SerialPrint("Interpreter: ");
+			SerialPrint(interpreter);
+			SerialPrint("\n");
+		}
+	}
+
 #if _DEBUG
 	OnBinaryLoadHook(programStart, text_section, programName);
 #endif
@@ -577,21 +642,19 @@ ElfBinary* LoadElfFromMemory(const char16_t* programName, const uint8_t* elfStar
 ElfBinary* LoadElf(const char16_t* programName)
 {
 	char16_t filename[256];
-	strcpy(filename, u"//");
+	strcpy(filename, u"/");
 	strcat(filename, programName);
 
-	FIL file;
-
-	FRESULT fr = f_open(&file, (const TCHAR*)filename, FA_READ);
-	if(fr == FR_OK)
+	VolumeFileHandle handle = VolumeOpenHandle(0, filename, 0);
+	if(handle != 0)
 	{
-		uint64_t fileSize = f_size(&file);
+		uint64_t fileSize = VolumeGetSize(handle);
 
 		uint64_t alignedSize = AlignSize(fileSize, 4096);
 
 		uint8_t* buffer = (uint8_t*)VirtualAlloc(alignedSize,  PrivilegeLevel::User);
-		UINT bytesRead;
-		fr = f_read(&file, buffer, fileSize, &bytesRead);
+		
+		uint64_t bytesRead = VolumeRead(handle, 0, buffer, fileSize);
 
 		ElfBinary* binary = LoadElfFromMemory(programName, buffer);
 
@@ -600,6 +663,8 @@ ElfBinary* LoadElf(const char16_t* programName)
 		ConsolePrintNumeric(u"-", binary->BaseAddress + binary->AllocatedSize, u"\n");
 
 		VirtualFree(buffer, alignedSize);
+
+		VolumeCloseHandle(handle);
 
 		return binary;
 	}

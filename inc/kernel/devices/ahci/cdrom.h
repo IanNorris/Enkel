@@ -2,6 +2,7 @@
 
 #include "kernel/devices/ahci/ahci.h"
 #include "kernel/devices/ahci/sata.h"
+#include "fs/volume.h"
 
 class CdromPort
 {
@@ -48,6 +49,8 @@ public:
 	uint64_t ReadSectors(uint64_t lba, uint64_t sectorCount, uint8_t* buffer);
 	uint64_t ReadToc(uint8_t* buffer, uint32_t bufferSize);
 
+	VolumeHandle GetVolumeId() { return VolumeId; }
+
 private:
 
 	const static uint32_t MaxPorts = 32;
@@ -59,4 +62,7 @@ private:
 	CdromPort* CdPort;
 
 	ACPI_PCI_ID PciId;	
+
+	VolumeHandle VolumeId;
 };
+

@@ -13,13 +13,11 @@ typedef uint64_t VolumeHandle;
 typedef uint64_t FileHandle;
 typedef uint64_t VolumeFileHandle;
 
-typedef VolumeFileHandle (*VolumeOpenHandle)(const char16_t* path, uint8_t mode);
-typedef void (*VolumeCloseHandle)(VolumeFileHandle handle);
-typedef uint64_t (*VolumeRead)(VolumeFileHandle handle, void* buffer, uint64_t size);
-typedef uint64_t (*VolumeWrite)(VolumeFileHandle handle, const void* buffer, uint64_t size);
-typedef uint64_t (*VolumeSeek)(VolumeFileHandle handle, uint64_t offset, uint8_t mode);
-typedef uint64_t (*VolumeTell)(VolumeFileHandle handle);
-typedef uint64_t (*VolumeGetSize)(VolumeFileHandle handle);
+typedef VolumeFileHandle (*VolumeOpenHandleType)(VolumeFileHandle volumeHandle, void* context, const char16_t* path, uint8_t mode);
+typedef void (*VolumeCloseHandleType)(VolumeFileHandle handle, void* context);
+typedef uint64_t (*VolumeReadType)(VolumeFileHandle handle, void* context, uint64_t offset,void* buffer, uint64_t size);
+typedef uint64_t (*VolumeWriteType)(VolumeFileHandle handle, void* context, uint64_t offset, const void* buffer, uint64_t size);
+typedef uint64_t (*VolumeGetSizeType)(VolumeFileHandle handle, void* context);
 
 struct MountPointHash
 {
@@ -32,13 +30,11 @@ struct MountPointHash
 // network connection, or a virtual file.
 struct Volume
 {
-	VolumeOpenHandle OpenHandle;
-	VolumeCloseHandle CloseHandle;
-	VolumeRead Read;
-	VolumeWrite Write;
-	VolumeSeek Seek;
-	VolumeTell Tell;
-	VolumeGetSize GetSize;
+	VolumeOpenHandleType OpenHandle;
+	VolumeCloseHandleType CloseHandle;
+	VolumeReadType Read;
+	VolumeWriteType Write;
+	VolumeGetSizeType GetSize;
 };
 
 // A volume index is a mapping from a mount
@@ -47,19 +43,20 @@ struct Volume
 // segments until a volume is found.
 // Eg /
 //    /mount1
-//    /dev1/thing
-//    /dev1/thing/abc
+//    /device/1/thing
+//    /device/1/thing/abc
 struct VolumeIndex
 {
 	PathHash RootHash;
 	const Volume* VolumeImplementation;
+	void* Context;
 } PACKED_ALIGNMENT;
 
 struct FileHandleMask
 {
 	union
 	{
-		uint64_t FileHandle;
+		VolumeFileHandle FileHandle;
 
 		struct
 		{
@@ -71,15 +68,21 @@ struct FileHandleMask
 	};
 } PACKED_ALIGNMENT;
 
-#define VOLUMES_PER_PAGE ((PAGE_SIZE / sizeof(VolumeIndex))-1) //255
+#define VOLUMES_PER_PAGE 170
 #define MAX_SEGMENTS 8
 
 #define MAX_RESERVED_FILE_HANDLE 1024
 
 void InitializeVolumeSystem();
 MountPointHash VolumeHashPath(const char16_t* path);
-VolumeHandle MountVolume(const Volume* volume, const char16_t* rootPath);
+VolumeHandle MountVolume(const Volume* volume, const char16_t* rootPath, void* volumeContext);
 void UnmountVolume(VolumeHandle handle);
+
+VolumeFileHandle VolumeOpenHandle(VolumeFileHandle volumeHandle, const char16_t* path, uint8_t mode);
+void VolumeCloseHandle(VolumeFileHandle handle);
+uint64_t VolumeRead(VolumeFileHandle handle, uint64_t offset, void* buffer, uint64_t size);
+uint64_t VolumeWrite(VolumeFileHandle handle, uint64_t offset, const void* buffer, uint64_t size);
+uint64_t VolumeGetSize(VolumeFileHandle handle);
 
 //Pass in a path like /dev1/thing/abc and get
 //back the supporting volume, and any path remaining
