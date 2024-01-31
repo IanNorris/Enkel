@@ -9,12 +9,6 @@ SwitchToUserMode:
 	;   rsi - uint64_t entry (user mode entry point address)
 	;	rdx - uint16_t userModeCS
 	;	rcx - uint16_t userModeDS
-	;	 r8 - argc
-	;	 r9 - argv
-	;	[rsp + (1*8)] - envp
-
-	push r15
-	mov r15, [rsp+(2*8)] ;envp
 
 	push rax
     push rbx
@@ -29,18 +23,13 @@ SwitchToUserMode:
     push r12
     push r13
     push r14
+	push r15
     pushfq
-
-	push rax
 
 	; NextTask is our target memory location
 	mov rax, NextTask
 	mov [rax], rbp
-
-	;add rax, 8
 	mov [rax+8], rsp
-
-	pop rax
 
     ; Clear the direction flag
     cld
@@ -48,7 +37,6 @@ SwitchToUserMode:
 	push 0x08 ; CS register offset
 	push rdi
 
-	;mov rbp, 0 ; set the stack base
 	mov rbp, rdi
 
 	push rcx ;UM DS
@@ -57,15 +45,9 @@ SwitchToUserMode:
 	push rdx ;UM CS
 	push rsi ;UM entry
 
-	mov rdi, r8 ; argc
-	mov rsi, r9 ; argv
-	mov rdx, r15 ; envp
-	mov rcx, 0
-
 	; Clear all unused registers to 0
-	; so the program doesn't get any data from
-	; the kernel
-
+	; so the program doesn't get any 
+	; leaked data from the kernel
 
 	mov rax, 0
 	mov rbx, 0
@@ -79,8 +61,6 @@ SwitchToUserMode:
 	mov r15, 0
 	; TODO XMM registers
 
-	
-
     ; Switch to user mode by performing a far return
     iretq
 
@@ -88,10 +68,6 @@ ReturnToKernel:
 
 	mov rbp, [NextTask + 0]
 	mov rsp, [NextTask + 8]
-
-	; This matches the pop we made earlier
-	; so we could manipulate the task pointer
-	pop rax
 
 	popfq
     pop r15
@@ -108,5 +84,5 @@ ReturnToKernel:
     pop rcx
     pop rbx
     pop rax
-	
+
 	ret

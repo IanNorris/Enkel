@@ -34,14 +34,14 @@ void InitializeUserMode()
 
 //TODO: Digest https://gist.github.com/x0nu11byt3/bcb35c3de461e5fb66173071a2379779
 
-extern "C" void SwitchToUserMode(uint64_t stackPointer, uint64_t entry, uint16_t userModeCS, uint16_t userModeDS, int argc, char** argv, char** envp);
+extern "C" void SwitchToUserMode(uint64_t stackPointer, uint64_t entry, uint16_t userModeCS, uint16_t userModeDS);
 
 extern "C" void __attribute__((used, noinline)) OnBinaryLoadHook_Inner()
 {
     asm("nop");
 }
 
-extern "C" void __attribute__((used, noinline)) OnBinaryLoadHook(uint64_t baseAddress, uint64_t textSectionOffset, const char16_t* programName)
+extern "C" void __attribute__((used, noinline)) OnBinaryLoadHook(uint64_t baseAddress, const char16_t* programName)
 {
 	OnBinaryLoadHook_Inner();
 
@@ -54,7 +54,7 @@ extern "C" void __attribute__((used, noinline)) OnBinaryUnloadHook_Inner()
     asm("nop");
 }
 
-extern "C" void __attribute__((used, noinline)) OnBinaryUnloadHook(uint64_t baseAddress, uint64_t textSectionOffset, const char16_t* programName)
+extern "C" void __attribute__((used, noinline)) OnBinaryUnloadHook(uint64_t textSectionOffset, const char16_t* programName)
 {
 	OnBinaryUnloadHook_Inner();
 
@@ -618,7 +618,7 @@ ElfBinary* LoadElfFromMemory(const char16_t* programName, const uint8_t* elfStar
 	}
 
 #if _DEBUG
-	OnBinaryLoadHook(programStart, text_section, programName);
+	OnBinaryLoadHook(programStart, programName);
 #endif
 
 	elfBinary->BaseAddress = programStart;
@@ -685,7 +685,7 @@ void UnloadElf(ElfBinary* elfBinary)
 	if(elfBinary->RefCount == 0)
 	{
 #if _DEBUG
-		OnBinaryUnloadHook(elfBinary->BaseAddress, elfBinary->TextSection, elfBinary->Name);
+		OnBinaryUnloadHook(elfBinary->TextSection, elfBinary->Name);
 #endif
 
 		VirtualFree((void*)elfBinary->BaseAddress, elfBinary->AllocatedSize);
@@ -702,7 +702,10 @@ void ScheduleProcess(Process* process)
 	uint64_t currentFSBase = GetFSBase();
 	SetFSBase(process->TLS->FSBase);
 
-	SwitchToUserMode((uint64_t)process->DefaultThreadStackStart, process->Binary->Entry, userModeCodeSelector, userModeDataSelector, process->Environment.argc, process->Environment.argv, process->Environment.envp);
+	//TODO
+	//process->Environment.argc, process->Environment.argv, process->Environment.envp
+
+	SwitchToUserMode((uint64_t)process->DefaultThreadStackStart, process->Binary->Entry, userModeCodeSelector, userModeDataSelector);
 
 	//Back in the kernel
 	SetFSBase(currentFSBase);
