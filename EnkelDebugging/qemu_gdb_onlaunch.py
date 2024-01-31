@@ -30,22 +30,6 @@ class AsmBreakpoint(gdb.Breakpoint):
         gdb.execute("x/16gx $rsp")
         print("PAGE Stopped!")
         return True
-
-
-class AsmBreakpointWithError(gdb.Breakpoint):
-    def __init__(self, functionName):
-        self.functionName = functionName
-        address = GetFunctionAddress(functionName)
-        print("Breakpoint with error for {} set at 0x{:08X}".format(functionName, address))
-        super(AsmBreakpointWithError, self).__init__("*{}".format(address), gdb.BP_BREAKPOINT)
-
-    def stop(self):
-        print("Breakpoint at {}".format(self.functionName))
-        print("Top of stack")
-        gdb.execute("x/16gx $rsp")
-        print("PAGE Stopped!")
-        return True
-
 class DebuggerHook(gdb.Breakpoint):       
     def stop (self):
         print("DebuggerHook hit")
@@ -195,12 +179,12 @@ def MainScript():
     DebuggerHook("DebuggerHook")
     
     print("Setting hooks")
-    AsmBreakpointWithError("DebugHook_ISR_GeneralProtectionFault")
+    AsmBreakpoint("DebugHook_ISR_GeneralProtectionFault")
     AsmBreakpoint("DebugHook_ISR_InvalidOpcode")
     AsmBreakpoint("DebugHook_ISR_Breakpoint")
 
-    AsmBreakpointWithError("AccessViolationException")
-    AsmBreakpointWithError("DebugHook_ISR_PageFault")
+    AsmBreakpoint("AccessViolationException")
+    AsmBreakpoint("DebugHook_ISR_PageFault")
     
     OnBinaryUnloadHook("OnBinaryUnloadHook_Inner")
     OnBinaryLoadHook("OnBinaryLoadHook_Inner")
