@@ -34,6 +34,12 @@ void InitializeUserMode()
 
 //TODO: Digest https://gist.github.com/x0nu11byt3/bcb35c3de461e5fb66173071a2379779
 
+
+
+// NOTE: These look a bit weird, but we need to access the parameters from the debugger
+// single stepping in the debugger is a bit weird, so instead we go up one stack frame,
+// which means we need a dummy extra frame to step out of!
+
 extern "C" void SwitchToUserMode(uint64_t stackPointer, uint64_t entry, uint16_t userModeCS, uint16_t userModeDS);
 
 extern "C" void __attribute__((used, noinline)) OnBinaryLoadHook_Inner()
@@ -44,9 +50,6 @@ extern "C" void __attribute__((used, noinline)) OnBinaryLoadHook_Inner()
 extern "C" void __attribute__((used, noinline)) OnBinaryLoadHook(uint64_t baseAddress, const char16_t* programName)
 {
 	OnBinaryLoadHook_Inner();
-
-	asm("nop");
-	asm("nop");
 }
 
 extern "C" void __attribute__((used, noinline)) OnBinaryUnloadHook_Inner()
@@ -57,9 +60,6 @@ extern "C" void __attribute__((used, noinline)) OnBinaryUnloadHook_Inner()
 extern "C" void __attribute__((used, noinline)) OnBinaryUnloadHook(uint64_t textSectionOffset, const char16_t* programName)
 {
 	OnBinaryUnloadHook_Inner();
-
-	asm("nop");
-	asm("nop");
 }
 
 void* ResolveSymbol(const char* name)

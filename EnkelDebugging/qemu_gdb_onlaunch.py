@@ -1,4 +1,5 @@
 import gdb
+import os.path
 
 def GetRegisterValue(registerName):
     # Execute the "info registers <reg>" command and capture its output
@@ -52,8 +53,9 @@ class OnBinaryLoadHook(gdb.Breakpoint):
         gdb.execute("up 1");
         address = gdb.parse_and_eval("programName")
         binary_name = self.read_wide_string(address)
-        print("Loading {} symbols".format(binary_name))
-        gdb.execute("add-symbol-file boot_iso/boot_part/{} -readnow -o baseAddress".format(binary_name))
+        absolute_path = os.path.abspath("boot_iso/boot_part/{}".format(binary_name))
+        print("Loading {} symbols from {}".format(binary_name, absolute_path))
+        gdb.execute("add-symbol-file {} -readnow -o baseAddress".format(absolute_path))
         return False
     
     def read_wide_string(self, addr):
@@ -77,8 +79,9 @@ class OnBinaryUnloadHook(gdb.Breakpoint):
         gdb.execute("up 1");
         address = gdb.parse_and_eval("programName")
         binary_name = self.read_wide_string(address)
-        print("Unloading {} symbols".format(binary_name))
-        gdb.execute("remove-symbol-file -a textSectionOffset")
+        absolute_path = os.path.abspath("boot_iso/boot_part/{}".format(binary_name))
+        print("Unloading {} symbols from {}".format(binary_name, absolute_path))
+        gdb.execute("remove-symbol-file {}".format(absolute_path))
         return False
     
     def read_wide_string(self, addr):
