@@ -32,11 +32,6 @@ VolumeWriteType StandardOutputVolume_Write =
 {
 	const char* bufferString = (const char*)buffer;
 
-	if (handle == 1)
-	{
-		return 0ULL;
-	}
-
 	uint64_t sizeRemaining = size;
 	while(sizeRemaining)
 	{
@@ -53,11 +48,6 @@ VolumeWriteType StandardErrorVolume_Write =
 [](VolumeFileHandle handle, void* context, uint64_t offset, const void* buffer, uint64_t size) -> uint64_t
 {
 	const char* bufferString = (const char*)buffer;
-
-	if (handle == 1)
-	{
-		return 0ULL;
-	}
 	
 	uint64_t sizeRemaining = size;
 	while(sizeRemaining)
@@ -68,6 +58,7 @@ VolumeWriteType StandardErrorVolume_Write =
 		int32_t y = -1;
 		int32_t returnX = -1;
 		ConsolePrintAtPosWithColor(ConsoleBuffer, x, y, returnX, StdErrColour, nullptr);
+		ConsoleSetPos(x,y);
 
 		sizeRemaining -= written;
 	}

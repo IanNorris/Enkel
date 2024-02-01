@@ -641,11 +641,7 @@ ElfBinary* LoadElfFromMemory(const char16_t* programName, const uint8_t* elfStar
 
 ElfBinary* LoadElf(const char16_t* programName)
 {
-	char16_t filename[256];
-	strcpy(filename, u"/");
-	strcat(filename, programName);
-
-	VolumeFileHandle handle = VolumeOpenHandle(0, filename, 0);
+	VolumeFileHandle handle = VolumeOpenHandle(0, programName, 0);
 	if(handle != 0)
 	{
 		uint64_t fileSize = VolumeGetSize(handle);
@@ -671,7 +667,7 @@ ElfBinary* LoadElf(const char16_t* programName)
 	else
 	{
 		ConsolePrint(u"Failed to load ELF: ");
-		ConsolePrint(filename);
+		ConsolePrint(programName);
 		ConsolePrint(u"\n");
 	}
 

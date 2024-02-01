@@ -296,3 +296,14 @@ void LogPrintNumeric(const char16_t* Start, uint64_t Value, const char16_t* Suff
 	SerialPrint(Buffer);
 	SerialPrint(Suffix);
 }
+
+void ConsoleSetPos(int32_t x, int32_t y, Console* Console)
+{
+	if (Console == nullptr)
+	{
+		Console = &GDefaultConsole;
+	}
+
+	Console->CurrentX = x;
+	Console->CurrentY = y;
+}

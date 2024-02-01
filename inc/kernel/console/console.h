@@ -48,3 +48,5 @@ void ConsolePrint(const char16_t* String, Console* Console = nullptr);
 
 void ConsolePrintNumeric(const char16_t* Start, uint64_t Value, const char16_t* Suffix, int Base = 16);
 void LogPrintNumeric(const char16_t* Start, uint64_t Value, const char16_t* Suffix, int Base = 16);
+
+void ConsoleSetPos(int32_t x, int32_t y, Console* Console = nullptr);

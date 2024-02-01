@@ -19,11 +19,17 @@ void PrintString(const char* message)
 	Write(1, message, _strlen(message));
 }
 
+void PrintError(const char* message)
+{
+	Write(2, message, _strlen(message));
+}
+
 extern "C"
 {
 void __attribute__((sysv_abi,noreturn,noinline)) _start()
 {
 	PrintString("Hello World!\n");
+	PrintError("I. AM. ERROR.\n");
 
 	PrintString("Invalid syscall test.\n");
 	InvSysCall();

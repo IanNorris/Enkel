@@ -8,6 +8,8 @@
 
 #include "memory/virtual.h"
 
+#include "fs/volume.h"
+
 #include "kernel/user_mode/syscall.h"
 
 #define ARCH_SET_GS 0x1001
@@ -98,15 +100,7 @@ uint64_t sys_access(const char *pathname, int mode)
 
 void sys_write(uint64_t fileHandle, void* data, uint64_t dataSize)
 {
-	char* stringPtr = (char*)data;
-
-	for(uint64_t i = 0; i < dataSize; i++)
-	{
-		char16_t buffer[2] = {0,0};
-		buffer[0] = (char16_t)stringPtr[i];
-
-		ConsolePrint(buffer);
-	}
+	VolumeWrite(fileHandle, ~0ULL, data, dataSize);
 }
 
 void sys_exit(int64_t exitCode)
