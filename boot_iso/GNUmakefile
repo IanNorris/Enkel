@@ -37,6 +37,9 @@ tls_test:
 libc_test:
 	make -C ../src/apps/libc_test
 
+static_libc_test:
+	make -C ../src/apps/static_libc_test
+
 $(BOOTLOADER_OUT): $(BOOTLOADER)
 	mkdir -p $(BOOTLOADER_OUT_DIR)
 	cp $(BOOTLOADER) $(BOOTLOADER_OUT)
@@ -45,7 +48,7 @@ $(KERNEL_OUT): $(KERNEL)
 	mkdir -p $(KERNEL_OUT_DIR)
 	cp $(KERNEL) $(KERNEL_OUT)
 
-$(BOOT_IMAGE): $(BOOTLOADER_OUT) $(KERNEL_OUT) tls_test libc_test
+$(BOOT_IMAGE): $(BOOTLOADER_OUT) $(KERNEL_OUT) tls_test libc_test static_libc_test
 	#Calculate the actual size of the boot partition folder
 
 	cp $(GLIBC_ROOT)/libc.so.6 $(BOOT_PART)/
@@ -57,6 +60,7 @@ $(BOOT_IMAGE): $(BOOTLOADER_OUT) $(KERNEL_OUT) tls_test libc_test
 	cp ../src/apps/hello_world/hello_world.a $(BOOT_PART)/hello_world
 	cp ../src/apps/tls_test/tls_test.a $(BOOT_PART)/tls_test
 	cp ../src/apps/libc_test/libc_test.a $(BOOT_PART)/libc_test
+	cp ../src/apps/static_libc_test/static_libc_test.a $(BOOT_PART)/static_libc_test
 
 	$(eval BOOT_PART_SIZE := $(shell du -cb $(BOOT_PART) | tail -n 1 | awk '{print $$1}'))
 	#Now calculate how many sectors we need by inflating it by about 30% and adding 512kb on top.
