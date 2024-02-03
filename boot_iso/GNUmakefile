@@ -51,11 +51,12 @@ $(KERNEL_OUT): $(KERNEL)
 $(BOOT_IMAGE): $(BOOTLOADER_OUT) $(KERNEL_OUT) tls_test libc_test static_libc_test
 	#Calculate the actual size of the boot partition folder
 
-	cp $(GLIBC_ROOT)/libc.so.6 $(BOOT_PART)/
-	cp $(GLIBC_ROOT)/ld-linux-x86-64.so.2 $(BOOT_PART)/
-	cp $(GLIBC_ROOT)/libstdc++.so.6 $(BOOT_PART)/
-	cp $(GLIBC_ROOT)/libm.so.6 $(BOOT_PART)/
-	cp $(GLIBC_ROOT)/libgcc_s.so.1 $(BOOT_PART)/
+	mkdir -p $(BOOT_PART)/lib64
+	cp $(GLIBC_ROOT)/libc.so.6 $(BOOT_PART)/lib64/
+	cp $(GLIBC_ROOT)/ld-linux-x86-64.so.2 $(BOOT_PART)/lib64/
+	cp $(GLIBC_ROOT)/libstdc++.so.6 $(BOOT_PART)/lib64/
+	cp $(GLIBC_ROOT)/libm.so.6 $(BOOT_PART)/lib64/
+	cp $(GLIBC_ROOT)/libgcc_s.so.1 $(BOOT_PART)/lib64/
 	cp ../assets/AnotherLogo.tga $(BOOT_PART)/Logo.tga
 	cp ../src/apps/hello_world/hello_world.a $(BOOT_PART)/hello_world
 	cp ../src/apps/tls_test/tls_test.a $(BOOT_PART)/tls_test

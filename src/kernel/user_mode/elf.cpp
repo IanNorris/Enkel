@@ -23,24 +23,14 @@
 #define FLAG_MASK_ALIGNMENT 0x00040000
 #define FLAG_MASK_NESTED_TASK 0x00004000
 
-int GELFBinaryCount = 0;
-ElfBinary** GELFBinaries = nullptr;
-
-void InitializeUserMode()
-{
-	GELFBinaries = (ElfBinary**)rpmalloc(sizeof(ElfBinary*) * 16);
-	GELFBinaryCount = 0;
-}
+extern int GELFBinaryCount;
+extern ElfBinary** GELFBinaries;
 
 //TODO: Digest https://gist.github.com/x0nu11byt3/bcb35c3de461e5fb66173071a2379779
-
-
 
 // NOTE: These look a bit weird, but we need to access the parameters from the debugger
 // single stepping in the debugger is a bit weird, so instead we go up one stack frame,
 // which means we need a dummy extra frame to step out of!
-
-extern "C" void SwitchToUserMode(uint64_t stackPointer, uint64_t entry, uint16_t userModeCS, uint16_t userModeDS);
 
 extern "C" void __attribute__((used, noinline)) OnBinaryLoadHook_Inner()
 {
@@ -553,7 +543,7 @@ ElfBinary* LoadElfFromMemory(const char16_t* programName, const uint8_t* elfStar
 #endif
 	}
 
-	for (uint16_t i = 0; i < elfHeader->e_shnum; ++i)
+	/*for (uint16_t i = 0; i < elfHeader->e_shnum; ++i)
     {
         Elf64_Shdr& section = sections[i];
 		//const char* sectionName = stringTable + section.sh_name;
@@ -596,7 +586,7 @@ ElfBinary* LoadElfFromMemory(const char16_t* programName, const uint8_t* elfStar
 			}
 		}
 		//TODO .fini_array
-	}
+	}*/
 
 	const char* interpreter = nullptr;
 
@@ -605,8 +595,6 @@ ElfBinary* LoadElfFromMemory(const char16_t* programName, const uint8_t* elfStar
         Elf64_Shdr& section = sections[i];
 		const char* sectionName = stringTable + section.sh_name;
 
-		typedef void (*InitFunction)(void);
-
 		if (strcmp(sectionName, ".interp") == 0)
 		{
 			interpreter = (const char*)(elfStart + section.sh_offset);
@@ -614,6 +602,16 @@ ElfBinary* LoadElfFromMemory(const char16_t* programName, const uint8_t* elfStar
 			SerialPrint("Interpreter: ");
 			SerialPrint(interpreter);
 			SerialPrint("\n");
+
+			char16_t interpreterPathWide[MAX_PATH];
+			ascii_to_wide(interpreterPathWide, interpreter, MAX_PATH);
+
+			elfBinary->InterpreterFileHandle = VolumeOpenHandle(0, interpreterPathWide, 0);
+			if(elfBinary->InterpreterFileHandle == 0)
+			{
+				UnloadElf(elfBinary);
+				return nullptr;
+			}
 		}
 	}
 
@@ -688,131 +686,4 @@ void UnloadElf(ElfBinary* elfBinary)
 
 		rpfree(elfBinary);
 	}
-}
-
-void ScheduleProcess(Process* process)
-{
-	const uint16_t userModeCodeSelector = ((uint16_t)GDTEntryIndex::UserCode * sizeof(GDTEntry)) | 0x3; // Selector | Ring 3
-	const uint16_t userModeDataSelector = ((uint16_t)GDTEntryIndex::UserData * sizeof(GDTEntry)) | 0x3;
-
-	uint64_t currentFSBase = GetFSBase();
-	SetFSBase(process->TLS->FSBase);
-
-	//TODO
-	//process->Environment.argc, process->Environment.argv, process->Environment.envp
-
-	SwitchToUserMode((uint64_t)process->DefaultThreadStackStart, process->Binary->Entry, userModeCodeSelector, userModeDataSelector);
-
-	//Back in the kernel
-	SetFSBase(currentFSBase);
-}
-
-Process* CreateProcess(const char16_t* programName)
-{
-	Process* process = (Process*)rpmalloc(sizeof(Process));
-	memset(process, 0, sizeof(Process));
-
-	process->DefaultThreadStackSize = 128 * 1024;
-	process->DefaultThreadStackBase = (uint64_t)VirtualAlloc(process->DefaultThreadStackSize, PrivilegeLevel::User);
-	
-	process->Binary = LoadElf(programName);
-
-	process->TLS = CreateUserModeTLS(process->Binary->TLSDataSize, process->Binary->TBSSSize, process->Binary->TLSData, process->Binary->TLSAlign);
-
-	//Ensure we've got 
-	uint64_t* stackTopPtr = (uint64_t*)(process->DefaultThreadStackBase + process->DefaultThreadStackSize);
-	stackTopPtr -= 8; *stackTopPtr = 0;
-	stackTopPtr -= 8; *stackTopPtr = 0;
-	stackTopPtr -= 8; *stackTopPtr = 0;
-	stackTopPtr -= 8; *stackTopPtr = 0;
-
-	process->DefaultThreadStackStart = (uint64_t)stackTopPtr;
-
-	const uint64_t envDataSize = 4096;
-
-	//Prepare environment data.
-	//TODO: Artificial limit to 4k of data
-	uint64_t** processCommandArgs = (uint64_t**)VirtualAlloc(envDataSize, PrivilegeLevel::User);
-	int argc = 3;
-	int envc = 2;
-
-	process->Environment.AllocatedAddress = processCommandArgs;
-	process->Environment.AllocatedSize = envDataSize;
-	process->Environment.argc = argc;
-	process->Environment.argv = (char**)processCommandArgs;
-	process->Environment.envp = (char**)&processCommandArgs[argc];
-
-	const char* firstArg = "--mode";
-	const char* secondArg = "awesome";
-
-	const char* env1 = "OS_NAME=Enkel";
-	const char* env2 = "LANGUAGE=en-GB";
-
-	processCommandArgs[argc+envc] = 0;
-
-	uint8_t* dataPointer = (uint8_t*)&processCommandArgs[argc+envc+2];
-	size_t writing;
-
-	int stringIndex = 0;
-
-	//Arg 0 is the program name
-	processCommandArgs[stringIndex++] = (uint64_t*)dataPointer;
-	writing = wide_to_ascii((char*)dataPointer, programName, 256);
-	dataPointer+=writing;
-
-	//Arg 1
-	processCommandArgs[stringIndex++] = (uint64_t*)dataPointer;
-	writing = strlen(firstArg) + 1;
-	memcpy(dataPointer, firstArg, writing);
-	dataPointer+=writing;
-
-	//Arg 2
-	processCommandArgs[stringIndex++] = (uint64_t*)dataPointer;
-	writing = strlen(secondArg) + 1;
-	memcpy(dataPointer, secondArg, writing);
-	dataPointer+=writing;
-
-	//Env 0
-	processCommandArgs[stringIndex++] = (uint64_t*)dataPointer;
-	writing = strlen(env1) + 1;
-	memcpy(dataPointer, env1, writing);
-	dataPointer+=writing;
-
-	//Env 2
-	processCommandArgs[stringIndex++] = (uint64_t*)dataPointer;
-	writing = strlen(env2) + 1;
-	memcpy(dataPointer, env2, writing);
-	dataPointer+=writing;
-
-	ScheduleProcess(process);
-
-	return process;
-
-}
-
-void DestroyProcess(Process* process)
-{
-	if(process->Environment.AllocatedAddress)
-	{
-		VirtualFree(process->Environment.AllocatedAddress, process->Environment.AllocatedSize);
-		process->Environment.AllocatedAddress = nullptr;
-	}
-
-	VirtualFree((void*)process->DefaultThreadStackBase, process->DefaultThreadStackSize);
-	process->DefaultThreadStackBase = 0;
-
-	DestroyTLS(process->TLS);
-	process->TLS = nullptr;
-
-	UnloadElf(process->Binary);
-	process->Binary = nullptr;
-
-	rpfree(process);
-}
-
-void RunProgram(const char16_t* programName)
-{
-	Process* process = CreateProcess(programName);
-
-	DestroyProcess(process);
 }
