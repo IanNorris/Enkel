@@ -198,6 +198,9 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 	ConsolePrint(u"\nRunning  tls_test\n");
 	RunProgram(u"/tls_test");
 
+	ConsolePrint(u"\n#> libc_test\n");
+	RunProgram(u"libc_test");
+
 	/*ConsolePrint(u"\nRunning  static_libc_test\n");
 	RunProgram(u"/static_libc_test");
 

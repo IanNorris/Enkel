@@ -11,6 +11,7 @@
 #include "fs/volume.h"
 
 #include "kernel/user_mode/syscall.h"
+#include "kernel/process/process.h"
 
 #define ARCH_SET_GS 0x1001
 #define ARCH_SET_FS 0x1002
@@ -22,6 +23,8 @@
 
 #define ARCH_CET_STATUS 0x3001
 
+extern Process* GCurrentProcess;
+
 extern "C"
 {
 	uint64_t SyscallStack;
@@ -29,7 +32,7 @@ extern "C"
 
 extern "C" void __attribute__((sysv_abi,noreturn)) ReturnToKernel();
 
-uint64_t sys_not_implemented()
+extern "C" uint64_t sys_not_implemented()
 {
 	unsigned long syscall_number;
 	uint64_t rip;
@@ -115,6 +118,26 @@ void sys_exit(int64_t exitCode)
 	ReturnToKernel();
 }
 
+uint64_t sys_brk(uint64_t newBreakAddress)
+{
+	if(newBreakAddress > GCurrentProcess->Binary->ProgramBreakLow)
+	{
+		if(newBreakAddress <= GCurrentProcess->Binary->ProgramBreakHigh)
+		{
+			GCurrentProcess->ProgramBreak = newBreakAddress;
+			return newBreakAddress;
+		}
+		else
+		{
+			_ASSERTF(false, "Exceeded allocated program break");
+		}
+	}
+	else
+	{
+		return GCurrentProcess->Binary->ProgramBreakLow;
+	}
+}
+
 void * sys_memory_map(void *__addr,size_t __len,int __prot,int __flags,int __fd,uint64_t __offset)
 {
 	return VirtualAlloc(AlignSize(__len, PAGE_SIZE),  PrivilegeLevel::User);
@@ -136,7 +159,7 @@ void* SyscallTable[(int)SyscallIndex::Max] =
 
 	(void*)sys_not_implemented, // NotImplemented10,
 	(void*)sys_not_implemented, // NotImplemented11,
-	(void*)sys_not_implemented, // NotImplemented12,
+	(void*)sys_brk, // Break,
 	(void*)sys_not_implemented, // NotImplemented13,
 	(void*)sys_not_implemented, // NotImplemented14,
 	(void*)sys_not_implemented, // NotImplemented15,

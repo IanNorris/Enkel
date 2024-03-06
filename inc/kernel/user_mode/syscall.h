@@ -18,7 +18,7 @@ enum class SyscallIndex
 
 	NotImplemented10,
 	NotImplemented11,
-	NotImplemented12,
+	Break,
 	NotImplemented13,
 	NotImplemented14,
 	NotImplemented15,

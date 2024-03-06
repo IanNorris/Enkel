@@ -12,6 +12,9 @@
 
 #include "fs/volume.h"
 
+#define PROGRAM_BREAK_SIZE 64 * 1024 * 1024 //ProgramBreak is the amount allocated after the end of the binary to be used as a heap
+											// It's called break
+
 //Header guard to stop it pulling extra stuff in
 #define __APPLE__
 #include <elf.h>
@@ -317,6 +320,11 @@ ElfBinary* LoadElfFromMemory(const char16_t* programName, const uint8_t* elfStar
 		}
 	}
 
+	elfBinary->ProgramHeaderCount = elfHeader->e_phnum;
+	elfBinary->ProgramHeaderEntrySize = sizeof(Elf64_Phdr);
+	elfBinary->ProgramHeaders = (uint8_t*)rpmalloc(elfBinary->ProgramHeaderCount * elfBinary->ProgramHeaderEntrySize);
+	memcpy(elfBinary->ProgramHeaders, segments, elfBinary->ProgramHeaderCount * elfBinary->ProgramHeaderEntrySize);
+
 	for (int segmentHeader = 0; segmentHeader < elfHeader->e_phnum; segmentHeader++)
 	{
 		Elf64_Phdr& segment = segments[segmentHeader];
@@ -339,12 +347,16 @@ ElfBinary* LoadElfFromMemory(const char16_t* programName, const uint8_t* elfStar
 		}		
 	}
 
+	uint64_t breakSize = PROGRAM_BREAK_SIZE;
 	uint64_t programSize = highestAddress;
-	programSize = AlignSize(programSize, PAGE_SIZE);
+	uint64_t allocatedSize = AlignSize(programSize + breakSize, PAGE_SIZE);
 
-	_ASSERTF(programSize != 0, "No loadable segments in ELF file");
+	_ASSERTF(allocatedSize != 0, "No loadable segments in ELF file");
 	
-	uint64_t programStart = (uint64_t)VirtualAlloc(programSize, PrivilegeLevel::User);
+	uint64_t programStart = (uint64_t)VirtualAlloc(allocatedSize, PrivilegeLevel::User);
+
+	elfBinary->ProgramBreakLow = programStart + programStart;
+	elfBinary->ProgramBreakHigh = elfBinary->ProgramBreakLow + breakSize;
 
 	uint64_t text_section = 0;
 
@@ -603,10 +615,9 @@ ElfBinary* LoadElfFromMemory(const char16_t* programName, const uint8_t* elfStar
 			SerialPrint(interpreter);
 			SerialPrint("\n");
 
-			char16_t interpreterPathWide[MAX_PATH];
-			ascii_to_wide(interpreterPathWide, interpreter, MAX_PATH);
+			ascii_to_wide(elfBinary->InterpreterName, interpreter, MAX_PATH);
 
-			elfBinary->InterpreterFileHandle = VolumeOpenHandle(0, interpreterPathWide, 0);
+			elfBinary->InterpreterFileHandle = VolumeOpenHandle(0, elfBinary->InterpreterName, 0);
 			if(elfBinary->InterpreterFileHandle == 0)
 			{
 				UnloadElf(elfBinary);
@@ -620,7 +631,7 @@ ElfBinary* LoadElfFromMemory(const char16_t* programName, const uint8_t* elfStar
 #endif
 
 	elfBinary->BaseAddress = programStart;
-	elfBinary->AllocatedSize = programSize;
+	elfBinary->AllocatedSize = allocatedSize;
 
 	elfBinary->TextSection = text_section;
 	elfBinary->Entry = programStart + elfHeader->e_entry;
@@ -637,9 +648,8 @@ ElfBinary* LoadElfFromMemory(const char16_t* programName, const uint8_t* elfStar
 	return elfBinary;
 }
 
-ElfBinary* LoadElf(const char16_t* programName)
+ElfBinary* LoadElfFromHandle(const char16_t* programName, VolumeFileHandle handle)
 {
-	VolumeFileHandle handle = VolumeOpenHandle(0, programName, 0);
 	if(handle != 0)
 	{
 		uint64_t fileSize = VolumeGetSize(handle);
@@ -647,6 +657,7 @@ ElfBinary* LoadElf(const char16_t* programName)
 		uint64_t alignedSize = AlignSize(fileSize, 4096);
 
 		uint8_t* buffer = (uint8_t*)VirtualAlloc(alignedSize,  PrivilegeLevel::User);
+		FillUnique(buffer, 0xe1fb000000000000, alignedSize);
 		
 		uint64_t bytesRead = VolumeRead(handle, 0, buffer, fileSize);
 
@@ -657,6 +668,25 @@ ElfBinary* LoadElf(const char16_t* programName)
 		ConsolePrintNumeric(u"-", binary->BaseAddress + binary->AllocatedSize, u"\n");
 
 		VirtualFree(buffer, alignedSize);
+
+		return binary;
+	}
+	else
+	{
+		ConsolePrint(u"Failed to load ELF: ");
+		ConsolePrint(programName);
+		ConsolePrint(u"\n");
+	}
+
+	return nullptr;
+}
+
+ElfBinary* LoadElf(const char16_t* programName)
+{
+	VolumeFileHandle handle = VolumeOpenHandle(0, programName, 0);
+	if(handle != 0)
+	{
+		ElfBinary* binary = LoadElfFromHandle(programName, handle);
 
 		VolumeCloseHandle(handle);
 
@@ -683,6 +713,11 @@ void UnloadElf(ElfBinary* elfBinary)
 #endif
 
 		VirtualFree((void*)elfBinary->BaseAddress, elfBinary->AllocatedSize);
+
+		if(elfBinary->ProgramHeaders)
+		{
+			rpfree(elfBinary->ProgramHeaders);
+		}
 
 		rpfree(elfBinary);
 	}

@@ -9,6 +9,7 @@ struct ElfSymbolExport
 struct ElfBinary
 {
 	char16_t Name[64];
+    char16_t InterpreterName[256];
 
 	uint64_t BaseAddress;
 	uint64_t AllocatedSize;
@@ -27,6 +28,13 @@ struct ElfBinary
 	uint64_t SymbolStringTableSize;
 	uint64_t SymbolCount;
 	ElfSymbolExport* Symbols;
+
+	uint8_t* ProgramHeaders;
+	uint32_t ProgramHeaderCount;
+	uint32_t ProgramHeaderEntrySize;
+
+	uint64_t ProgramBreakLow;
+	uint64_t ProgramBreakHigh;
 };
 
 //Pointers are user mode relative for the process
@@ -50,7 +58,10 @@ struct Process
 	EnvironmentData Environment;
 
 	ElfBinary* Binary;
+    ElfBinary* SubBinary;
 	TLSAllocation* TLS;
+
+	uint64_t ProgramBreak;
 };
 
 void InitializeUserMode();

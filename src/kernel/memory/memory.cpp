@@ -113,6 +113,17 @@ int memcmp(const void* s1, const void* s2, size_t n)
     return 0;
 }
 
+void FillUnique(void* address, uint64_t baseValue, uint64_t byteCount)
+{
+    uint64_t* ptr = (uint64_t*)address;
+    uint64_t numElements = byteCount / 8; // Each uint64_t is 8 bytes
+
+    for (uint64_t i = 0; i < numElements; ++i) {
+        ptr[i] = baseValue + i;
+    }
+}
+
+
 extern "C" void __chkstk(void)
 {
 
