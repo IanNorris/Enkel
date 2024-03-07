@@ -397,3 +397,4 @@ temp/
 assets/*.cpp
 assets/*.h
 vendor/zlib
+vs_gdb_log.txt
