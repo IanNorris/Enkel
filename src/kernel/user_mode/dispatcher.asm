@@ -8,14 +8,17 @@ extern sys_not_implemented
 SyscallDispatcher:
 	mov r10, rsp
 	mov rsp, [SyscallStack]
+
+	; Ensure stack is aligned
+	and rsp, 0xFFFFFFFFFFFFFFEF ; ~0x10
+
 	push r10
+	push r11 ; RFLAGS
 	push rbp
-	mov rbp, [SyscallStack]
+
+	mov rbp, rsp
 	
 	; rax contains our syscall number
-
-	push r11 ; RFLAGS
-	push r11 ; push twice so we can also restore r11
 
 	push rcx ; RIP
     push rdx
@@ -23,6 +26,7 @@ SyscallDispatcher:
     push rdi
     push r8
     push r9
+	push r11
     push r12
     push r14
     push r15
@@ -44,6 +48,7 @@ SyscallDispatcher:
 	pop r15
 	pop r14
 	pop r12
+	pop r11
 	pop r9
 	pop r8
 	pop rdi
@@ -51,10 +56,8 @@ SyscallDispatcher:
 	pop rdx
 	pop rcx
 
-	pop r11
-	popfq ; Restore RFLAGS
-
 	pop rbp
+	popfq ; Restore RFLAGS
 	pop rsp
 	
 	o64 sysret
