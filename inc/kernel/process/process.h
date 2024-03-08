@@ -37,25 +37,14 @@ struct ElfBinary
 	uint64_t ProgramBreakHigh;
 };
 
-//Pointers are user mode relative for the process
-//that we're creating.
-struct EnvironmentData
-{
-	void* AllocatedAddress;
-	uint64_t AllocatedSize;
-
-	char** argv;
-	char** envp;
-	int argc;
-};
-
 struct Process
 {
 	uint64_t DefaultThreadStackStart;
 	uint64_t DefaultThreadStackBase;
 	uint64_t DefaultThreadStackSize;
 
-	EnvironmentData Environment;
+	const char** argv;
+	const char** envp;
 
 	ElfBinary* Binary;
     ElfBinary* SubBinary;
@@ -66,5 +55,5 @@ struct Process
 
 void InitializeUserMode();
 void ScheduleProcess(Process* process);
-Process* CreateProcess(const char16_t* programName);
-void RunProgram(const char16_t* programName);
+Process* CreateProcess(const char16_t* programName, const char16_t** argv, const char16_t** envp);
+void RunProgram(const char16_t* programName, const char16_t** argv, const char16_t** envp);

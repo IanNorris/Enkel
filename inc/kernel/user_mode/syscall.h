@@ -27,7 +27,7 @@ enum class SyscallIndex
 	NotImplemented18,
 	NotImplemented19,
 
-	NotImplemented20,
+	WriteV,
 	sys_access,
 	NotImplemented22,
 	NotImplemented23,

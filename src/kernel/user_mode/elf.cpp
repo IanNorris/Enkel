@@ -322,7 +322,7 @@ ElfBinary* LoadElfFromMemory(const char16_t* programName, const uint8_t* elfStar
 
 	elfBinary->ProgramHeaderCount = elfHeader->e_phnum;
 	elfBinary->ProgramHeaderEntrySize = sizeof(Elf64_Phdr);
-	elfBinary->ProgramHeaders = (uint8_t*)rpmalloc(elfBinary->ProgramHeaderCount * elfBinary->ProgramHeaderEntrySize);
+	elfBinary->ProgramHeaders = (uint8_t*)VirtualAlloc(AlignSize(elfBinary->ProgramHeaderCount * elfBinary->ProgramHeaderEntrySize, PAGE_SIZE), PrivilegeLevel::User);
 	memcpy(elfBinary->ProgramHeaders, segments, elfBinary->ProgramHeaderCount * elfBinary->ProgramHeaderEntrySize);
 
 	for (int segmentHeader = 0; segmentHeader < elfHeader->e_phnum; segmentHeader++)
@@ -716,7 +716,7 @@ void UnloadElf(ElfBinary* elfBinary)
 
 		if(elfBinary->ProgramHeaders)
 		{
-			rpfree(elfBinary->ProgramHeaders);
+			VirtualFree(elfBinary->ProgramHeaders, AlignSize(elfBinary->ProgramHeaderCount * elfBinary->ProgramHeaderEntrySize, PAGE_SIZE));
 		}
 
 		rpfree(elfBinary);

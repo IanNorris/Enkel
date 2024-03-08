@@ -64,7 +64,7 @@ extern "C" uint64_t sys_not_implemented()
 }
 
 //
-uint64_t __attribute__((sysv_abi,used)) sys_arch_prctl(int code,	unsigned long *addr)
+uint64_t __attribute__((sysv_abi,used)) sys_arch_prctl(int code, unsigned long *addr)
 {
 	switch(code)
 	{
@@ -106,6 +106,25 @@ void sys_write(uint64_t fileHandle, void* data, uint64_t dataSize)
 	VolumeWrite(fileHandle, ~0ULL, data, dataSize);
 }
 
+struct iovec
+{
+	void* iov_base;  /* Starting address of the buffer */
+	size_t iov_len;   /* Length of the buffer */
+};
+
+size_t sys_writev(int fileHandle, const struct iovec* iov, int iovcnt)
+{
+	size_t total = 0;
+
+	//TODO NOT THREAD SAFE! This needs to be atomic
+	for (int i = 0; i < iovcnt; i++)
+	{
+		total += VolumeWrite(fileHandle, ~0ULL, iov[i].iov_base, iov[i].iov_len);
+	}
+
+	return total;
+}
+
 void sys_exit(int64_t exitCode)
 {
 	/*ConsolePrint(u"Exit 0x");
@@ -138,9 +157,9 @@ uint64_t sys_brk(uint64_t newBreakAddress)
 	}
 }
 
-void * sys_memory_map(void *__addr,size_t __len,int __prot,int __flags,int __fd,uint64_t __offset)
+void* sys_memory_map(void *address,size_t length,int prot,int flags,int fd, uint64_t offset)
 {
-	return VirtualAlloc(AlignSize(__len, PAGE_SIZE),  PrivilegeLevel::User);
+	return VirtualAlloc(AlignSize(length, PAGE_SIZE),  PrivilegeLevel::User);
 }
 
 void* SyscallTable[(int)SyscallIndex::Max] = 
@@ -168,7 +187,7 @@ void* SyscallTable[(int)SyscallIndex::Max] =
 	(void*)sys_not_implemented, // NotImplemented18,
 	(void*)sys_not_implemented, // NotImplemented19,
 
-	(void*)sys_not_implemented, // NotImplemented20,
+	(void*)sys_writev,			// 20,
 	(void*)sys_access, 			// 21,
 	(void*)sys_not_implemented, // NotImplemented22,
 	(void*)sys_not_implemented, // NotImplemented23,

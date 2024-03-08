@@ -192,14 +192,19 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 
 	ConsolePrint(u"Kernel booted.\n\n");
 
+	const char16_t* envp[] = { u"LD_DEBUG=1", u"LD_SHOW_AUXV=1", nullptr};
+
+	const char16_t* argv1[] = { u"/hello_world", u"--mode", u"awesome", nullptr };
 	ConsolePrint(u"Running hello_world\n");
-	RunProgram(u"/hello_world");
+	RunProgram(u"/hello_world", argv1, envp);
 
+	const char16_t* argv2[] = { u"/tls_test", u"--mode", u"awesome", nullptr };
 	ConsolePrint(u"\nRunning  tls_test\n");
-	RunProgram(u"/tls_test");
+	RunProgram(u"/tls_test", argv2, envp);
 
+	const char16_t* argv3[] = { u"/libc_test", u"--mode", u"awesome", nullptr };
 	ConsolePrint(u"\n#> libc_test\n");
-	RunProgram(u"libc_test");
+	RunProgram(u"/libc_test", argv3, envp);
 
 	/*ConsolePrint(u"\nRunning  static_libc_test\n");
 	RunProgram(u"/static_libc_test");

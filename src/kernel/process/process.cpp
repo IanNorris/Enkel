@@ -45,7 +45,33 @@ void ScheduleProcess(Process* process)
 	SetFSBase(currentFSBase);
 }
 
-Process* CreateProcess(const char16_t* programName)
+uint64_t* WriteAuxEntry(uint64_t* stackPointer, uint64_t auxEntry, uint64_t auxValue, bool dryRun)
+{
+	stackPointer -= 2;
+
+	if (!dryRun)
+	{
+		*(stackPointer) = auxEntry;
+		*(stackPointer+1) = auxValue;
+	}
+
+	return stackPointer;
+}
+
+uint64_t* WriteProcessAuxVectors(Process* process, uint64_t* stackPointer, bool dryRun)
+{
+	stackPointer = WriteAuxEntry(stackPointer, AT_NULL, 0, dryRun);
+	stackPointer = WriteAuxEntry(stackPointer, AT_ENTRY, process->Binary->Entry, dryRun);
+	stackPointer = WriteAuxEntry(stackPointer, AT_BASE, process->Binary->BaseAddress, dryRun);
+	stackPointer = WriteAuxEntry(stackPointer, AT_PAGESZ, 4096, dryRun);
+	stackPointer = WriteAuxEntry(stackPointer, AT_PHNUM, process->Binary->ProgramHeaderCount, dryRun);
+	stackPointer = WriteAuxEntry(stackPointer, AT_PHENT, process->Binary->ProgramHeaderEntrySize, dryRun);
+	stackPointer = WriteAuxEntry(stackPointer, AT_PHDR, (uint64_t)process->Binary->ProgramHeaders, dryRun);
+
+	return stackPointer;
+}
+
+Process* CreateProcess(const char16_t* programName, const char16_t** argv, const char16_t** envp)
 {
 	Process* process = (Process*)rpmalloc(sizeof(Process));
 	memset(process, 0, sizeof(Process));
@@ -74,100 +100,107 @@ Process* CreateProcess(const char16_t* programName)
 
 	FillUnique((void*)process->TLS->FSBase, 0x7150000000000000, process->Binary->TLSDataSize + process->Binary->TBSSSize);
 
-	//Ensure we've got 
+	//Prepare our stack pointer
 	uint64_t* stackPointer = (uint64_t*)(process->DefaultThreadStackBase + process->DefaultThreadStackSize);
-	
-	// Prepare the auxiliary vectors (auxv)
-    // Add auxv entries to the stack in reverse order
-    stackPointer -= 2; *stackPointer = AT_NULL; *(stackPointer + 1) = 0;
-    stackPointer -= 2; *stackPointer = AT_ENTRY; *(stackPointer + 1) = process->Binary->Entry;
-    stackPointer -= 2; *stackPointer = AT_BASE; *(stackPointer + 1) = process->Binary->BaseAddress;
-    stackPointer -= 2; *stackPointer = AT_PAGESZ; *(stackPointer + 1) = 4096; // Assuming 4KB page size
-    stackPointer -= 2; *stackPointer = AT_PHNUM; *(stackPointer + 1) = process->Binary->ProgramHeaderCount;
-    stackPointer -= 2; *stackPointer = AT_PHENT; *(stackPointer + 1) = process->Binary->ProgramHeaderEntrySize;
-    stackPointer -= 2; *stackPointer = AT_PHDR; *(stackPointer + 1) = (uint64_t)process->Binary->ProgramHeaders;
+	uint64_t* stackPointerTop = stackPointer;
+	uint64_t stackSize = process->DefaultThreadStackSize;
 
-	const uint64_t envDataSize = 4096;
+#define STACK_LEFT (stackSize - (stackPointerTop - stackPointer))
 
-	//Prepare environment data.
-	//TODO: Artificial limit to 4k of data
-	uint64_t** processCommandArgs = (uint64_t**)VirtualAlloc(envDataSize, PrivilegeLevel::User);
-	FillUnique((void*)processCommandArgs, 0xeca0000000000000, envDataSize);
-	int argc = 3;
-	int envc = 2;
+	//Data is written backwards on the stack in this order
+	// End marker
+	// Environment strings
+	// Argument strings
+	// Padding to 16b
+	// Auxv
+	// Envp
+	// Argv
 
-	process->Environment.AllocatedAddress = processCommandArgs;
-	process->Environment.AllocatedSize = envDataSize;
-	process->Environment.argc = argc;
-	process->Environment.argv = (char**)processCommandArgs;
-	process->Environment.envp = (char**)&processCommandArgs[argc];
+	//End marker
+	*(--stackPointer) = 0;
 
-	const char* firstArg = "--mode";
-	const char* secondArg = "awesome";
+	//Pre-calculate the size of the memory block so we can get args in the right order later ith less fuss
+	uint8_t* stackPointerBytes = (uint8_t*)stackPointer;
+	uint64_t stringBlockBytes = 0;
+	int envc = 0;
+	int argc = 0;
+	const char16_t** argPointer = envp;
 
-	const char* env1 = "OS_NAME=Enkel";
-	const char* env2 = "LANGUAGE=en-GB";
+	argPointer = envp;
+	while (*argPointer)
+	{
+		stringBlockBytes += wide_to_ascii(nullptr, *argPointer, STACK_LEFT) + 1;
+		envc++;
+		argPointer++;
+	}
 
-	processCommandArgs[argc+envc] = 0;
+	argPointer = argv;
+	while (*argPointer)
+	{
+		stringBlockBytes += wide_to_ascii(nullptr, *argPointer, STACK_LEFT) + 1;
+		argc++;
+		argPointer++;
+	}
 
-	uint8_t* dataPointer = (uint8_t*)&processCommandArgs[argc+envc+2];
-	size_t writing;
+	//Align size up to 16b and ensure padding is initialized
+	stringBlockBytes = (stringBlockBytes + 0xF) & ~0xF;
+	*(uint64_t*)(stackPointerBytes - stringBlockBytes) = 0;
 
-	int stringIndex = 0;
+	//Write string data to the stack along with the pointers 
 
-	//Arg 0 is the program name
-	processCommandArgs[stringIndex++] = (uint64_t*)dataPointer;
-	writing = wide_to_ascii((char*)dataPointer, programName, 256);
-	dataPointer[writing] = 0;
-	dataPointer+=writing+1;
+	//TODO Could stomp off the end here if strings above are too large
+	uint64_t* stackPointerForAuxV = (uint64_t *)((uint8_t*)stackPointer - stringBlockBytes);
+	uint64_t* stackPointerAfterAuxV = WriteProcessAuxVectors(process, stackPointerForAuxV, true /*dryRun*/);
+	stackPointer = stackPointerAfterAuxV;
 
-	//Arg 1
-	processCommandArgs[stringIndex++] = (uint64_t*)dataPointer;
-	writing = strlen(firstArg) + 1;
-	memcpy(dataPointer, firstArg, writing);
-	dataPointer[writing] = 0;
-	dataPointer+=writing+1;
+	const char** envpOnStack = (const char** )(stackPointerAfterAuxV - (envc + 1));
+	process->envp = envpOnStack;
 
-	//Arg 2
-	processCommandArgs[stringIndex++] = (uint64_t*)dataPointer;
-	writing = strlen(secondArg) + 1;
-	memcpy(dataPointer, secondArg, writing);
-	dataPointer[writing] = 0;
-	dataPointer+=writing+1;
+	int writing;
 
-	//Env 0
-	processCommandArgs[stringIndex++] = (uint64_t*)dataPointer;
-	writing = strlen(env1) + 1;
-	memcpy(dataPointer, env1, writing);
-	dataPointer[writing] = 0;
-	dataPointer+=writing+1;
+	int envIndex = 0;
+	argPointer = envp;
+	envpOnStack[envc] = 0;
+	while (*argPointer)
+	{
+		writing = wide_to_ascii(nullptr, *argPointer, STACK_LEFT);
+		stackPointerBytes -= (writing + 1);
+		writing = wide_to_ascii((char*)stackPointerBytes, *argPointer, STACK_LEFT);
+		stackPointerBytes[writing] = 0;
+		envpOnStack[envIndex] = (const char*)stackPointerBytes;
+		envIndex++;
+		argPointer++;
+	}
 
-	//Env 2
-	processCommandArgs[stringIndex++] = (uint64_t*)dataPointer;
-	writing = strlen(env2) + 1;
-	memcpy(dataPointer, env2, writing);
-	dataPointer[writing] = 0;
-	dataPointer+=writing+1;
+	stackPointer -= envc + 1;
 
-	// Prepare the environment pointer
-    // Add environment pointers to the stack in reverse order
-    for (int i = envc - 1; i >= 0; i--)
-    {
-        *(--stackPointer) = (uint64_t)process->Environment.envp[i];
-    }
-    *(--stackPointer) = 0;
+	const char** argvOnStack = (const char** )(stackPointerAfterAuxV - (envc + argc + 2));
+	process->argv = argvOnStack;
 
-    // Prepare the argument pointer
-    // Add argument pointers to the stack in reverse order
-    for (int i = argc - 1; i >= 0; i--)
-    {
-        *(--stackPointer) = (uint64_t)process->Environment.argv[i];
-    }
-    *(--stackPointer) = 0;
+	int argIndex = 0;
+	argPointer = argv;
+	argvOnStack[argc] = 0;
+	while (*argPointer)
+	{
+		writing = wide_to_ascii(nullptr, *argPointer, STACK_LEFT);
+		stackPointerBytes -= (writing + 1);
+		writing = wide_to_ascii((char*)stackPointerBytes, *argPointer, STACK_LEFT);
+		stackPointerBytes[writing] = 0;
+		argvOnStack[argIndex] = (const char*)stackPointerBytes;
+		argIndex++;
+		argPointer++;
+	}
+
+	stackPointer -= argc + 1;
+
+	*stackPointer = argc;
+
+#undef STACK_LEFT
+
+	WriteProcessAuxVectors(process, stackPointerForAuxV, false /*dryRun*/);
 
     // Set the stack pointer and argument count
     process->DefaultThreadStackStart = (uint64_t)stackPointer;
-    process->Environment.argc = argc;
 
 	ScheduleProcess(process);
 
@@ -177,12 +210,6 @@ Process* CreateProcess(const char16_t* programName)
 
 void DestroyProcess(Process* process)
 {
-	if(process->Environment.AllocatedAddress)
-	{
-		VirtualFree(process->Environment.AllocatedAddress, process->Environment.AllocatedSize);
-		process->Environment.AllocatedAddress = nullptr;
-	}
-
 	VirtualFree((void*)process->DefaultThreadStackBase, process->DefaultThreadStackSize);
 	process->DefaultThreadStackBase = 0;
 
@@ -195,9 +222,9 @@ void DestroyProcess(Process* process)
 	rpfree(process);
 }
 
-void RunProgram(const char16_t* programName)
+void RunProgram(const char16_t* programName, const char16_t** argv, const char16_t** envp)
 {
-	Process* process = CreateProcess(programName);
+	Process* process = CreateProcess(programName, argv, envp);
 
 	DestroyProcess(process);
 }
