@@ -7,11 +7,17 @@
 #include "errno.h"
 
 #include "memory/virtual.h"
+#include "memory/memory.h"
 
 #include "fs/volume.h"
 
 #include "kernel/user_mode/syscall.h"
 #include "kernel/process/process.h"
+
+#include <sys/utsname.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <linux/openat2.h>
 
 #define ARCH_SET_GS 0x1001
 #define ARCH_SET_FS 0x1002
@@ -58,9 +64,9 @@ extern "C" uint64_t sys_not_implemented()
 
 	ConsolePrint(u"\n");
 
-	PrintStackTrace(60, rip, rbp);
+	//PrintStackTrace(60, rip, rbp);
 
-	return EINVAL;
+	return -ENOSYS;
 }
 
 //
@@ -69,11 +75,11 @@ uint64_t __attribute__((sysv_abi,used)) sys_arch_prctl(int code, unsigned long *
 	switch(code)
 	{
 		case ARCH_SET_FS:
-			SetFSBase((uint64_t)addr);
+			SetUserFSBase((uint64_t)addr);
 			return 0;
 
 		case ARCH_GET_FS:
-			return GetFSBase();
+			return GetUserFSBase();
 
 		case ARCH_CET_STATUS:
 			return -EINVAL;
@@ -93,33 +99,64 @@ uint64_t __attribute__((sysv_abi,used)) sys_arch_prctl(int code, unsigned long *
 	}
 }
 
-uint64_t sys_access(const char *pathname, int mode)
+uint64_t sys_access(const char *filename, int mode)
 {
-	SerialPrint(pathname);
+	SerialPrint("access: ");
+	SerialPrint(filename);
 	SerialPrint("\n");
 
-	return -1;
+	//TODO check if exists
+	//For now, YOLO
+
+	return R_OK;
 }
 
-void sys_write(uint64_t fileHandle, void* data, uint64_t dataSize)
+uint64_t sys_pread64(unsigned int fileHandle, char* data, size_t dataSize, uint64_t offset)
 {
-	VolumeWrite(fileHandle, ~0ULL, data, dataSize);
+	return VolumeRead(fileHandle, offset, data, dataSize);
 }
 
-struct iovec
+int sys_read(uint64_t fileHandle, void* data, uint64_t dataSize)
 {
-	void* iov_base;  /* Starting address of the buffer */
-	size_t iov_len;   /* Length of the buffer */
-};
+	return VolumeRead(fileHandle, ~0ULL, data, dataSize);
+}
+
+int sys_write(uint64_t fileHandle, void* data, uint64_t dataSize)
+{
+	return VolumeWrite(fileHandle, ~0ULL, data, dataSize);
+}
+
+int sys_open(const char* filename, int flags, int mode)
+{
+	//TODO Buffer check
+	char16_t wideName[256];
+	ascii_to_wide(wideName, filename, 256);
+
+	uint64_t handle = VolumeOpenHandle(0, wideName, mode);
+	if (handle == 0)
+	{
+		return -ENOENT;
+	}
+}
+
+int sys_close(uint64_t fileHandle)
+{
+	VolumeCloseHandle(fileHandle);
+
+	return 0;
+}
 
 size_t sys_writev(int fileHandle, const struct iovec* iov, int iovcnt)
 {
 	size_t total = 0;
 
-	//TODO NOT THREAD SAFE! This needs to be atomic
-	for (int i = 0; i < iovcnt; i++)
+	if (iov && iovcnt)
 	{
-		total += VolumeWrite(fileHandle, ~0ULL, iov[i].iov_base, iov[i].iov_len);
+		//TODO NOT THREAD SAFE! This needs to be atomic
+		for (int i = 0; i < iovcnt; i++)
+		{
+			total += VolumeWrite(fileHandle, ~0ULL, iov[i].iov_base, iov[i].iov_len);
+		}
 	}
 
 	return total;
@@ -159,16 +196,97 @@ uint64_t sys_brk(uint64_t newBreakAddress)
 
 void* sys_memory_map(void *address,size_t length,int prot,int flags,int fd, uint64_t offset)
 {
-	return VirtualAlloc(AlignSize(length, PAGE_SIZE),  PrivilegeLevel::User);
+	if (fd == ~0)
+	{
+		void* memory = VirtualAlloc(AlignSize(length, PAGE_SIZE), PrivilegeLevel::User);
+		memset(memory, 0, AlignSize(length, PAGE_SIZE));
+		return memory;
+	}
+
+	if (fd > 0)
+	{
+		void* memory = VirtualAlloc(AlignSize(length, PAGE_SIZE), PrivilegeLevel::User);
+
+		VolumeRead(fd, offset, memory, length);
+
+		return memory;
+	}
+	else
+	{
+		return nullptr;
+	}
+}
+
+int sys_mprotect(unsigned long start, size_t len, unsigned long prot)
+{
+	//TODO
+	return 0;
+}
+
+extern const char16_t* KernelBuildId;
+
+int sys_uname(struct utsname* buf)
+{
+	strcpy(buf->sysname, "Enkel");
+	strcpy(buf->nodename, "enkel");
+
+	wide_to_ascii(buf->release, KernelBuildId, _UTSNAME_RELEASE_LENGTH);
+
+	// Need a version number newer than what glibc expects
+	strcpy(buf->version, "9000.0.0");
+
+	strcpy(buf->machine, "x86_64");
+
+	return 0;
+}
+
+int sys_openat(int dfd, const char* filename, struct open_how* how, size_t size)
+{
+	//TODO Buffer check
+	char16_t wideName[256];
+	ascii_to_wide(wideName, filename, 256);
+
+	uint64_t handle = VolumeOpenHandle(0, wideName, how->mode);
+	if (handle == 0)
+	{
+		return -ENOENT;
+	}
+}
+
+int sys_newfstatat(int dfd, const char* filename, struct stat* statbuf, int flag)
+{
+	memset(statbuf, 0, sizeof(statbuf));
+
+	statbuf->st_size = VolumeGetSize(dfd);
+
+	statbuf->st_dev = 0; //TODO
+	statbuf->st_ino = 0; //TODO
+	statbuf->st_mode = S_IFREG | S_IRUSR | S_IRGRP | S_IROTH; //TODO read only
+	statbuf->st_nlink = 0; //TODO
+	statbuf->st_uid = 0; //TODO
+	statbuf->st_gid = 0; //TODO
+	statbuf->st_rdev = 0; //TODO
+	
+	statbuf->st_blksize = 0; //DO
+	statbuf->st_blocks = 0; //TODO
+	//statbuf->st_atime = 0; //TODO
+	//statbuf->st_mtime = 0; //TODO
+	//statbuf->st_ctime = 0; //TODO
+}
+
+int sys_set_tid_address(int* tidptr)
+{
+	*tidptr = 99999; //TODO
+	return 99999;
 }
 
 void* SyscallTable[(int)SyscallIndex::Max] = 
 {
-	(void*)sys_not_implemented, // Read,
-	(void*)sys_write, // Write,
+	(void*)sys_read, // 0,
+	(void*)sys_write, // 1,
 
-	(void*)sys_not_implemented, // NotImplemented2,
-	(void*)sys_not_implemented, // NotImplemented3,
+	(void*)sys_open, // 2,
+	(void*)sys_close, // 3,
 	(void*)sys_not_implemented, // NotImplemented4,
 	(void*)sys_not_implemented, // NotImplemented5,
 	(void*)sys_not_implemented, // NotImplemented6,
@@ -176,14 +294,14 @@ void* SyscallTable[(int)SyscallIndex::Max] =
 	(void*)sys_not_implemented, // NotImplemented8,
 	(void*)sys_memory_map, 		// MemoryMap,
 
-	(void*)sys_not_implemented, // NotImplemented10,
+	(void*)sys_mprotect,		// mprotect
 	(void*)sys_not_implemented, // NotImplemented11,
 	(void*)sys_brk, // Break,
 	(void*)sys_not_implemented, // NotImplemented13,
 	(void*)sys_not_implemented, // NotImplemented14,
 	(void*)sys_not_implemented, // NotImplemented15,
 	(void*)sys_not_implemented, // NotImplemented16,
-	(void*)sys_not_implemented, // NotImplemented17,
+	(void*)sys_pread64, // 17,
 	(void*)sys_not_implemented, // NotImplemented18,
 	(void*)sys_not_implemented, // NotImplemented19,
 
@@ -231,10 +349,10 @@ void* SyscallTable[(int)SyscallIndex::Max] =
 	(void*)sys_not_implemented, // NotImplemented58,
 	(void*)sys_not_implemented, // NotImplemented59,
 	
-	(void*)sys_exit, // Exit,
+	(void*)sys_exit,			// Exit,
 	(void*)sys_not_implemented, // NotImplemented61,
 	(void*)sys_not_implemented, // NotImplemented62,
-	(void*)sys_not_implemented, // NotImplemented63,
+	(void*)sys_uname,			// uname,
 	(void*)sys_not_implemented, // NotImplemented64,
 	(void*)sys_not_implemented, // NotImplemented65,
 	(void*)sys_not_implemented, // NotImplemented66,
@@ -302,7 +420,7 @@ void* SyscallTable[(int)SyscallIndex::Max] =
 	(void*)sys_not_implemented, // NotImplemented124,
 	(void*)sys_not_implemented, // NotImplemented125,
 	(void*)sys_not_implemented, // NotImplemented126,
-	(void*)sys_not_implemented, // NotImp2emented127,
+	(void*)sys_not_implemented, // NotImplemented127,
 	(void*)sys_not_implemented, // NotImplemented138,
 	(void*)sys_not_implemented, // NotImplemented139,
 	(void*)sys_not_implemented, // NotImplemented130,
@@ -312,7 +430,7 @@ void* SyscallTable[(int)SyscallIndex::Max] =
 	(void*)sys_not_implemented, // NotImplemented134,
 	(void*)sys_not_implemented, // NotImplemented135,
 	(void*)sys_not_implemented, // NotImplemented136,
-	(void*)sys_not_implemented, // NotImp3emented137,
+	(void*)sys_not_implemented, // NotImplemented137,
 	(void*)sys_not_implemented, // NotImplemented138,
 	(void*)sys_not_implemented, // NotImplemented139,
 	(void*)sys_not_implemented, // NotImplemented140,
@@ -322,7 +440,7 @@ void* SyscallTable[(int)SyscallIndex::Max] =
 	(void*)sys_not_implemented, // NotImplemented144,
 	(void*)sys_not_implemented, // NotImplemented145,
 	(void*)sys_not_implemented, // NotImplemented146,
-	(void*)sys_not_implemented, // NotImp4emented147,
+	(void*)sys_not_implemented, // NotImplemented147,
 	(void*)sys_not_implemented, // NotImplemented158,
 	(void*)sys_not_implemented, // NotImplemented159,
 	(void*)sys_not_implemented, // NotImplemented150,
@@ -332,7 +450,7 @@ void* SyscallTable[(int)SyscallIndex::Max] =
 	(void*)sys_not_implemented, // NotImplemented154,
 	(void*)sys_not_implemented, // NotImplemented155,
 	(void*)sys_not_implemented, // NotImplemented156,
-	(void*)sys_not_implemented, // NotImp5emented157,
+	(void*)sys_not_implemented, // NotImplemented157,
 	(void*)sys_arch_prctl, 		// 158,
 	(void*)sys_not_implemented, // NotImplemented159,
 	(void*)sys_not_implemented, // NotImplemented160,
@@ -342,7 +460,7 @@ void* SyscallTable[(int)SyscallIndex::Max] =
 	(void*)sys_not_implemented, // NotImplemented164,
 	(void*)sys_not_implemented, // NotImplemented165,
 	(void*)sys_not_implemented, // NotImplemented166,
-	(void*)sys_not_implemented, // NotImp6emented167,
+	(void*)sys_not_implemented, // NotImplemented167,
 	(void*)sys_not_implemented, // NotImplemented168,
 	(void*)sys_not_implemented, // NotImplemented169,
 	(void*)sys_not_implemented, // NotImplemented170,
@@ -352,7 +470,7 @@ void* SyscallTable[(int)SyscallIndex::Max] =
 	(void*)sys_not_implemented, // NotImplemented174,
 	(void*)sys_not_implemented, // NotImplemented175,
 	(void*)sys_not_implemented, // NotImplemented176,
-	(void*)sys_not_implemented, // NotImp7emented177,
+	(void*)sys_not_implemented, // NotImplemented177,
 	(void*)sys_not_implemented, // NotImplemented178,
 	(void*)sys_not_implemented, // NotImplemented179,
 	(void*)sys_not_implemented, // NotImplemented180,
@@ -375,6 +493,212 @@ void* SyscallTable[(int)SyscallIndex::Max] =
 	(void*)sys_not_implemented, // NotImp9emented197,
 	(void*)sys_not_implemented, // NotImplemented198,
 	(void*)sys_not_implemented, // NotImplemented199,
+
+
+
+
+	(void*)sys_not_implemented, // NotImplemented200,
+	(void*)sys_not_implemented, // NotImplemented201,
+	(void*)sys_not_implemented, // NotImplemented202,
+	(void*)sys_not_implemented, // NotImplemented203,
+	(void*)sys_not_implemented, // NotImplemented204,
+	(void*)sys_not_implemented, // NotImplemented205,
+	(void*)sys_not_implemented, // NotImplemented206,
+	(void*)sys_not_implemented, // NotImplemented207,
+	(void*)sys_not_implemented, // NotImplemented208,
+	(void*)sys_not_implemented, // NotImplemented209,
+	(void*)sys_not_implemented, // NotImplemented210,
+	(void*)sys_not_implemented, // NotImplemented211,
+	(void*)sys_not_implemented, // NotImplemented212,
+	(void*)sys_not_implemented, // NotImplemented213,
+	(void*)sys_not_implemented, // NotImplemented214,
+	(void*)sys_not_implemented, // NotImplemented215,
+	(void*)sys_not_implemented, // NotImplemented216,
+	(void*)sys_not_implemented, // NotImp1emented217,
+	(void*)sys_set_tid_address, // 218,
+	(void*)sys_not_implemented, // NotImplemented219,
+	(void*)sys_not_implemented, // NotImplemented220,
+	(void*)sys_not_implemented, // NotImplemented221,
+	(void*)sys_not_implemented, // NotImplemented222,
+	(void*)sys_not_implemented, // NotImplemented223,
+	(void*)sys_not_implemented, // NotImplemented224,
+	(void*)sys_not_implemented, // NotImplemented225,
+	(void*)sys_not_implemented, // NotImplemented226,
+	(void*)sys_not_implemented, // NotImplemented227,
+	(void*)sys_not_implemented, // NotImplemented238,
+	(void*)sys_not_implemented, // NotImplemented239,
+	(void*)sys_not_implemented, // NotImplemented230,
+	(void*)sys_exit, // TODO sys_exit_group 231
+	(void*)sys_not_implemented, // NotImplemented232,
+	(void*)sys_not_implemented, // NotImplemented233,
+	(void*)sys_not_implemented, // NotImplemented234,
+	(void*)sys_not_implemented, // NotImplemented235,
+	(void*)sys_not_implemented, // NotImplemented236,
+	(void*)sys_not_implemented, // NotImplemented237,
+	(void*)sys_not_implemented, // NotImplemented238,
+	(void*)sys_not_implemented, // NotImplemented239,
+	(void*)sys_not_implemented, // NotImplemented240,
+	(void*)sys_not_implemented, // NotImplemented241,
+	(void*)sys_not_implemented, // NotImplemented242,
+	(void*)sys_not_implemented, // NotImplemented243,
+	(void*)sys_not_implemented, // NotImplemented244,
+	(void*)sys_not_implemented, // NotImplemented245,
+	(void*)sys_not_implemented, // NotImplemented246,
+	(void*)sys_not_implemented, // NotImplemented247,
+	(void*)sys_not_implemented, // NotImplemented258,
+	(void*)sys_not_implemented, // NotImplemented259,
+	(void*)sys_not_implemented, // NotImplemented250,
+	(void*)sys_not_implemented, // NotImplemented251,
+	(void*)sys_not_implemented, // NotImplemented252,
+	(void*)sys_not_implemented, // NotImplemented253,
+	(void*)sys_not_implemented, // NotImplemented254,
+	(void*)sys_not_implemented, // NotImplemented255,
+	(void*)sys_not_implemented, // NotImplemented256,
+	(void*)sys_openat, // 257,
+	(void*)sys_not_implemented, // NotImplemented258,
+	(void*)sys_not_implemented, // NotImplemented259,
+	(void*)sys_not_implemented, // NotImplemented260,
+	(void*)sys_not_implemented, // NotImplemented261,
+	(void*)sys_newfstatat, // 262,
+	(void*)sys_not_implemented, // NotImplemented263,
+	(void*)sys_not_implemented, // NotImplemented264,
+	(void*)sys_not_implemented, // NotImplemented265,
+	(void*)sys_not_implemented, // NotImplemented266,
+	(void*)sys_not_implemented, // NotImplemented267,
+	(void*)sys_not_implemented, // NotImplemented268,
+	(void*)sys_not_implemented, // NotImplemented269,
+	(void*)sys_not_implemented, // NotImplemented270,
+	(void*)sys_not_implemented, // NotImplemented271,
+	(void*)sys_not_implemented, // NotImplemented272,
+	(void*)sys_not_implemented, // NotImplemented273,
+	(void*)sys_not_implemented, // NotImplemented274,
+	(void*)sys_not_implemented, // NotImplemented275,
+	(void*)sys_not_implemented, // NotImplemented276,
+	(void*)sys_not_implemented, // NotImplemented277,
+	(void*)sys_not_implemented, // NotImplemented278,
+	(void*)sys_not_implemented, // NotImplemented279,
+	(void*)sys_not_implemented, // NotImplemented280,
+	(void*)sys_not_implemented, // NotImplemented281,
+	(void*)sys_not_implemented, // NotImplemented282,
+	(void*)sys_not_implemented, // NotImplemented283,
+	(void*)sys_not_implemented, // NotImplemented284,
+	(void*)sys_not_implemented, // NotImplemented285,
+	(void*)sys_not_implemented, // NotImplemented286,
+	(void*)sys_not_implemented, // NotImplemented287,
+	(void*)sys_not_implemented, // NotImplemented288,
+	(void*)sys_not_implemented, // NotImplemented289,
+	(void*)sys_not_implemented, // NotImplemented290,
+	(void*)sys_not_implemented, // NotImplemented291,
+	(void*)sys_not_implemented, // NotImplemented292,
+	(void*)sys_not_implemented, // NotImplemented293,
+	(void*)sys_not_implemented, // NotImplemented294,
+	(void*)sys_not_implemented, // NotImplemented295,
+	(void*)sys_not_implemented, // NotImplemented296,
+	(void*)sys_not_implemented, // NotImp9emented297,
+	(void*)sys_not_implemented, // NotImplemented298,
+	(void*)sys_not_implemented, // NotImplemented299,
+
+
+	(void*)sys_not_implemented, // NotImplemented300,
+	(void*)sys_not_implemented, // NotImplemented301,
+	(void*)sys_not_implemented, // NotImplemented302,
+	(void*)sys_not_implemented, // NotImplemented303,
+	(void*)sys_not_implemented, // NotImplemented304,
+	(void*)sys_not_implemented, // NotImplemented305,
+	(void*)sys_not_implemented, // NotImplemented306,
+	(void*)sys_not_implemented, // NotImplemented307,
+	(void*)sys_not_implemented, // NotImplemented308,
+	(void*)sys_not_implemented, // NotImplemented309,
+	(void*)sys_not_implemented, // NotImplemented310,
+	(void*)sys_not_implemented, // NotImplemented311,
+	(void*)sys_not_implemented, // NotImplemented312,
+	(void*)sys_not_implemented, // NotImplemented313,
+	(void*)sys_not_implemented, // NotImplemented314,
+	(void*)sys_not_implemented, // NotImplemented315,
+	(void*)sys_not_implemented, // NotImplemented316,
+	(void*)sys_not_implemented, // NotImp1emented317,
+	(void*)sys_not_implemented, // NotImplemented318,
+	(void*)sys_not_implemented, // NotImplemented319,
+	(void*)sys_not_implemented, // NotImplemented320,
+	(void*)sys_not_implemented, // NotImplemented321,
+	(void*)sys_not_implemented, // NotImplemented322,
+	(void*)sys_not_implemented, // NotImplemented323,
+	(void*)sys_not_implemented, // NotImplemented324,
+	(void*)sys_not_implemented, // NotImplemented325,
+	(void*)sys_not_implemented, // NotImplemented326,
+	(void*)sys_not_implemented, // NotImplemented327,
+	(void*)sys_not_implemented, // NotImplemented338,
+	(void*)sys_not_implemented, // NotImplemented339,
+	(void*)sys_not_implemented, // NotImplemented330,
+	(void*)sys_not_implemented, // NotImplemented331,
+	(void*)sys_not_implemented, // NotImplemented332,
+	(void*)sys_not_implemented, // NotImplemented333,
+	(void*)sys_not_implemented, // NotImplemented334,
+	(void*)sys_not_implemented, // NotImplemented335,
+	(void*)sys_not_implemented, // NotImplemented336,
+	(void*)sys_not_implemented, // NotImplemented337,
+	(void*)sys_not_implemented, // NotImplemented338,
+	(void*)sys_not_implemented, // NotImplemented339,
+	(void*)sys_not_implemented, // NotImplemented340,
+	(void*)sys_not_implemented, // NotImplemented341,
+	(void*)sys_not_implemented, // NotImplemented342,
+	(void*)sys_not_implemented, // NotImplemented343,
+	(void*)sys_not_implemented, // NotImplemented344,
+	(void*)sys_not_implemented, // NotImplemented345,
+	(void*)sys_not_implemented, // NotImplemented346,
+	(void*)sys_not_implemented, // NotImplemented347,
+	(void*)sys_not_implemented, // NotImplemented358,
+	(void*)sys_not_implemented, // NotImplemented359,
+	(void*)sys_not_implemented, // NotImplemented350,
+	(void*)sys_not_implemented, // NotImplemented351,
+	(void*)sys_not_implemented, // NotImplemented352,
+	(void*)sys_not_implemented, // NotImplemented353,
+	(void*)sys_not_implemented, // NotImplemented354,
+	(void*)sys_not_implemented, // NotImplemented355,
+	(void*)sys_not_implemented, // NotImplemented356,
+	(void*)sys_not_implemented, // NotImplemented357,
+	(void*)sys_not_implemented, // NotImplemented358,
+	(void*)sys_not_implemented, // NotImplemented359,
+	(void*)sys_not_implemented, // NotImplemented360,
+	(void*)sys_not_implemented, // NotImplemented361,
+	(void*)sys_not_implemented, // NotImplemented362,
+	(void*)sys_not_implemented, // NotImplemented363,
+	(void*)sys_not_implemented, // NotImplemented364,
+	(void*)sys_not_implemented, // NotImplemented365,
+	(void*)sys_not_implemented, // NotImplemented366,
+	(void*)sys_not_implemented, // NotImplemented367,
+	(void*)sys_not_implemented, // NotImplemented368,
+	(void*)sys_not_implemented, // NotImplemented369,
+	(void*)sys_not_implemented, // NotImplemented370,
+	(void*)sys_not_implemented, // NotImplemented371,
+	(void*)sys_not_implemented, // NotImplemented372,
+	(void*)sys_not_implemented, // NotImplemented373,
+	(void*)sys_not_implemented, // NotImplemented374,
+	(void*)sys_not_implemented, // NotImplemented375,
+	(void*)sys_not_implemented, // NotImplemented376,
+	(void*)sys_not_implemented, // NotImplemented377,
+	(void*)sys_not_implemented, // NotImplemented378,
+	(void*)sys_not_implemented, // NotImplemented379,
+	(void*)sys_not_implemented, // NotImplemented380,
+	(void*)sys_not_implemented, // NotImplemented381,
+	(void*)sys_not_implemented, // NotImplemented382,
+	(void*)sys_not_implemented, // NotImplemented383,
+	(void*)sys_not_implemented, // NotImplemented384,
+	(void*)sys_not_implemented, // NotImplemented385,
+	(void*)sys_not_implemented, // NotImplemented386,
+	(void*)sys_not_implemented, // NotImplemented387,
+	(void*)sys_not_implemented, // NotImplemented388,
+	(void*)sys_not_implemented, // NotImplemented389,
+	(void*)sys_not_implemented, // NotImplemented390,
+	(void*)sys_not_implemented, // NotImplemented391,
+	(void*)sys_not_implemented, // NotImplemented392,
+	(void*)sys_not_implemented, // NotImplemented393,
+	(void*)sys_not_implemented, // NotImplemented394,
+	(void*)sys_not_implemented, // NotImplemented395,
+	(void*)sys_not_implemented, // NotImplemented396,
+	(void*)sys_not_implemented, // NotImp9emented397,
+	(void*)sys_not_implemented, // NotImplemented398,
+	(void*)sys_not_implemented, // NotImplemented399,
 };
 
 

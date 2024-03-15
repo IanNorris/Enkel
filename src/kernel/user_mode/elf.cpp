@@ -320,11 +320,6 @@ ElfBinary* LoadElfFromMemory(const char16_t* programName, const uint8_t* elfStar
 		}
 	}
 
-	elfBinary->ProgramHeaderCount = elfHeader->e_phnum;
-	elfBinary->ProgramHeaderEntrySize = sizeof(Elf64_Phdr);
-	elfBinary->ProgramHeaders = (uint8_t*)VirtualAlloc(AlignSize(elfBinary->ProgramHeaderCount * elfBinary->ProgramHeaderEntrySize, PAGE_SIZE), PrivilegeLevel::User);
-	memcpy(elfBinary->ProgramHeaders, segments, elfBinary->ProgramHeaderCount * elfBinary->ProgramHeaderEntrySize);
-
 	for (int segmentHeader = 0; segmentHeader < elfHeader->e_phnum; segmentHeader++)
 	{
 		Elf64_Phdr& segment = segments[segmentHeader];
@@ -355,6 +350,14 @@ ElfBinary* LoadElfFromMemory(const char16_t* programName, const uint8_t* elfStar
 	
 	uint64_t programStart = (uint64_t)VirtualAlloc(allocatedSize, PrivilegeLevel::User);
 
+	elfBinary->ProgramHeaderCount = elfHeader->e_phnum;
+	elfBinary->ProgramHeaderEntrySize = sizeof(Elf64_Phdr);
+	elfBinary->ProgramHeaders = (uint8_t*)programStart + elfHeader->e_phoff;
+	memcpy(elfBinary->ProgramHeaders, segments, elfBinary->ProgramHeaderCount * elfBinary->ProgramHeaderEntrySize);
+
+	//Update headers to the new copy
+	segments = (Elf64_Phdr*)elfBinary->ProgramHeaders;
+
 	elfBinary->ProgramBreakLow = programStart + programStart;
 	elfBinary->ProgramBreakHigh = elfBinary->ProgramBreakLow + breakSize;
 
@@ -364,14 +367,18 @@ ElfBinary* LoadElfFromMemory(const char16_t* programName, const uint8_t* elfStar
 	{
 		Elf64_Phdr& segment = segments[segmentHeader];
 
-		segment.p_vaddr = segment.p_vaddr + (Elf64_Addr)programStart;
+		uint64_t vaddr = segment.p_vaddr + (Elf64_Addr)programStart;
+
+#if 0
+		segment.p_vaddr = vaddr;
 		segment.p_paddr = segment.p_paddr + (Elf64_Addr)programStart;
+#endif
 
 		if(segment.p_type == PT_TLS)
 		{
 			if(tlsStart == 0)
 			{
-				tlsStart = segment.p_vaddr + programStart;
+				tlsStart = vaddr;
 			}
 
 			tdataSize = segment.p_filesz;
@@ -387,12 +394,13 @@ ElfBinary* LoadElfFromMemory(const char16_t* programName, const uint8_t* elfStar
 		}
 #endif
 
-		text_section = segment.p_vaddr + programStart;
+		text_section = vaddr;
 
-		memcpy((void*)segment.p_vaddr, elfStart + segment.p_offset, segment.p_filesz);
-		memset((uint8_t*)segment.p_vaddr + segment.p_filesz, 0, segment.p_memsz - segment.p_filesz);
+		memcpy((void*)vaddr, elfStart + segment.p_offset, segment.p_filesz);
+		memset((uint8_t*)vaddr + segment.p_filesz, 0, segment.p_memsz - segment.p_filesz);
 	}
 
+#if 0
 	if (symbols != nullptr)
 	{
 		uint64_t totalStringLength = 0;
@@ -535,6 +543,7 @@ ElfBinary* LoadElfFromMemory(const char16_t* programName, const uint8_t* elfStar
 			}
 		}
 	}
+#endif
 
 	//Do this last, as we can't modify most of the segments once the protection flags are configured.
 	for (int segmentHeader = 0; segmentHeader < elfHeader->e_phnum; segmentHeader++)
@@ -713,11 +722,6 @@ void UnloadElf(ElfBinary* elfBinary)
 #endif
 
 		VirtualFree((void*)elfBinary->BaseAddress, elfBinary->AllocatedSize);
-
-		if(elfBinary->ProgramHeaders)
-		{
-			VirtualFree(elfBinary->ProgramHeaders, AlignSize(elfBinary->ProgramHeaderCount * elfBinary->ProgramHeaderEntrySize, PAGE_SIZE));
-		}
 
 		rpfree(elfBinary);
 	}

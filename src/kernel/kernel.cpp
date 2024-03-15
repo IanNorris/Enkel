@@ -24,6 +24,7 @@
 #include "fs/fs.h"
 #include "fs/volume.h"
 #include "fs/volumes/stdio.h"
+#include "fs/volumes/proc.h"
 
 #include <ff.h>
 
@@ -177,6 +178,7 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 	ConsolePrint(u"Mounting filesystem...\n");
 	InitializeVolumeSystem();
 	InitializeStdioVolumes();
+	InitializeSpecialProcVolumes();
 
 	EFI_DEV_PATH* devicePath = (EFI_DEV_PATH*)BootData->BootDevicePath;
 
@@ -192,15 +194,15 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 
 	ConsolePrint(u"Kernel booted.\n\n");
 
-	const char16_t* envp[] = { u"LD_DEBUG=1", u"LD_SHOW_AUXV=1", nullptr};
+	const char16_t* envp[] = { u"LD_DEBUG=1", u"LD_WARN=1", nullptr};
 
-	const char16_t* argv1[] = { u"/hello_world", u"--mode", u"awesome", nullptr };
-	ConsolePrint(u"Running hello_world\n");
-	RunProgram(u"/hello_world", argv1, envp);
+	//const char16_t* argv1[] = { u"/hello_world", u"--mode", u"awesome", nullptr};
+	//ConsolePrint(u"Running hello_world\n");
+	//RunProgram(u"/hello_world", argv1, envp);
 
-	const char16_t* argv2[] = { u"/tls_test", u"--mode", u"awesome", nullptr };
-	ConsolePrint(u"\nRunning  tls_test\n");
-	RunProgram(u"/tls_test", argv2, envp);
+	//const char16_t* argv2[] = { u"/tls_test", u"--mode", u"awesome", nullptr };
+	//ConsolePrint(u"\nRunning  tls_test\n");
+	//RunProgram(u"/tls_test", argv2, envp);
 
 	const char16_t* argv3[] = { u"/libc_test", u"--mode", u"awesome", nullptr };
 	ConsolePrint(u"\n#> libc_test\n");
@@ -213,6 +215,8 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 	RunProgram(u"libc_test");
 
 	ConsolePrint(u"\n#>\n");*/
+
+	ConsolePrint(u"Halted.\n");
 	
 	while(true)
 	{

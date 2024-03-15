@@ -31,18 +31,12 @@ void ScheduleProcess(Process* process)
 
 	GCurrentProcess = process;
 
-	uint64_t currentFSBase = GetFSBase();
-	SetFSBase(process->TLS->FSBase);
-
-	//TODO
-	//process->Environment.argc, process->Environment.argv, process->Environment.envp
-
+	SetUserFSBase((uint64_t)process->TLS->FSBase);
+	SetUserGS();
+	
 	SwitchToUserMode((uint64_t)process->DefaultThreadStackStart, process->Binary->Entry, userModeCodeSelector, userModeDataSelector);
 
 	GCurrentProcess = nullptr;
-
-	//Back in the kernel
-	SetFSBase(currentFSBase);
 }
 
 uint64_t* WriteAuxEntry(uint64_t* stackPointer, uint64_t auxEntry, uint64_t auxValue, bool dryRun)
@@ -58,16 +52,31 @@ uint64_t* WriteAuxEntry(uint64_t* stackPointer, uint64_t auxEntry, uint64_t auxV
 	return stackPointer;
 }
 
-uint64_t* WriteProcessAuxVectors(Process* process, uint64_t* stackPointer, bool dryRun)
+uint64_t* WriteProcessAuxVectors(Process* process, uint64_t* stackPointer, bool dryRun, uint64_t* stackCookie)
 {
 	stackPointer = WriteAuxEntry(stackPointer, AT_NULL, 0, dryRun);
-	stackPointer = WriteAuxEntry(stackPointer, AT_ENTRY, process->Binary->Entry, dryRun);
-	stackPointer = WriteAuxEntry(stackPointer, AT_BASE, process->Binary->BaseAddress, dryRun);
 	stackPointer = WriteAuxEntry(stackPointer, AT_PAGESZ, 4096, dryRun);
-	stackPointer = WriteAuxEntry(stackPointer, AT_PHNUM, process->Binary->ProgramHeaderCount, dryRun);
-	stackPointer = WriteAuxEntry(stackPointer, AT_PHENT, process->Binary->ProgramHeaderEntrySize, dryRun);
-	stackPointer = WriteAuxEntry(stackPointer, AT_PHDR, (uint64_t)process->Binary->ProgramHeaders, dryRun);
 
+	stackPointer = WriteAuxEntry(stackPointer, AT_RANDOM, (uint64_t)stackCookie, dryRun); //TODO make actually random
+
+	if (process->SubBinary)
+	{
+		stackPointer = WriteAuxEntry(stackPointer, AT_ENTRY, process->SubBinary->Entry, dryRun);
+		stackPointer = WriteAuxEntry(stackPointer, AT_BASE, process->SubBinary->BaseAddress, dryRun);
+		stackPointer = WriteAuxEntry(stackPointer, AT_PHNUM, process->SubBinary->ProgramHeaderCount, dryRun);
+		stackPointer = WriteAuxEntry(stackPointer, AT_PHENT, process->SubBinary->ProgramHeaderEntrySize, dryRun);
+		stackPointer = WriteAuxEntry(stackPointer, AT_PHDR, (uint64_t)process->SubBinary->ProgramHeaders, dryRun);
+	}
+	else
+	{
+		stackPointer = WriteAuxEntry(stackPointer, AT_ENTRY, process->Binary->Entry, dryRun);
+		stackPointer = WriteAuxEntry(stackPointer, AT_BASE, process->Binary->BaseAddress, dryRun);
+		stackPointer = WriteAuxEntry(stackPointer, AT_PAGESZ, 4096, dryRun);
+		stackPointer = WriteAuxEntry(stackPointer, AT_PHNUM, process->Binary->ProgramHeaderCount, dryRun);
+		stackPointer = WriteAuxEntry(stackPointer, AT_PHENT, process->Binary->ProgramHeaderEntrySize, dryRun);
+		stackPointer = WriteAuxEntry(stackPointer, AT_PHDR, (uint64_t)process->Binary->ProgramHeaders, dryRun);
+	}
+	
 	return stackPointer;
 }
 
@@ -150,7 +159,7 @@ Process* CreateProcess(const char16_t* programName, const char16_t** argv, const
 
 	//TODO Could stomp off the end here if strings above are too large
 	uint64_t* stackPointerForAuxV = (uint64_t *)((uint8_t*)stackPointer - stringBlockBytes);
-	uint64_t* stackPointerAfterAuxV = WriteProcessAuxVectors(process, stackPointerForAuxV, true /*dryRun*/);
+	uint64_t* stackPointerAfterAuxV = WriteProcessAuxVectors(process, stackPointerForAuxV, true /*dryRun*/, &process->TLS->Memory->StackCanary);
 	stackPointer = stackPointerAfterAuxV;
 
 	const char** envpOnStack = (const char** )(stackPointerAfterAuxV - (envc + 1));
@@ -172,9 +181,10 @@ Process* CreateProcess(const char16_t* programName, const char16_t** argv, const
 		argPointer++;
 	}
 
-	stackPointer -= envc + 1;
+	envpOnStack[envIndex] = nullptr;
 
 	const char** argvOnStack = (const char** )(stackPointerAfterAuxV - (envc + argc + 2));
+	stackPointer = (uint64_t*)argvOnStack;
 	process->argv = argvOnStack;
 
 	int argIndex = 0;
@@ -191,13 +201,13 @@ Process* CreateProcess(const char16_t* programName, const char16_t** argv, const
 		argPointer++;
 	}
 
-	stackPointer -= argc + 1;
+	argvOnStack[argIndex] = nullptr;
 
-	*stackPointer = argc;
+	*(stackPointer) = argc;
 
 #undef STACK_LEFT
 
-	WriteProcessAuxVectors(process, stackPointerForAuxV, false /*dryRun*/);
+	WriteProcessAuxVectors(process, stackPointerForAuxV, false /*dryRun*/, &process->TLS->Memory->StackCanary);
 
     // Set the stack pointer and argument count
     process->DefaultThreadStackStart = (uint64_t)stackPointer;

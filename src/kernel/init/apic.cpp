@@ -82,6 +82,7 @@ int CoreIndex = 0;
 extern "C" void KERNEL_API __attribute__((__noreturn__, used)) APEntryFunction()
 {
 	//TODO INIT TLS BASE
+	//TODO Setup GS/FS per CPU
 
 	uint32_t TestValue = 0xBADF00C;
 	TestValue++;
@@ -97,7 +98,7 @@ extern "C" void KERNEL_API __attribute__((__noreturn__, used)) APEntryFunction()
 
 	while(true)
 	{
-		asm("pause");
+		asm("hlt");
 	}
 }
 

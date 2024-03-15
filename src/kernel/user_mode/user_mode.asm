@@ -1,8 +1,36 @@
 section .text
 global SwitchToUserMode
 global ReturnToKernel
+global LoadFS
 
 extern NextTask
+
+LoadFS:
+	; Set FSBase from [gs:0]
+	push rcx
+	push rdx
+	push rax
+	push rsi
+
+	mov ecx, 0xC0000100 ;FSBase
+	mov rsi, [gs:0]
+	mov rsi, [rsi]
+
+    ; Split rsi into edx:eax for high:low 32-bit values
+    mov eax, esi            ; Lower 32-bits
+    shr rsi, 32
+    mov edx, esi            ; Upper 32-bits
+
+    ; Write the values to the MSR
+    wrmsr
+
+	pop rsi
+	pop rax
+	pop rdx
+	pop rcx
+	; End of set FSBase
+
+	ret
 
 SwitchToUserMode:
 	;   rdi - uint64_t stackPointer (user mode stack pointer)
@@ -61,6 +89,11 @@ SwitchToUserMode:
 	mov r15, 0
 	; TODO XMM registers
 
+	swapgs
+
+	; Reload FSBase
+	call LoadFS
+
     ; Switch to user mode by performing a far return
     iretq
 
@@ -84,5 +117,8 @@ ReturnToKernel:
     pop rcx
     pop rbx
     pop rax
+
+	; Shouldn't need to do this as we return via syscall
+	; swapgs
 
 	ret

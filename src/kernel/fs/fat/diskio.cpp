@@ -20,6 +20,8 @@
 #include <diskio.h>
 #include <rpmalloc.h>
 
+#include <fcntl.h>
+
 #include "fs/volume.h"
 
 extern "C" KERNEL_API uint64_t _rdtsc();
@@ -139,54 +141,12 @@ extern "C"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
 
-/*
-ElfBinary* LoadElf(const char16_t* programName)
-{
-	char16_t filename[256];
-	strcpy(filename, u"//");
-	strcat(filename, programName);
-
-	FIL file;
-
-	FRESULT fr = f_open(&file, (const TCHAR*)filename, FA_READ);
-	if(fr == FR_OK)
-	{
-		uint64_t fileSize = f_size(&file);
-
-		uint64_t alignedSize = AlignSize(fileSize, 4096);
-
-		uint8_t* buffer = (uint8_t*)VirtualAlloc(alignedSize,  PrivilegeLevel::User);
-		UINT bytesRead;
-		fr = f_read(&file, buffer, fileSize, &bytesRead);
-
-		ElfBinary* binary = LoadElfFromMemory(programName, buffer);
-
-		ConsolePrint(programName);
-		ConsolePrintNumeric(u" loaded at ", binary->BaseAddress, u"");
-		ConsolePrintNumeric(u"-", binary->BaseAddress + binary->AllocatedSize, u"\n");
-
-		VirtualFree(buffer, alignedSize);
-
-		return binary;
-	}
-	else
-	{
-		ConsolePrint(u"Failed to load ELF: ");
-		ConsolePrint(filename);
-		ConsolePrint(u"\n");
-	}
-
-	return nullptr;
-}*/
-
 VolumeOpenHandleType FatVolume_OpenHandle = 
-[](VolumeFileHandle volumeHandle, void* context, const char16_t* path, uint8_t mode)
+[](VolumeFileHandle volumeHandle, void* context, const char16_t* path, uint8_t mode) -> uint64_t
 {
 	char16_t adjustedPath[256];
 	strcpy(adjustedPath, u"/");
 	strcat(adjustedPath, path);
-
-	_ASSERTF(mode == 0, "Mode not implemented");
 
 	for(int i = 0; i < MAX_FILE_HANDLES; i++)
 	{

@@ -125,7 +125,9 @@ VolumeFileHandle VolumeOpenHandle(VolumeFileHandle volumeHandle, const char16_t*
 		volumeIndex = GetVolumeIndex(volumeHandle);
 	}
 
-	return volumeIndex->VolumeImplementation->OpenHandle(volumeHandle, volumeIndex->Context, path, mode);
+	VolumeFileHandle handle = volumeIndex->VolumeImplementation->OpenHandle(volumeHandle, volumeIndex->Context, path, mode);
+
+	return handle;
 }
 
 void VolumeCloseHandle(VolumeFileHandle handle)

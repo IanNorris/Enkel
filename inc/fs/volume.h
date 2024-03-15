@@ -52,7 +52,8 @@ struct VolumeIndex
 	void* Context;
 } PACKED_ALIGNMENT;
 
-struct FileHandleMask
+//glibc only supports 32bit file handles
+/*struct FileHandleMask
 {
 	union
 	{
@@ -64,6 +65,24 @@ struct FileHandleMask
 			uint64_t VolumePageIndex: 12;
 			uint64_t VolumeIndex : 7;
 			uint64_t Segments : 3;
+		} PACKED_ALIGNMENT S;
+	};
+} PACKED_ALIGNMENT;*/
+
+struct FileHandleMask
+{
+	union
+	{
+		VolumeFileHandle FileHandle;
+
+		struct
+		{
+			uint32_t SignBit : 1;
+			uint32_t FileHandle : 21;
+			uint32_t VolumePageIndex : 3;
+			uint32_t VolumeIndex : 3;
+			uint32_t Segments : 3;
+
 		} PACKED_ALIGNMENT S;
 	};
 } PACKED_ALIGNMENT;

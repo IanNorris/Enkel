@@ -1,11 +1,18 @@
 section .text
 global SyscallDispatcher
 
+extern LoadFS
 extern SyscallStack
 extern SyscallTable
 extern sys_not_implemented
 
 SyscallDispatcher:
+	
+	; Switches to the kernel GS
+	swapgs
+
+	call LoadFS
+
 	mov r10, rsp
 	mov rsp, [SyscallStack]
 
@@ -31,12 +38,10 @@ SyscallDispatcher:
     push r14
     push r15
 
-	; TODO: Set FSBase, GS
-
-	cmp rax, 200
+	cmp rax, 400
 	jb .valid
 
-	mov r12, [sys_not_implemented]
+	mov r12, sys_not_implemented
 	jmp .dispatch
 
 .valid:
@@ -59,6 +64,12 @@ SyscallDispatcher:
 	pop rbp
 	popfq ; Restore RFLAGS
 	pop rsp
+
+	; Switch to user GS
+	swapgs
+
+	; Reload FSBase
+	call LoadFS
 	
 	o64 sysret
 

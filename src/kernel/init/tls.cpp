@@ -12,6 +12,27 @@ extern "C" void* __tbss_start;
 extern "C" void* __tbss_end;
 
 #define MSR_FS_BASE 0xC0000100
+#define MSR_GS_BASE_USER 0xC0000101
+#define MSR_GS_BASE_KERNEL 0xC0000102
+
+
+EnvironmentKernel* GKernelEnvironment = nullptr;
+EnvironmentUser* GUserEnvironment = nullptr;
+
+void SetUserFSBase(uint64_t fsBase)
+{
+	GUserEnvironment->FSBase = fsBase;
+}
+
+void SetUserGS()
+{
+	SetUserGSBase((uint64_t)GUserEnvironment);
+}
+
+uint64_t GetUserFSBase()
+{
+	return GUserEnvironment->FSBase;
+}
 
 uint64_t GetFSBase()
 {
@@ -23,8 +44,17 @@ void SetFSBase(uint64_t fsBase)
 	SetMSR(MSR_FS_BASE, fsBase);
 }
 
-// TODO:
-// https://wiki.osdev.org/SWAPGS
+void SetKernelGSBase(uint64_t gsBase)
+{
+	//Reversed as we do swapgs before first use
+	SetMSR(MSR_GS_BASE_USER, gsBase);
+}
+
+void SetUserGSBase(uint64_t gsBase)
+{
+	//Reversed as we do swapgs before first use
+	SetMSR(MSR_GS_BASE_KERNEL, gsBase);
+}
 
 void CreateTLS(TLSAllocation* allocationOut, bool kernel, uint64_t tdataSize, uint64_t tbssSize, uint8_t* tdataStart, uint64_t tlsAlign)
 {
@@ -58,6 +88,10 @@ void CreateTLS(TLSAllocation* allocationOut, bool kernel, uint64_t tdataSize, ui
 	TLSData kernelData;
 	memset(&kernelData, 0, sizeof(TLSData));
 	kernelData.Self = (uint64_t)tls + alignedSize;
+	kernelData.Reserved0 = 0x715000AA;
+	kernelData.Reserved1 = 0x715000BB;
+	kernelData.Reserved2 = 0x715000CC;
+	kernelData.Reserved3 = 0x715000DD;
 	kernelData.StackCanary = 0xDEADC0DEDEADC0DE;
 
 	memcpy(tls + alignedSize, &kernelData, sizeof(TLSData));
@@ -73,7 +107,7 @@ void CreateTLS(TLSAllocation* allocationOut, bool kernel, uint64_t tdataSize, ui
 
 	uint64_t tlsHigh = (uint64_t)tls + alignedSize;
 
-	allocationOut->Allocation = (uint64_t)tls;
+	allocationOut->Memory = (TLSData*)tls;
 	allocationOut->Size = tlsAllocationSize;
 	allocationOut->FSBase = tlsHigh;
 }
@@ -89,6 +123,13 @@ void InitializeKernelTLS()
 	CreateTLS(&allocation, true, tdata_size, tbss_size, (uint8_t*)&__tdata_start, 0x1);
 
 	SetFSBase(allocation.FSBase);
+
+	GKernelEnvironment = (EnvironmentKernel*)VirtualAlloc(4096, PrivilegeLevel::Kernel);
+	GUserEnvironment = (EnvironmentUser*)VirtualAlloc(4096, PrivilegeLevel::User);
+
+	GKernelEnvironment->FSBase = allocation.FSBase;
+
+	SetKernelGSBase((uint64_t)GKernelEnvironment);
 }
 
 TLSAllocation* CreateUserModeTLS(uint64_t tdataSize, uint64_t tbssSize, uint8_t* tdataStart, uint64_t tlsAlign)
@@ -102,6 +143,6 @@ TLSAllocation* CreateUserModeTLS(uint64_t tdataSize, uint64_t tbssSize, uint8_t*
 
 void DestroyTLS(TLSAllocation* allocation)
 {
-	VirtualFree((void*)allocation->Allocation, allocation->Size);
+	VirtualFree((void*)allocation->Memory, allocation->Size);
 	rpfree(allocation);
 }
