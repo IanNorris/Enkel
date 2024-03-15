@@ -181,10 +181,8 @@ Process* CreateProcess(const char16_t* programName, const char16_t** argv, const
 		argPointer++;
 	}
 
-	envpOnStack[envIndex] = nullptr;
-
 	const char** argvOnStack = (const char** )(stackPointerAfterAuxV - (envc + argc + 2));
-	stackPointer = (uint64_t*)argvOnStack;
+	stackPointer = ((uint64_t*)argvOnStack)-1;
 	process->argv = argvOnStack;
 
 	int argIndex = 0;
@@ -200,8 +198,6 @@ Process* CreateProcess(const char16_t* programName, const char16_t** argv, const
 		argIndex++;
 		argPointer++;
 	}
-
-	argvOnStack[argIndex] = nullptr;
 
 	*(stackPointer) = argc;
 

@@ -12,7 +12,7 @@ struct TLSData
 	uint64_t Reserved2;
 	uint64_t Reserved3;
 	uint64_t StackCanary;
-} PACKED_ALIGNMENT;
+};
 
 struct TLSAllocation
 {
