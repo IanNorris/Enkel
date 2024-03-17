@@ -47,7 +47,7 @@ enum class SyscallIndex
 	NotImplemented36,
 	NotImplemented37,
 	NotImplemented38,
-	NotImplemented39,
+	sys_getpid, //39
 
 	NotImplemented40,
 	NotImplemented41,

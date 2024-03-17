@@ -111,7 +111,7 @@ uint64_t sys_access(const char *filename, int mode)
 	return R_OK;
 }
 
-uint64_t sys_pread64(unsigned int fileHandle, char* data, size_t dataSize, uint64_t offset)
+uint64_t sys_pread64(unsigned long fileHandle, char* data, size_t dataSize, long offset)
 {
 	return VolumeRead(fileHandle, offset, data, dataSize);
 }
@@ -230,27 +230,30 @@ int sys_uname(struct utsname* buf)
 	strcpy(buf->sysname, "Enkel");
 	strcpy(buf->nodename, "enkel");
 
-	wide_to_ascii(buf->release, KernelBuildId, _UTSNAME_RELEASE_LENGTH);
+	wide_to_ascii(buf->version, KernelBuildId, _UTSNAME_RELEASE_LENGTH);
 
 	// Need a version number newer than what glibc expects
-	strcpy(buf->version, "9000.0.0");
+	strcpy(buf->release, "90200");
+	
 
 	strcpy(buf->machine, "x86_64");
 
 	return 0;
 }
 
-int sys_openat(int dfd, const char* filename, struct open_how* how, size_t size)
+int sys_openat(int dfd, const char* filename, int flags, uint64_t mode)
 {
 	//TODO Buffer check
 	char16_t wideName[256];
 	ascii_to_wide(wideName, filename, 256);
 
-	uint64_t handle = VolumeOpenHandle(0, wideName, how->mode);
+	uint64_t handle = VolumeOpenHandle(0, wideName, mode);
 	if (handle == 0)
 	{
 		return -ENOENT;
 	}
+
+	return handle;
 }
 
 int sys_newfstatat(int dfd, const char* filename, struct stat* statbuf, int flag)
@@ -278,6 +281,12 @@ int sys_set_tid_address(int* tidptr)
 {
 	*tidptr = 99999; //TODO
 	return 99999;
+}
+
+int sys_getpid()
+{
+	//TODO
+	return 1;
 }
 
 void* SyscallTable[(int)SyscallIndex::Max] = 
@@ -325,7 +334,7 @@ void* SyscallTable[(int)SyscallIndex::Max] =
 	(void*)sys_not_implemented, // NotImplemented36,
 	(void*)sys_not_implemented, // NotImplemented37,
 	(void*)sys_not_implemented, // NotImplemented38,
-	(void*)sys_not_implemented, // NotImplemented39,
+	(void*)sys_getpid, // 39,
 
 	(void*)sys_not_implemented, // NotImplemented40,
 	(void*)sys_not_implemented, // NotImplemented41,

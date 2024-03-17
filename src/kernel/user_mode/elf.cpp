@@ -254,7 +254,6 @@ ElfBinary* LoadElfFromMemory(const char16_t* programName, const uint8_t* elfStar
 
 	//We need to allocate memory for the kernel to be loaded into
 
-	Elf64_Addr lowestAddress = ~0;
 	Elf64_Addr highestAddress = 0;
 
 	uint64_t tdataSize = 0; //Size of data to be copied into the TLS
@@ -324,18 +323,6 @@ ElfBinary* LoadElfFromMemory(const char16_t* programName, const uint8_t* elfStar
 	{
 		Elf64_Phdr& segment = segments[segmentHeader];
 
-#if _DEBUG
-		if(!(segment.p_type == PT_LOAD || segment.p_type == PT_TLS))
-		{
-			continue;
-		}
-#endif
-
-		if (segment.p_vaddr < lowestAddress)
-		{
-			lowestAddress = segment.p_vaddr;
-		}
-
 		if (segment.p_vaddr + segment.p_memsz > highestAddress)
 		{
 			highestAddress = segment.p_vaddr + segment.p_memsz;
@@ -387,14 +374,10 @@ ElfBinary* LoadElfFromMemory(const char16_t* programName, const uint8_t* elfStar
 			tlsAlign = segment.p_align;
 		}
 
-#if _DEBUG
-		if(!(segment.p_type == PT_LOAD || segment.p_type == PT_TLS))
+		if((segment.p_type == PT_LOAD))
 		{
-			continue;
+			text_section = vaddr;
 		}
-#endif
-
-		text_section = vaddr;
 
 		memcpy((void*)vaddr, elfStart + segment.p_offset, segment.p_filesz);
 		memset((uint8_t*)vaddr + segment.p_filesz, 0, segment.p_memsz - segment.p_filesz);
