@@ -13,13 +13,15 @@ SyscallDispatcher:
 
 	call LoadFS
 
-	mov r10, rsp
+	push rcx ;RIP
+
+	mov rcx, rsp
 	mov rsp, [SyscallStack]
 
 	; Ensure stack is aligned
 	and rsp, 0xFFFFFFFFFFFFFFEF ; ~0x10
 
-	push r10
+	push rcx
 	push r11 ; RFLAGS
 	push rbp
 
@@ -27,7 +29,6 @@ SyscallDispatcher:
 	
 	; rax contains our syscall number
 
-	push rcx ; RIP
     push rdx
     push rsi
     push rdi
@@ -37,6 +38,9 @@ SyscallDispatcher:
     push r12
     push r14
     push r15
+
+	; Prepare the ABI for Sys-V and make registers align with calling convention
+	mov rcx, r10
 
 	cmp rax, 400
 	jb .valid
@@ -59,7 +63,6 @@ SyscallDispatcher:
 	pop rdi
 	pop rsi
 	pop rdx
-	pop rcx
 
 	pop rbp
 	popfq ; Restore RFLAGS
@@ -70,6 +73,8 @@ SyscallDispatcher:
 
 	; Reload FSBase
 	call LoadFS
+
+	pop rcx
 	
 	o64 sysret
 
