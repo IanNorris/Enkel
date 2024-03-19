@@ -3,6 +3,7 @@
 #include "memory/virtual.h"
 #include "fs/volume.h"
 #include "kernel/console/console.h"
+#include "errno.h"
 
 #define STDOUT_HANDLES 3
 
@@ -106,7 +107,7 @@ Volume StandardIOVolume
 			return ~0ULL;
 		}
 	},
-	GetSize: nullptr
+	GetSize: [](VolumeFileHandle handle, void* context) -> uint64_t { return -EINVAL; }
 };
 
 void InitializeStdioVolumes()

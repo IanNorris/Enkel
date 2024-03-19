@@ -19,6 +19,8 @@
 #include <fcntl.h>
 #include <linux/openat2.h>
 
+#include "kernel/memory/pml4.h"
+
 #define ARCH_SET_GS 0x1001
 #define ARCH_SET_FS 0x1002
 #define ARCH_GET_FS 0x1003
@@ -30,6 +32,8 @@
 #define ARCH_CET_STATUS 0x3001
 
 extern Process* GCurrentProcess;
+
+extern MemoryState PhysicalMemoryState;
 
 extern "C"
 {
@@ -171,7 +175,7 @@ void sys_exit(int64_t exitCode)
 	ConsolePrint(Buffer);
 	ConsolePrint(u"\n");*/
 
-	ReturnToKernel();
+	//ReturnToKernel();
 }
 
 uint64_t sys_brk(uint64_t newBreakAddress)
@@ -196,16 +200,44 @@ uint64_t sys_brk(uint64_t newBreakAddress)
 
 void* sys_memory_map(void *address,size_t length,int prot,int flags,int fd, uint64_t offset)
 {
-	if (fd == ~0)
+	size_t alignedSize = AlignSize(length, PAGE_SIZE);
+
+	if (address != 0)
 	{
-		void* memory = VirtualAlloc(AlignSize(length, PAGE_SIZE), PrivilegeLevel::User);
-		memset(memory, 0, AlignSize(length, PAGE_SIZE));
+		uint8_t* next_address = (uint8_t*)address;
+		void* end_address = next_address + alignedSize;
+
+		while (next_address < end_address)
+		{
+			if (GetPhysicalAddress((uint64_t)next_address) != INVALID_ADDRESS)
+			{
+				next_address += PAGE_SIZE;
+			}
+			else
+			{
+				return (void*)-ENOMEM;
+			}
+		}
+
+		//All available
+		
+		//TODO: We don't actually need a contiguous block of physical for this!
+		uint64_t PhysicalAddress = PhysicalMemoryState.FindMinimumSizeFreeBlock(alignedSize);
+
+		//TODO
+		MapPages((uint64_t)address, PhysicalAddress, alignedSize, /*writable*/true, /*executable*/true, PrivilegeLevel::User, MemoryState::RangeState::Used);
+	}
+
+	if (fd == -1)
+	{
+		void* memory = address != nullptr ? address : VirtualAlloc(alignedSize, PrivilegeLevel::User);
+		memset(memory, 0, alignedSize);
 		return memory;
 	}
 
 	if (fd > 0)
 	{
-		void* memory = VirtualAlloc(AlignSize(length, PAGE_SIZE), PrivilegeLevel::User);
+		void* memory = address != nullptr ? address : VirtualAlloc(AlignSize(length, PAGE_SIZE), PrivilegeLevel::User);
 
 		VolumeRead(fd, offset, memory, length);
 
@@ -256,6 +288,8 @@ int sys_openat(int dfd, const char* filename, int flags, uint64_t mode)
 	return handle;
 }
 
+static int inodeTemp = 0;
+
 int sys_newfstatat(int dfd, const char* filename, struct stat* statbuf, int flag)
 {
 	memset(statbuf, 0, sizeof(statbuf));
@@ -263,7 +297,7 @@ int sys_newfstatat(int dfd, const char* filename, struct stat* statbuf, int flag
 	statbuf->st_size = VolumeGetSize(dfd);
 
 	statbuf->st_dev = 0; //TODO
-	statbuf->st_ino = 0; //TODO
+	statbuf->st_ino = ++inodeTemp; //TODO
 	statbuf->st_mode = S_IFREG | S_IRUSR | S_IRGRP | S_IROTH; //TODO read only
 	statbuf->st_nlink = 0; //TODO
 	statbuf->st_uid = 0; //TODO
@@ -275,6 +309,8 @@ int sys_newfstatat(int dfd, const char* filename, struct stat* statbuf, int flag
 	//statbuf->st_atime = 0; //TODO
 	//statbuf->st_mtime = 0; //TODO
 	//statbuf->st_ctime = 0; //TODO
+
+	return 0;
 }
 
 int sys_set_tid_address(int* tidptr)

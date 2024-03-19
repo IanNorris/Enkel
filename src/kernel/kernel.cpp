@@ -194,7 +194,7 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 
 	ConsolePrint(u"Kernel booted.\n\n");
 
-	const char16_t* envp[] = { u"LD_DEBUG=all", u"LD_WARN=1", nullptr};
+	const char16_t* envp[] = { u"LD_WARN=1", nullptr};
 
 	//const char16_t* argv1[] = { u"/hello_world", u"--mode", u"awesome", nullptr};
 	//ConsolePrint(u"Running hello_world\n");

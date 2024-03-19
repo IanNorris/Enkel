@@ -201,7 +201,27 @@ VolumeReadType FatVolume_Read =
 
 	UINT bytesRead = 0;
 
+	uint64_t tell = f_tell(FileHandles[FH.S.FileHandle]);
+
+	if (offset != -1)
+	{
+		if (offset < 0)
+		{
+			_ASSERTF(false, "Invalid offset");
+		}
+		else
+		{
+			f_lseek(FileHandles[FH.S.FileHandle], offset);
+		}
+	}
+
 	FRESULT fr = f_read(FileHandles[FH.S.FileHandle], buffer, size, &bytesRead);
+
+	if (offset != -1)
+	{
+		f_lseek(FileHandles[FH.S.FileHandle], tell);
+	}
+
 	if(fr != FR_OK)
 	{
 		return 0;
@@ -223,7 +243,27 @@ VolumeWriteType FatVolume_Write =
 
 	UINT bytesWritten = 0;
 
+	uint64_t tell = f_tell(FileHandles[FH.S.FileHandle]);
+
+	if (offset != -1)
+	{
+		if (offset < 0)
+		{
+			_ASSERTF(false, "Invalid offset");
+		}
+		else
+		{
+			f_lseek(FileHandles[FH.S.FileHandle], offset);
+		}
+	}
+
 	FRESULT fr = f_write(FileHandles[FH.S.FileHandle], buffer, size, &bytesWritten);
+
+	if (offset != -1)
+	{
+		f_lseek(FileHandles[FH.S.FileHandle], tell);
+	}
+
 	if(fr != FR_OK)
 	{
 		return 0;
