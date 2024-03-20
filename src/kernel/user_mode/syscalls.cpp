@@ -16,6 +16,7 @@
 
 #include <sys/utsname.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <fcntl.h>
 #include <linux/openat2.h>
 
@@ -73,6 +74,17 @@ extern "C" uint64_t sys_not_implemented()
 	return -ENOSYS;
 }
 
+int sys_clock_gettime(const clockid_t which_clock, struct timespec* tp)
+{
+	//TODO
+	memset(tp, 0, sizeof(timespec));
+}
+
+int sys_prlimit64(pid_t pid, unsigned int resource, const struct rlimit64* new_rlim, struct rlimit64* old_rlim)
+{
+	return 0;
+}
+
 //
 uint64_t __attribute__((sysv_abi,used)) sys_arch_prctl(int code, unsigned long *addr)
 {
@@ -113,6 +125,18 @@ uint64_t sys_access(const char *filename, int mode)
 	//For now, YOLO
 
 	return R_OK;
+}
+
+int sys_getrandom(char* buf, size_t count, unsigned int flags)
+{
+	//TODO - for now we want determinism.
+
+	for (int i = 0; i < count; i++)
+	{
+		buf[i] = i % 256;
+	}
+
+	return 0;
 }
 
 uint64_t sys_pread64(unsigned long fileHandle, char* data, size_t dataSize, long offset)
@@ -194,7 +218,7 @@ uint64_t sys_brk(uint64_t newBreakAddress)
 	}
 	else
 	{
-		return GCurrentProcess->Binary->ProgramBreakLow;
+		return GCurrentProcess->ProgramBreak;
 	}
 }
 
@@ -570,8 +594,8 @@ void* SyscallTable[(int)SyscallIndex::Max] =
 	(void*)sys_not_implemented, // NotImplemented225,
 	(void*)sys_not_implemented, // NotImplemented226,
 	(void*)sys_not_implemented, // NotImplemented227,
-	(void*)sys_not_implemented, // NotImplemented238,
-	(void*)sys_not_implemented, // NotImplemented239,
+	(void*)sys_clock_gettime, // 228,
+	(void*)sys_not_implemented, // NotImplemented229,
 	(void*)sys_not_implemented, // NotImplemented230,
 	(void*)sys_exit, // TODO sys_exit_group 231
 	(void*)sys_not_implemented, // NotImplemented232,
@@ -646,7 +670,7 @@ void* SyscallTable[(int)SyscallIndex::Max] =
 
 	(void*)sys_not_implemented, // NotImplemented300,
 	(void*)sys_not_implemented, // NotImplemented301,
-	(void*)sys_not_implemented, // NotImplemented302,
+	(void*)sys_prlimit64, // 302,
 	(void*)sys_not_implemented, // NotImplemented303,
 	(void*)sys_not_implemented, // NotImplemented304,
 	(void*)sys_not_implemented, // NotImplemented305,
@@ -662,7 +686,7 @@ void* SyscallTable[(int)SyscallIndex::Max] =
 	(void*)sys_not_implemented, // NotImplemented315,
 	(void*)sys_not_implemented, // NotImplemented316,
 	(void*)sys_not_implemented, // NotImp1emented317,
-	(void*)sys_not_implemented, // NotImplemented318,
+	(void*)sys_getrandom, // 318,
 	(void*)sys_not_implemented, // NotImplemented319,
 	(void*)sys_not_implemented, // NotImplemented320,
 	(void*)sys_not_implemented, // NotImplemented321,

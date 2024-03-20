@@ -345,7 +345,7 @@ ElfBinary* LoadElfFromMemory(const char16_t* programName, const uint8_t* elfStar
 	//Update headers to the new copy
 	segments = (Elf64_Phdr*)elfBinary->ProgramHeaders;
 
-	elfBinary->ProgramBreakLow = programStart + programStart;
+	elfBinary->ProgramBreakLow = programStart + programSize;
 	elfBinary->ProgramBreakHigh = elfBinary->ProgramBreakLow + breakSize;
 
 	uint64_t text_section = 0;

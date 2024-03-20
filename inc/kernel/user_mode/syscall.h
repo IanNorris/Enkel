@@ -245,7 +245,7 @@ enum class SyscallIndex
 	NotImplemented225,
 	NotImplemented226,
 	NotImplemented227,
-	NotImplemented228,
+	sys_clock_gettime, //228
 	NotImplemented229,
 	NotImplemented230,
 	sys_exit_group, //231
@@ -320,7 +320,7 @@ enum class SyscallIndex
 
 	NotImplemented300,
 	NotImplemented301,
-	NotImplemented302,
+	sys_prlimit64, //302
 	NotImplemented303,
 	NotImplemented304,
 	NotImplemented305,
@@ -336,7 +336,7 @@ enum class SyscallIndex
 	NotImplemented315,
 	NotImplemented316,
 	NotImplemented317,
-	NotImplemented318,
+	sys_getrandom, //318
 	NotImplemented319,
 	NotImplemented320,
 	NotImplemented321,

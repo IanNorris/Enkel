@@ -8,12 +8,12 @@ extern sys_not_implemented
 
 SyscallDispatcher:
 	
+	push rcx ;RIP
+
 	; Switches to the kernel GS
 	swapgs
 
 	call LoadFS
-
-	push rcx ;RIP
 
 	mov rcx, rsp
 	mov rsp, [SyscallStack]
