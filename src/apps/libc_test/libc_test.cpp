@@ -9,10 +9,10 @@ int main()
 {
 	printf("Hello World!\n");
 
-	if(TLSThing0 != 0xeeeeeeeeeeeeeeee)
+	if(TLSThing0 == 0xaaaaaaaaaaaaaaaa)
 	{
-		printf("TLS test data 2 not aligned!\n");
-		exit(2);
+		printf("TLS test data aligned!\n");
+		exit(12345);
 	}
 
 	return 0;

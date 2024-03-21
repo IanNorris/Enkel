@@ -192,14 +192,14 @@ size_t sys_writev(int fileHandle, const struct iovec* iov, int iovcnt)
 
 void sys_exit(int64_t exitCode)
 {
-	/*ConsolePrint(u"Exit 0x");
+	ConsolePrint(u"Exit 0x");
 
 	char16_t Buffer[10];
 	witoabuf(Buffer, (int32_t)exitCode, 10);
 	ConsolePrint(Buffer);
-	ConsolePrint(u"\n");*/
+	ConsolePrint(u"\n");
 
-	//ReturnToKernel();
+	ReturnToKernel();
 }
 
 uint64_t sys_brk(uint64_t newBreakAddress)

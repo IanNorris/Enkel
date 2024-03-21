@@ -58,6 +58,7 @@ $(BOOT_IMAGE): $(BOOTLOADER_OUT) $(KERNEL_OUT) tls_test libc_test static_libc_te
 	cp $(GLIBC_ROOT)/libc.so.6 $(BOOT_PART)/lib/x86_64-linux-gnu/
 	cp $(GLIBC_ROOT)/libc.so $(BOOT_PART)/lib/x86_64-linux-gnu/
 	cp $(GLIBC_ROOT)/libc.so $(BOOT_PART)/usr/lib/x86_64-linux-gnu/
+	cp /bin/echo $(BOOT_PART)/
 	cp $(GLIBC_ROOT)/ld-linux-x86-64.so.2 $(BOOT_PART)/lib64/
 	cp $(GLIBC_ROOT)/libstdc++.so.6 $(BOOT_PART)/lib64/
 	cp $(GLIBC_ROOT)/libm.so.6 $(BOOT_PART)/lib64/

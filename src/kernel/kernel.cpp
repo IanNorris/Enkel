@@ -208,6 +208,11 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 	ConsolePrint(u"\n#> libc_test\n");
 	RunProgram(u"/libc_test", argv3, envp);
 
+
+	const char16_t* argv4[] = { u"/echo", u"This is a test", nullptr };
+	ConsolePrint(u"\n#> echo This is a test\n");
+	RunProgram(u"/echo", argv4, envp);
+
 	/*ConsolePrint(u"\nRunning  static_libc_test\n");
 	RunProgram(u"/static_libc_test");
 
