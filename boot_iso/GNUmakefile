@@ -75,15 +75,15 @@ $(BOOT_IMAGE): $(BOOTLOADER_OUT) $(KERNEL_OUT) tls_test libc_test static_libc_te
 	# Size needed is $(BOOT_PART_SIZE_SECTORS) sectors.
 
 	dd if=/dev/zero of=$(BOOT_IMAGE) bs=$(SECTOR_SIZE) count=$(BOOT_PART_SIZE_SECTORS)
-	mkfs.fat -F 12 -n '$(ISO_LABEL)' $(BOOT_IMAGE)
-	mcopy -s -i $(BOOT_IMAGE) $(BOOT_PART)/* ::
+	time mkfs.fat -F 12 -n '$(ISO_LABEL)' $(BOOT_IMAGE)
+	time mcopy -s -i $(BOOT_IMAGE) $(BOOT_PART)/* ::
 	
 $(BIOS_BIN):
 	cp /usr/share/OVMF/OVMF_CODE.fd $(BIOS_BIN)
 	
 $(OUTPUT_ISO): $(BOOT_IMAGE) $(BIOS_BIN) $(KERNEL) $(BOOTLOADER)
 	cp efi.img iso_content/
-	mkisofs \
+	time mkisofs \
 		-o $(OUTPUT_ISO) \
 		-input-charset utf-8 \
 		-R -J \

@@ -134,7 +134,7 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 
 	GBootData = *BootData;
 
-	DefaultConsoleInit(GBootData.Framebuffer, BMFontColor{ 0x0, 0x20, 0x80 }, BMFontColor{ 0x8c, 0xFF, 0x0 });
+	DefaultConsoleInit(GBootData.Framebuffer, BMFontColor{ 0x10, 0x20, 0x40 }, BMFontColor{ 0xDF, 0xDF, 0xDF });
 
 	RenderTGA(&GBootData.Framebuffer, SplashLogo_tga_data, GBootData.Framebuffer.Width, 0, AlignImage::Right, AlignImage::Top, true);
 

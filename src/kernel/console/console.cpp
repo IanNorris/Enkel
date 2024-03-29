@@ -1,7 +1,7 @@
 #include "kernel/console/console.h"
 
-#include "Jura.h"
-#include "Jura_0.h"
+#include "CascadiaMono.h"
+#include "CascadiaMono_0.h"
 #include "common/string.h"
 #include "font/details/bmfont_internal.h"
 #include "font/details/bmfont.h"
@@ -144,9 +144,9 @@ const BMFont* GetFont(Console* Console)
 
 void DefaultFontInit()
 {
-    BMFont_Load(Jura_fnt_data, Jura_fnt_size, &GDefaultFont);
-    GDefaultFont.PageTextureData[0] = Jura_0_tga_data;
-    GDefaultFont.PageTextureSize[0] = Jura_0_tga_size;
+    BMFont_Load(CascadiaMono_fnt_data, CascadiaMono_fnt_size, &GDefaultFont);
+    GDefaultFont.PageTextureData[0] = CascadiaMono_0_tga_data;
+    GDefaultFont.PageTextureSize[0] = CascadiaMono_0_tga_size;
 }
 
 void ConsoleClear(Console* Console)

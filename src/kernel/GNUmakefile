@@ -9,7 +9,7 @@ override DEBUG_FLAGS := -g3 -O0 -DDEBUG -D_DEBUG -DACPI_DEBUG_OUTPUT -DENABLE_ST
 #override DEBUG_FLAGS := -O3
 
 # The name of the font
-FONT_NAME := Jura
+FONT_NAME := CascadiaMono
 FONT_ROOT := ../../fonts
 FONT_CPP_FILES := $(FONT_ROOT)/$(FONT_NAME).cpp $(FONT_ROOT)/$(FONT_NAME)_0.cpp
 FONT_H_FILES := $(FONT_ROOT)/$(FONT_NAME).h  $(FONT_ROOT)/$(FONT_NAME)_0.h
