@@ -2,7 +2,6 @@ section .text
 global SyscallDispatcher
 
 extern LoadFS
-extern SyscallTable
 extern sys_not_implemented
 
 SyscallDispatcher:
@@ -48,7 +47,8 @@ SyscallDispatcher:
 	jmp .dispatch
 
 .valid:
-	lea r12, [SyscallTable + rax*8]
+	mov r12, [gs:16]
+	lea r12, [r12 + rax*8]
 
 .dispatch:
 	call [r12]

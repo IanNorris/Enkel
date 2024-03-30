@@ -803,4 +803,5 @@ void InitializeSyscalls()
     SetMSR(IA32_EFER, efer);
 
 	GKernelEnvironment->SyscallStack = (uint64_t)VirtualAlloc(16 * 1024, PrivilegeLevel::Kernel) + (16 * 1024);
+	GKernelEnvironment->SyscallTable = (uint64_t)SyscallTable;
 }
