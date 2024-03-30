@@ -3,8 +3,6 @@ global SwitchToUserMode
 global ReturnToKernel
 global LoadFS
 
-extern NextTask
-
 LoadFS:
 	; Set FSBase from [gs:0]
 	push rcx
@@ -54,10 +52,10 @@ SwitchToUserMode:
 	push r15
     pushfq
 
-	; NextTask is our target memory location
-	mov rax, NextTask
-	mov [rax], rbp
-	mov [rax+8], rsp
+	; Can't store these on the stack as we need a way to get
+	; these back when we ReturnToKernel
+	mov [gs:24], rbp ; KernelRBP
+	mov [gs:32], rsp ; KernelRSP
 
     ; Clear the direction flag
     cld
@@ -99,8 +97,8 @@ SwitchToUserMode:
 
 ReturnToKernel:
 
-	mov rbp, [NextTask + 0]
-	mov rsp, [NextTask + 8]
+	mov rbp, [gs:24]
+	mov rsp, [gs:32]
 
 	popfq
     pop r15
@@ -117,8 +115,5 @@ ReturnToKernel:
     pop rcx
     pop rbx
     pop rax
-
-	; Shouldn't need to do this as we return via syscall
-	; swapgs
 
 	ret

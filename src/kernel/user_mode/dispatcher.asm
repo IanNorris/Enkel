@@ -76,12 +76,3 @@ SyscallDispatcher:
 	pop rcx
 	
 	o64 sysret
-
-	; Ensure clean break after sysretq for visibility
-	nop
-	nop
-	nop
-	nop
-
-	; Shouldn't get here
-	hlt

@@ -423,10 +423,3 @@ enum class SyscallIndex
 
 	Max,
 };
-
-struct KernelState
-{
-	uint64_t RBP;
-	uint64_t RSP;
-	uint64_t TaskFunction;
-};

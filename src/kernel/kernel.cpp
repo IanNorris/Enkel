@@ -90,8 +90,6 @@ void FinalizeRuntimeServices()
 	rpfree(entries);
 }
 
-KernelState NextTask;
-
 FRESULT scan_files (
     char16_t* path        /* Start node to be scanned (***also used as work area***) */
 )
