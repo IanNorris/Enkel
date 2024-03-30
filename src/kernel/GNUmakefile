@@ -129,20 +129,15 @@ override NASMBINFLAGS += \
     -Wall \
     -f bin
 
-override SFLAGS += \
-    -Wall \
-    -fPIC
-
-# Use "find" to glob all *.c, *.S, and *.asm files in the tree and obtain the
+# Use "find" to glob all *.c, and *.asm files in the tree and obtain the
 # object and header dependency file names.
 override CPPFILES := $(shell find -L . -type f -name '*.cpp') $(FONT_CPP_FILES) $(EMBEDDED_IMAGE_CPP_FILES) $(EMBEDDED_APP_BINCPP_FILES)
 override CFILES := $(RPMALLOC_C_FILES) $(QRCODE_C_FILES) $(ZLIB_C_FILES) $(STM32_MW_FATFS_C_FILES) $(XXHASH_C_FILES)
-override ASFILES := $(shell find -L . -type f -name '*.S')
 override NASMFILES := $(shell find -L . -type f -name '*.asm')
 override NASMBINFILES := $(shell find -L . -type f -name '*.asmb')
 override NASMBINFILES := $(shell find -L . -type f -name '*.asmb')
-override OBJ := $(CPPFILES:.cpp=.cpp.o) $(CFILES:.c=.c.o) $(ASFILES:.S=.S.o) $(NASMFILES:.asm=.asm.o) $(NASMBINFILES:.asmb=.asmb.o)
-override HEADER_DEPS := $(CPPFILES:.cpp=.cpp.d) $(CFILES:.c=.c.d) $(ASFILES:.S=.S.d)
+override OBJ := $(CPPFILES:.cpp=.cpp.o) $(CFILES:.c=.c.o) $(NASMFILES:.asm=.asm.o) $(NASMBINFILES:.asmb=.asmb.o)
+override HEADER_DEPS := $(CPPFILES:.cpp=.cpp.d) $(CFILES:.c=.c.d)
 
 # Default target.
 .PHONY: force all
@@ -186,10 +181,6 @@ $(KERNEL): $(VENDOR_ROOT)/acpica_out/acpica.a $(NASMBINFILES:.asmb=.asmb.o) $(OB
 
 %.c.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
-
-# Compilation rules for *.S files.
-%.S.o: %.S
-	$(CC) $(SFLAGS) -c $< -o $@
 
 # Compilation rules for *.asm (nasm) files.
 %.asm.o: %.asm
