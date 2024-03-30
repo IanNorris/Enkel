@@ -2,7 +2,6 @@ section .text
 global SyscallDispatcher
 
 extern LoadFS
-extern SyscallStack
 extern SyscallTable
 extern sys_not_implemented
 
@@ -16,7 +15,7 @@ SyscallDispatcher:
 	call LoadFS
 
 	mov rcx, rsp
-	mov rsp, [SyscallStack]
+	mov rsp, [gs:8]
 
 	; Ensure stack is aligned
 	and rsp, 0xFFFFFFFFFFFFFFEF ; ~0x10

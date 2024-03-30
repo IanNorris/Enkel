@@ -36,10 +36,7 @@ extern Process* GCurrentProcess;
 
 extern MemoryState PhysicalMemoryState;
 
-extern "C"
-{
-	uint64_t SyscallStack;
-}
+extern EnvironmentKernel* GKernelEnvironment;
 
 extern "C" void __attribute__((sysv_abi,noreturn)) ReturnToKernel();
 
@@ -805,5 +802,5 @@ void InitializeSyscalls()
     efer |= EFER_SCE;
     SetMSR(IA32_EFER, efer);
 
-	SyscallStack = (uint64_t)VirtualAlloc(16 * 1024, PrivilegeLevel::Kernel) + (16 * 1024);
+	GKernelEnvironment->SyscallStack = (uint64_t)VirtualAlloc(16 * 1024, PrivilegeLevel::Kernel) + (16 * 1024);
 }

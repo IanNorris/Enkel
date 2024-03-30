@@ -112,6 +112,7 @@ void CreateTLS(TLSAllocation* allocationOut, bool kernel, uint64_t tdataSize, ui
 	allocationOut->FSBase = tlsHigh;
 }
 
+//TODO make this core specific
 void InitializeKernelTLS()
 { 
     size_t tdata_size = (uint8_t*)&__tdata_end - (uint8_t*)&__tdata_start;

@@ -9,7 +9,7 @@ struct EnvironmentShared
 
 struct EnvironmentKernel : EnvironmentShared
 {
-
+	uint64_t SyscallStack; // [gs:8]
 };
 
 struct EnvironmentUser : EnvironmentShared
