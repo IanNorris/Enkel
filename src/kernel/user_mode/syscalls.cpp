@@ -8,6 +8,7 @@
 
 #include "memory/virtual.h"
 #include "memory/memory.h"
+#include <rpmalloc.h>
 
 #include "fs/volume.h"
 
@@ -21,6 +22,7 @@
 #include <linux/openat2.h>
 
 #include "kernel/memory/pml4.h"
+#include "kernel/process/process.h"
 
 #define ARCH_SET_GS 0x1001
 #define ARCH_SET_FS 0x1002
@@ -75,6 +77,8 @@ int sys_clock_gettime(const clockid_t which_clock, struct timespec* tp)
 {
 	//TODO
 	memset(tp, 0, sizeof(timespec));
+
+	return 0;
 }
 
 int sys_prlimit64(pid_t pid, unsigned int resource, const struct rlimit64* new_rlim, struct rlimit64* old_rlim)
@@ -128,7 +132,7 @@ int sys_getrandom(char* buf, size_t count, unsigned int flags)
 {
 	//TODO - for now we want determinism.
 
-	for (int i = 0; i < count; i++)
+	for (size_t i = 0; i < count; i++)
 	{
 		buf[i] = i % 256;
 	}
@@ -276,6 +280,83 @@ int sys_mprotect(unsigned long start, size_t len, unsigned long prot)
 	return 0;
 }
 
+int sys_execve(const char* filename, const char* const argv[], const char* const envp[])
+{
+	const int64_t maxLength = 1 << 30;
+
+	//Pre-calculate the size of the memory block so we can get args in the right order later ith less fuss
+	int envc = 0;
+	int argc = 0;
+	const char* const* argPointer = envp;
+
+	uint64_t stringBlockBytes = 0;
+
+	stringBlockBytes += ascii_to_wide(nullptr, filename, maxLength) + 1;
+
+	argPointer = envp;
+	while (*argPointer)
+	{
+		stringBlockBytes += ascii_to_wide(nullptr, *argPointer, maxLength) + 1;
+		envc++;
+		argPointer++;
+	}
+
+	argPointer = argv;
+	while (*argPointer)
+	{
+		stringBlockBytes += ascii_to_wide(nullptr, *argPointer, maxLength) + 1;
+		argc++;
+		argPointer++;
+	}
+
+	char16_t** memoryBlockPointers = (char16_t**)rpmalloc((envc + argc + 2) * sizeof(char16_t*));
+	char16_t* memoryBlockStrings = (char16_t*)rpmalloc(stringBlockBytes * sizeof(char16_t));
+	char16_t* memoryBlockStringsPtr = memoryBlockStrings;
+	char16_t** memoryBlockPointersCurrent = (char16_t**)memoryBlockPointers;
+
+	const char16_t* wideFilename = memoryBlockStringsPtr;
+	int writing;
+	writing = ascii_to_wide(memoryBlockStringsPtr, filename, maxLength);
+	memoryBlockStringsPtr[writing] = 0;
+	memoryBlockStringsPtr += writing + 1;
+
+	char16_t** wideEnv = memoryBlockPointersCurrent;
+
+	argPointer = envp;
+	while (*argPointer)
+	{
+		*memoryBlockPointersCurrent = memoryBlockStringsPtr;
+		writing = ascii_to_wide(memoryBlockStringsPtr, *argPointer, maxLength);
+		memoryBlockStringsPtr[writing] = 0;
+		memoryBlockStringsPtr += writing + 1;
+		memoryBlockPointersCurrent++;
+		argPointer++;
+	}
+	*memoryBlockPointersCurrent = nullptr;
+	memoryBlockPointersCurrent++;
+
+	char16_t** wideArg = memoryBlockPointersCurrent;
+
+	argPointer = argv;
+	while (*argPointer)
+	{
+		*memoryBlockPointersCurrent = memoryBlockStringsPtr;
+		writing = ascii_to_wide(memoryBlockStringsPtr, *argPointer, maxLength);
+		memoryBlockStringsPtr[writing] = 0;
+		memoryBlockStringsPtr += writing + 1;
+		memoryBlockPointersCurrent++;
+		argPointer++;
+	}
+	*memoryBlockPointersCurrent = nullptr;
+	
+	int result = RunProgram(wideFilename, (const char16_t**)wideArg, (const char16_t**)wideEnv);
+
+	rpfree(memoryBlockPointers);
+	rpfree(memoryBlockStrings);
+
+	return result;
+}
+
 extern const char16_t* KernelBuildId;
 
 int sys_uname(struct utsname* buf)
@@ -413,7 +494,7 @@ void* SyscallTable[(int)SyscallIndex::Max] =
 	(void*)sys_not_implemented, // NotImplemented56,
 	(void*)sys_not_implemented, // NotImplemented57,
 	(void*)sys_not_implemented, // NotImplemented58,
-	(void*)sys_not_implemented, // NotImplemented59,
+	(void*)sys_execve, // 59,
 	
 	(void*)sys_exit,			// Exit,
 	(void*)sys_not_implemented, // NotImplemented61,

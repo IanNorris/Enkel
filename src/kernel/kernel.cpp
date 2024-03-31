@@ -39,6 +39,8 @@ extern const char16_t* KernelBuildId;
 //Define what a constructor is
 typedef void (*StaticInitFunction)();
 
+int sys_execve(const char* filename, const char* const argv[], const char* const envp[]);
+
 extern "C" StaticInitFunction CRTStaticInitStart;
 extern "C" StaticInitFunction CRTStaticInitEnd;
 extern "C" void CRTInit()
@@ -193,6 +195,11 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 	ConsolePrint(u"Kernel booted.\n\n");
 
 	const char16_t* envp[] = { u"LD_WARN=1", nullptr};
+
+	const char* argvBash[] = { "/bash", nullptr };
+	const char* envBash[] = { "LD_WARN=1", nullptr};
+
+	sys_execve("/bash", argvBash, envBash);
 
 	//const char16_t* argv1[] = { u"/hello_world", u"--mode", u"awesome", nullptr};
 	//ConsolePrint(u"Running hello_world\n");

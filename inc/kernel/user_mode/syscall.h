@@ -69,7 +69,7 @@ enum class SyscallIndex
 	NotImplemented56,
 	NotImplemented57,
 	NotImplemented58,
-	NotImplemented59,
+	sys_execve, //59
 
 	Exit, //60
 	NotImplemented61,

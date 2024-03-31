@@ -228,9 +228,11 @@ void DestroyProcess(Process* process)
 	rpfree(process);
 }
 
-void RunProgram(const char16_t* programName, const char16_t** argv, const char16_t** envp)
+int RunProgram(const char16_t* programName, const char16_t** argv, const char16_t** envp)
 {
 	Process* process = CreateProcess(programName, argv, envp);
 
 	DestroyProcess(process);
+
+	return 0; //TODO
 }

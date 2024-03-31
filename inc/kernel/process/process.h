@@ -56,4 +56,4 @@ struct Process
 void InitializeUserMode();
 void ScheduleProcess(Process* process);
 Process* CreateProcess(const char16_t* programName, const char16_t** argv, const char16_t** envp);
-void RunProgram(const char16_t* programName, const char16_t** argv, const char16_t** envp);
+int RunProgram(const char16_t* programName, const char16_t** argv, const char16_t** envp);
