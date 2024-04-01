@@ -9,7 +9,7 @@ BOOT_PART=boot_part
 SECTOR_SIZE=512
 INFLATED_IMAGE_KB=256
 
-GLIBC_ROOT=/lib/x86_64-linux-gnu/#Debian based (eg Ubuntu)
+GLIBC_ROOT=/lib/x86_64-linux-gnu#Debian based (eg Ubuntu)
 #GLIBC_ROOT=/usr/lib64/#Fedora based
 
 BOOTLOADER_ROOT=../src/bootloader
@@ -40,6 +40,9 @@ libc_test:
 static_libc_test:
 	make -C ../src/apps/static_libc_test
 
+stdio_test:
+	make -C ../src/apps/stdio_test
+
 $(BOOTLOADER_OUT): $(BOOTLOADER)
 	mkdir -p $(BOOTLOADER_OUT_DIR)
 	cp $(BOOTLOADER) $(BOOTLOADER_OUT)
@@ -48,16 +51,20 @@ $(KERNEL_OUT): $(KERNEL)
 	mkdir -p $(KERNEL_OUT_DIR)
 	cp $(KERNEL) $(KERNEL_OUT)
 
-$(BOOT_IMAGE): $(BOOTLOADER_OUT) $(KERNEL_OUT) tls_test libc_test static_libc_test
+$(BOOT_IMAGE): $(BOOTLOADER_OUT) $(KERNEL_OUT) tls_test libc_test static_libc_test stdio_test
 	#Calculate the actual size of the boot partition folder
 
 	mkdir -p $(BOOT_PART)/lib64
 	mkdir -p $(BOOT_PART)/usr/lib/x86_64-linux-gnu/
+	mkdir -p $(BOOT_PART)/lib/x86_64-linux-gnu/tls/x86_64/
 	cp $(GLIBC_ROOT)/libc.so.6 $(BOOT_PART)/lib64/
 	cp $(GLIBC_ROOT)/libc.so $(BOOT_PART)/lib64/
 	cp $(GLIBC_ROOT)/libc.so.6 $(BOOT_PART)/lib/x86_64-linux-gnu/
 	cp $(GLIBC_ROOT)/libc.so $(BOOT_PART)/lib/x86_64-linux-gnu/
 	cp $(GLIBC_ROOT)/libc.so $(BOOT_PART)/usr/lib/x86_64-linux-gnu/
+	cp $(GLIBC_ROOT)/libtinfo.so.6 $(BOOT_PART)/lib/x86_64-linux-gnu/tls/x86_64/
+	cp $(GLIBC_ROOT)/libresolv.so.2 $(BOOT_PART)/lib/x86_64-linux-gnu/tls/x86_64/
+	cp /usr/bin/busybox $(BOOT_PART)/busybox
 	cp /bin/echo $(BOOT_PART)/
 	cp $(GLIBC_ROOT)/ld-linux-x86-64.so.2 $(BOOT_PART)/lib64/
 	cp $(GLIBC_ROOT)/libstdc++.so.6 $(BOOT_PART)/lib64/
@@ -68,6 +75,7 @@ $(BOOT_IMAGE): $(BOOTLOADER_OUT) $(KERNEL_OUT) tls_test libc_test static_libc_te
 	cp ../src/apps/tls_test/tls_test.a $(BOOT_PART)/tls_test
 	cp ../src/apps/libc_test/libc_test.a $(BOOT_PART)/libc_test
 	cp ../src/apps/static_libc_test/static_libc_test.a $(BOOT_PART)/static_libc_test
+	cp ../src/apps/stdio_test/stdio_test.a $(BOOT_PART)/stdio_test
 
 	$(eval BOOT_PART_SIZE := $(shell du -cb $(BOOT_PART) | tail -n 1 | awk '{print $$1}'))
 	#Now calculate how many sectors we need by inflating it by about 30% and adding 512kb on top.

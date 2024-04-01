@@ -196,10 +196,14 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 
 	const char16_t* envp[] = { u"LD_WARN=1", nullptr};
 
-	const char* argvBash[] = { "/bash", nullptr };
+	const char16_t* argvStdio[] = { u"/stdio_test", nullptr };
+	ConsolePrint(u"\n#> stdio_test\n");
+	RunProgram(u"/stdio_test", argvStdio, envp);
+
+	const char* argvBash[] = { "/busybox", "ash", nullptr};
 	const char* envBash[] = { "LD_WARN=1", nullptr};
 
-	sys_execve("/bash", argvBash, envBash);
+	sys_execve("/busybox", argvBash, envBash);
 
 	//const char16_t* argv1[] = { u"/hello_world", u"--mode", u"awesome", nullptr};
 	//ConsolePrint(u"Running hello_world\n");

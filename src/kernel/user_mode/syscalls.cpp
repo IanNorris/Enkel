@@ -164,6 +164,10 @@ int sys_open(const char* filename, int flags, int mode)
 	uint64_t handle = VolumeOpenHandle(0, wideName, mode);
 	if (handle == 0)
 	{
+		SerialPrint("sys_open: not found: ");
+		SerialPrint(filename);
+		SerialPrint("\n");
+
 		return -ENOENT;
 	}
 }
@@ -384,6 +388,10 @@ int sys_openat(int dfd, const char* filename, int flags, uint64_t mode)
 	uint64_t handle = VolumeOpenHandle(0, wideName, mode);
 	if (handle == 0)
 	{
+		SerialPrint("sys_open: not found: ");
+		SerialPrint(filename);
+		SerialPrint("\n");
+
 		return -ENOENT;
 	}
 
