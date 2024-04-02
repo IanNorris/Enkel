@@ -1,6 +1,6 @@
 #pragma once
 
-extern "C" KERNEL_API uint64_t GetGSBase();
+extern "C" KERNEL_API uint64_t GetGS();
 
 struct EnvironmentShared
 {

@@ -1,5 +1,9 @@
 section .data
 
+extern LoadFS
+extern GetGS
+extern GKernelEnvironment
+
 %macro PushGeneralPurposeRegisters 0
     push rax
     push rbx
@@ -34,6 +38,22 @@ section .data
     pop rax
 %endmacro
 
+maybe_swapgs:
+    push rax
+    call GetGS
+    cmp rax, [GKernelEnvironment]
+
+    je skip_gs
+
+    swapgs
+    call LoadFS
+
+skip_gs:
+
+    pop rax
+
+    ret
+
 
 %macro ISR_NO_ERROR 2
     extern ISR_Int_%2
@@ -42,6 +62,7 @@ section .data
 ISR_%2:
 	nop
 DebugHook_ISR_%2:
+
 	push rbp
     PushGeneralPurposeRegisters
 
@@ -52,8 +73,12 @@ DebugHook_ISR_%2:
 	mov r8,  [rsp + (15*8) + (1*8)] 	; CS 
 	mov r9,  rbp					 	; RBP
 
+	call maybe_swapgs
+    
     ; Call the function named ISR_Int_ followed by the given ISR name
     call ISR_Int_%2
+
+	call maybe_swapgs
 
     PopGeneralPurposeRegisters
 	pop rbp
@@ -82,9 +107,13 @@ DebugHook_ISR_%2:
 	mov rcx, [rsp + (15*8) + (0*8)] 	; Error code (param 3)
 	mov r8,  [rsp + (15*8) + (2*8)] 	; CS 
 	mov r9,  rbp					 	; RBP
+
+	call maybe_swapgs
    
     ; Call the function named ISR_Int_ followed by the given ISR name
     call ISR_Int_%2
+
+	call maybe_swapgs
 
     PopGeneralPurposeRegisters
 	pop rbp

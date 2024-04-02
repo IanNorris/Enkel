@@ -199,7 +199,7 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 	const char16_t* argvStdio[] = { u"/stdio_test", nullptr };
 	ConsolePrint(u"\n#> stdio_test\n");
 	RunProgram(u"/stdio_test", argvStdio, envp);
-
+	/*
 	const char* argvBash[] = { "/busybox", "ash", nullptr};
 	const char* envBash[] = { "LD_WARN=1", nullptr};
 
@@ -220,7 +220,7 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 
 	const char16_t* argv4[] = { u"/echo", u"This is a test", nullptr };
 	ConsolePrint(u"\n#> echo This is a test\n");
-	RunProgram(u"/echo", argv4, envp);
+	RunProgram(u"/echo", argv4, envp);*/
 
 	/*ConsolePrint(u"\nRunning  static_libc_test\n");
 	RunProgram(u"/static_libc_test");
