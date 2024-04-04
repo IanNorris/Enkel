@@ -67,7 +67,7 @@ SwitchToUserMode:
 
 	push rcx ;UM DS
 	push rdi ;UM stack
-	push 0x202 ; rflags
+	push 0x202 ; rflags (interrupts enabled, reserved always on flag set)
 	push rdx ;UM CS
 	push rsi ;UM entry
 

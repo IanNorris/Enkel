@@ -59,60 +59,73 @@ void AccessViolationCommon(uint64_t interruptNumber, uint64_t rip, uint64_t cr2,
 {
 	char16_t Buffer[32];
 
-	if(errorCode & PAGE_FAULT_SHADOW_STACK)
+	if (interruptNumber == 0xD) //GPF
 	{
-		ConsolePrint(u"Shadow stack violation ");
+		ConsolePrint(u"General protectoin fault ");
 	}
-	else if(cr2 == 0)
+	else if (interruptNumber == 0xE) //Page fault
 	{
-		ConsolePrint(u"Null pointer exception ");
+		if (errorCode & PAGE_FAULT_SHADOW_STACK)
+		{
+			ConsolePrint(u"Shadow stack violation ");
+		}
+		else if (cr2 == 0)
+		{
+			ConsolePrint(u"Null pointer exception ");
+		}
+		else
+		{
+			ConsolePrint(u"Access violation ");
+		}
+
+		if (errorCode & PAGE_FAULT_EXECUTE)
+		{
+			ConsolePrint(u"executing ");
+		}
+		else if (errorCode & PAGE_FAULT_WRITE)
+		{
+			ConsolePrint(u"writing ");
+		}
+		else
+		{
+			ConsolePrint(u"reading ");
+		}
+
+		if (errorCode & PAGE_FAULT_PRESENT)
+		{
+			ConsolePrint(u"unpaged ");
+		}
+
+		if (errorCode & PAGE_FAULT_USER)
+		{
+			ConsolePrint(u"user ");
+		}
+		else
+		{
+			ConsolePrint(u"kernel ");
+		}
+
+		if (errorCode & PAGE_FAULT_RESERVED_WRITE)
+		{
+			ConsolePrint(u"RESERVED WRITE ");
+		}
+
+		if (errorCode & PAGE_FAULT_PROTECTION_KEY)
+		{
+			ConsolePrint(u"PROTECTION KEY ");
+		}
+
+		if (errorCode & PAGE_FAULT_SOFTWARE_GUARD_EXTENSION)
+		{
+			ConsolePrint(u"SGX ");
+		}
 	}
 	else
 	{
-		ConsolePrint(u"Access violation ");
+		ConsolePrint(u"Unknown AV exception ");
 	}
 
-	if(errorCode & PAGE_FAULT_EXECUTE)
-	{
-		ConsolePrint(u"executing ");
-	}
-	else if(errorCode & PAGE_FAULT_WRITE)
-	{
-		ConsolePrint(u"writing ");
-	}
-	else
-	{
-		ConsolePrint(u"reading ");
-	}
-
-	if(errorCode & PAGE_FAULT_PRESENT)
-	{
-		ConsolePrint(u"unpaged ");
-	}
-
-	if(errorCode & PAGE_FAULT_USER)
-	{
-		ConsolePrint(u"user ");
-	}
-	else
-	{
-		ConsolePrint(u"kernel ");
-	}
-
-	if(errorCode & PAGE_FAULT_RESERVED_WRITE)
-	{
-		ConsolePrint(u"RESERVED WRITE ");
-	}
-
-	if(errorCode & PAGE_FAULT_PROTECTION_KEY)
-	{
-		ConsolePrint(u"PROTECTION KEY ");
-	}
-
-	if(errorCode & PAGE_FAULT_SOFTWARE_GUARD_EXTENSION)
-	{
-		ConsolePrint(u"SGX ");
-	}
+	
 
 	ConsolePrint(u"(error 0x");
 	witoabuf(Buffer, errorCode, 16);
@@ -128,13 +141,14 @@ void AccessViolationCommon(uint64_t interruptNumber, uint64_t rip, uint64_t cr2,
 	witoabuf(Buffer, rip, 16);
 	ConsolePrint(Buffer);
 
+	//User mode
 	if(codeSegment & 0x3 == 0x3)
 	{
 	    PrintStackTrace(30, rip, triggeringRBP);
 	}
-	else
+	else //Kernel
 	{
-		PrintStackTrace(30);
+		PrintStackTrace(30, rip, triggeringRBP);
 	}
 }
 
@@ -155,6 +169,13 @@ DEFINE_NAMED_INTERRUPT(PageFault)(uint64_t interruptNumber, uint64_t rip, uint64
 {
 	//Paging will go here eventually
 
+	AccessViolationException(interruptNumber, rip, cr2, errorCode, codeSegment, triggeringRBP);
+
+	OutPort(0x20, 0x20);
+}
+
+DEFINE_NAMED_INTERRUPT(GeneralProtectionFault)(uint64_t interruptNumber, uint64_t rip, uint64_t cr2, uint64_t errorCode, uint64_t codeSegment, uint64_t triggeringRBP)
+{
 	AccessViolationException(interruptNumber, rip, cr2, errorCode, codeSegment, triggeringRBP);
 
 	OutPort(0x20, 0x20);
@@ -195,7 +216,15 @@ void __attribute__((used,noinline)) InterruptDummy(const char16_t* message, uint
     {
 		if(interruptNumber != 3)
 		{
-			PrintStackTrace(30);
+			//User mode
+			if (codeSegment & 0x3 == 0x3)
+			{
+				PrintStackTrace(30, rip, triggeringRBP);
+			}
+			else //Kernel
+			{
+				PrintStackTrace(30, rip, triggeringRBP);
+			}
 		}
 
         DebuggerHook();
@@ -262,7 +291,7 @@ CALLBACK_INTERRUPT(9) // Coprocessor Segment Overrun is not used 9
 PRINT_NAMED_INTERRUPT(InvalidTaskStateSegment, u"Invalid task state segment", true) //10
 PRINT_NAMED_INTERRUPT_HALT(SegmentNotPresent, u"Segment not present") //11
 PRINT_NAMED_INTERRUPT_HALT(StackSegmentFault, u"Stack segment fault") //12
-PRINT_NAMED_INTERRUPT_HALT(GeneralProtectionFault, u"General protection fault") //13 0xD
+NAMED_INTERRUPT(GeneralProtectionFault) //13 0xD
 NAMED_INTERRUPT(PageFault) //14 0xE
 CALLBACK_INTERRUPT(15) //15 is reserved
 PRINT_NAMED_INTERRUPT(x87FloatingPointException, u"x87 Floating point exception", true) //16

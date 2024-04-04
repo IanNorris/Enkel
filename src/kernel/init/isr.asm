@@ -5,6 +5,11 @@ extern GetGS
 extern GKernelEnvironment
 
 %macro PushGeneralPurposeRegisters 0
+    ; Red zone
+    sub rsp, 128
+
+    push rbp
+    pushfq
     push rax
     push rbx
     push rcx
@@ -36,6 +41,11 @@ extern GKernelEnvironment
     pop rcx
     pop rbx
     pop rax
+    popfq
+    pop rbp
+
+    ; Red zone
+    add rsp, 128
 %endmacro
 
 maybe_swapgs:
@@ -63,15 +73,14 @@ ISR_%2:
 	nop
 DebugHook_ISR_%2:
 
-	push rbp
     PushGeneralPurposeRegisters
 
-    mov rdi, %1							; Interrupt number
-    mov rsi, [rsp + (15*8) + (0*8)] 	; RIP from EIP (param 1)
-	mov rdx, cr2 						; CR2 (param 2)
-	mov rcx, 0						 	; Error code (param 3)
-	mov r8,  [rsp + (15*8) + (1*8)] 	; CS 
-	mov r9,  rbp					 	; RBP
+    mov rdi, %1							    ; Interrupt number
+    mov rsi, [rsp + (16*8) + (0*8) + 128] 	; RIP from EIP (param 1)
+	mov rdx, cr2 						    ; CR2 (param 2)
+	mov rcx, 0						 	    ; Error code (param 3)
+	mov r8,  [rsp + (16*8) + (1*8) + 128] 	; CS 
+	mov r9,  rbp					    	; RBP
 
 	call maybe_swapgs
     
@@ -81,7 +90,6 @@ DebugHook_ISR_%2:
 	call maybe_swapgs
 
     PopGeneralPurposeRegisters
-	pop rbp
 
     ; Return from the interrupt
     iretq
@@ -97,16 +105,15 @@ ISR_%2:
 DebugHook_ISR_%2:
 	add rsp, 32
 
-	; push 15 regs
-	push rbp
+	; push 16 regs
     PushGeneralPurposeRegisters
 
-	mov rdi, %1							; Interrupt number
-    mov rsi, [rsp + (15*8) + (1*8)] 	; RIP from EIP (param 1)
-	mov rdx, cr2 						; CR2 (param 2)
-	mov rcx, [rsp + (15*8) + (0*8)] 	; Error code (param 3)
-	mov r8,  [rsp + (15*8) + (2*8)] 	; CS 
-	mov r9,  rbp					 	; RBP
+	mov rdi, %1							    ; Interrupt number
+    mov rsi, [rsp + (16*8) + (1*8) + 128] 	; RIP from EIP (param 1)
+	mov rdx, cr2 						    ; CR2 (param 2)
+	mov rcx, [rsp + (16*8) + (0*8) + 128] 	; Error code (param 3)
+	mov r8,  [rsp + (16*8) + (2*8) + 128]	; CS 
+	mov r9,  rbp					 	    ; RBP
 
 	call maybe_swapgs
    
@@ -116,7 +123,8 @@ DebugHook_ISR_%2:
 	call maybe_swapgs
 
     PopGeneralPurposeRegisters
-	pop rbp
+
+    
 
     ; Return from the interrupt
     iretq

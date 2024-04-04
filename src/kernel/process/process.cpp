@@ -9,6 +9,8 @@
 #include "kernel/user_mode/elf.h"
 #include "elf.h"
 
+extern EnvironmentKernel* GKernelEnvironment;
+
 int GELFBinaryCount = 0;
 ElfBinary** GELFBinaries = nullptr;
 
@@ -35,6 +37,10 @@ void ScheduleProcess(Process* process)
 	SetUserGS();
 	
 	SwitchToUserMode((uint64_t)process->DefaultThreadStackStart, process->Binary->Entry, userModeCodeSelector, userModeDataSelector);
+
+	ReloadSegments();
+	SetKernelGSBase((uint64_t)GKernelEnvironment);
+	SetFSBase(GKernelEnvironment->FSBase);
 
 	GCurrentProcess = nullptr;
 }
