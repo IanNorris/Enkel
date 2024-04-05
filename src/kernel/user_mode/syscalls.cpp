@@ -170,6 +170,8 @@ int sys_open(const char* filename, int flags, int mode)
 
 		return -ENOENT;
 	}
+
+	return 0;
 }
 
 int sys_close(uint64_t fileHandle)
@@ -872,14 +874,15 @@ void InitializeSyscalls()
     // Set system call entry point
     SetMSR(IA32_LSTAR, (uint64_t)&SyscallDispatcher);
 
-	uint16_t kernelCS = sizeof(GDTEntry) * (uint16_t)GDTEntryIndex::KernelCode;
-	uint16_t userDS = sizeof(GDTEntry) * (uint16_t)GDTEntryIndex::UserData;
-
-    uint64_t kernelCodeSegmentShifted = static_cast<uint64_t>(kernelCS) << 3;
-	uint64_t userDataSegmentShifted = static_cast<uint64_t>(userDS) << 3;
+	uint64_t kernelCS = sizeof(GDTEntry) * (uint16_t)GDTEntryIndex::KernelCode;
+	uint64_t userCS = sizeof(GDTEntry) * (uint16_t)GDTEntryIndex::UserCode;
 
 	// Now, shift them into the correct bit positions for the IA32_STAR MSR
-	uint64_t starMsrValue = (userDataSegmentShifted << 48) | (kernelCodeSegmentShifted << 32);
+	// See Intel SDM section 5.8.8 Fast System Calls in 64-Bit Mode
+	// When SYSRET transfers control to 64-bit mode user code using REX.W, the processor gets the privilege level 3
+	// target code segment, instruction pointer, stack segment, and flags as follows :
+	// * Target code segment — Reads a non-NULL selector from IA32_STAR[63:48] + 16.
+	uint64_t starMsrValue = ((userCS-0x10) << 48) | (kernelCS << 32);
 
 	SetMSR(IA32_STAR, starMsrValue);
 

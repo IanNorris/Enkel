@@ -99,6 +99,7 @@ struct TSS
 } __attribute__((packed));
 
 extern "C" void ReloadSegments();
+extern "C" void ReloadDataSegments();
 extern "C" void LoadTSS(uint16_t gdtEntry);
 
 void InitGDT(uint8_t* target);

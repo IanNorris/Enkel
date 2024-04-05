@@ -75,6 +75,9 @@ DebugHook_ISR_%2:
 
     PushGeneralPurposeRegisters
 
+    ; Clear direction flag
+    cld
+
     mov rdi, %1							    ; Interrupt number
     mov rsi, [rsp + (16*8) + (0*8) + 128] 	; RIP from EIP (param 1)
 	mov rdx, cr2 						    ; CR2 (param 2)
@@ -107,6 +110,9 @@ DebugHook_ISR_%2:
 
 	; push 16 regs
     PushGeneralPurposeRegisters
+
+    ; Clear direction flag
+    cld
 
 	mov rdi, %1							    ; Interrupt number
     mov rsi, [rsp + (16*8) + (1*8) + 128] 	; RIP from EIP (param 1)

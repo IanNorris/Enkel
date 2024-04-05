@@ -38,7 +38,7 @@ void ScheduleProcess(Process* process)
 	
 	SwitchToUserMode((uint64_t)process->DefaultThreadStackStart, process->Binary->Entry, userModeCodeSelector, userModeDataSelector);
 
-	ReloadSegments();
+	ReloadDataSegments();
 	SetKernelGSBase((uint64_t)GKernelEnvironment);
 	SetFSBase(GKernelEnvironment->FSBase);
 
