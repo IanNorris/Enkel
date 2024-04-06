@@ -252,6 +252,11 @@ void InitializeMMIO()
 
 ACPI_STATUS InitializeAcpica (void)
 {
+	VerboseLog(u"Initializing ACPI...\n");
+#ifdef _DEBUG
+	ACPI_DEBUG_INITIALIZE();
+#endif
+
     ACPI_STATUS             Status;
 
 

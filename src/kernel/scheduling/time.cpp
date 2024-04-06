@@ -39,7 +39,7 @@ void InitHPET(EFI_ACPI_HIGH_PRECISION_EVENT_TIMER_TABLE_HEADER* Header)
 	volatile uint64_t* generalConfig = (volatile uint64_t*)(base + 0x10);
 	*generalConfig |= 0x1;
 
-	ConsolePrint(u"Calibrating HPET...\n");
+	VerboseLog(u"Calibrating HPET...\n");
 
 	HpetCounter = (volatile uint64_t*)(base + 0xF0);
 

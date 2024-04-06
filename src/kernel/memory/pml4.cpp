@@ -633,7 +633,8 @@ void BuildPML4(KernelBootData* bootData)
     MapPages(framebuffer.VirtualStart, PhysicalFramebuffer, allocatedFrameBufferSize, true, false /*executable*/, PrivilegeLevel::User, MemoryState::RangeState::Reserved);
 	freeMemory -= allocatedFrameBufferSize;
 
-    ConsolePrint(u"Memory available: ");
+#if VERBOSE_LOGGING
+	VerboseLog(u"Memory available: ");
 
 	//This convoluted mess prints a decimal value of the memory in the system
 	//with attached units. Eg 1.980GB or 3.999TB.
@@ -697,8 +698,9 @@ void BuildPML4(KernelBootData* bootData)
 		precision--;
 	}
 
-	ConsolePrint(MemoryAvailableUnit);
-    ConsolePrint(u"\n");
+	VerboseLog(MemoryAvailableUnit);
+	VerboseLog(u"\n");
+#endif
 }
 
 void MemCheck(KernelBootData* bootData)
@@ -774,9 +776,9 @@ void BuildAndLoadPML4(KernelBootData* bootData)
 	//HaltPermanently();
 #endif
 
-    ConsolePrint(u"Loading PML4...\n");
+	VerboseLog(u"Loading PML4...\n");
     LoadPageMapLevel4((uint64_t)&PML4);
     PML4Set = true;
 
-    ConsolePrint(u"Now in long mode!...\n");
+	VerboseLog(u"Now in long mode!...\n");
 }

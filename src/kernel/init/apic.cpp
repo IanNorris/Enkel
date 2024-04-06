@@ -271,7 +271,7 @@ void InitAPs()
 		}
     }
 
-	ConsolePrint(u"All AP cores online.\n");
+	VerboseLog(u"All AP cores online.\n");
 }
 
 void InitMADT(EFI_ACPI_2_0_MULTIPLE_APIC_DESCRIPTION_TABLE_HEADER* MADT)
@@ -322,10 +322,10 @@ void InitMADT(EFI_ACPI_2_0_MULTIPLE_APIC_DESCRIPTION_TABLE_HEADER* MADT)
 		Data += Length;
 	}
 
-	ConsolePrint(u"Processor has ");
-	witoabuf(Buffer, ProcessorCount, 10);
-	ConsolePrint(Buffer);
-	ConsolePrint(u" cores.\n");
+	VerboseLog(u"Processor has ");
+	Verbose(witoabuf(Buffer, ProcessorCount, 10));
+	VerboseLog(Buffer);
+	VerboseLog(u" cores.\n");
 
 	LocalApicVirtual = (uint8_t*)PhysicalAlloc((uint64_t)LocalApicPhysical, 4096, PrivilegeLevel::Kernel, (PageFlags)(PageFlags_Cache_Disable | PageFlags_Cache_WriteThrough));
 

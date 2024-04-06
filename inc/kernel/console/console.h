@@ -50,3 +50,11 @@ void ConsolePrintNumeric(const char16_t* Start, uint64_t Value, const char16_t* 
 void LogPrintNumeric(const char16_t* Start, uint64_t Value, const char16_t* Suffix, int Base = 16);
 
 void ConsoleSetPos(int32_t x, int32_t y, Console* Console = nullptr);
+
+#if VERBOSE_LOGGING
+#define VerboseLog(x) ConsolePrint(x)
+#define Verbose(x) x
+#else
+#define VerboseLog(x)
+#define Verbose(x)
+#endif

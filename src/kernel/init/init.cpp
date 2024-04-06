@@ -29,7 +29,7 @@ extern "C" TSS TSSRing0;
 
 void InitVirtualMemory(KernelBootData* bootData)
 {
-	ConsolePrint(u"Initializing GDT...\n");
+	VerboseLog(u"Initializing GDT...\n");
 	uint8_t* GDTOffset = (uint8_t*)bootData->MemoryLayout.SpecialLocations[SpecialMemoryLocation_APBootstrap].VirtualStart + 512;
     InitGDT(GDTOffset);
 
@@ -40,11 +40,11 @@ void InitVirtualMemory(KernelBootData* bootData)
 
     BuildAndLoadPML4(bootData);
 
-	ConsolePrint(u"Loading TSS...\n");
+	VerboseLog(u"Loading TSS...\n");
 	TSSRing0.Rsp0 = bootData->MemoryLayout.SpecialLocations[SpecialMemoryLocation_KernelStack].VirtualStart;
 	LoadTSS(offsetof(GDTDescriptors, TSS));
 
-	ConsolePrint(u"Loading TLS...\n");
+	VerboseLog(u"Loading TLS...\n");
 
 	InitializeKernelTLS();
 

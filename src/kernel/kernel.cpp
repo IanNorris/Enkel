@@ -144,7 +144,7 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 
 	if (IsDebuggerPresent())
 	{
-		ConsolePrint(u"DEBUGGER ATTACHED!\n");
+		VerboseLog(u"DEBUGGER ATTACHED!\n");
 	}
 
 	InitCpuExtensions();
@@ -163,19 +163,12 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 
 	InitKeyboard();
 
-#ifdef _DEBUG
-	ACPI_DEBUG_INITIALIZE ();
-#endif
-
-	ConsolePrint(u"Initializing syscalls...\n");
 	InitializeSyscalls();
-
-	ConsolePrint(u"Initializing ACPI...\n");
 	InitializeAcpica();
 
 	//WalkAcpiTree();
 
-	ConsolePrint(u"Mounting filesystem...\n");
+	VerboseLog(u"Mounting filesystem...\n");
 	InitializeVolumeSystem();
 	InitializeStdioVolumes();
 	InitializeSpecialProcVolumes();
@@ -192,7 +185,7 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 
 	InitializeUserMode();
 
-	ConsolePrint(u"Kernel booted.\n\n");
+	VerboseLog(u"Kernel booted.\n\n");
 
 	const char16_t* envp[] = { u"LD_WARN=1", nullptr};
 

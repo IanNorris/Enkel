@@ -6,6 +6,7 @@
 int main()
 {
 	printf("What is your name?\n");
+	fflush(stdout);
 
 	char buffer[128];
 

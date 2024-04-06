@@ -655,9 +655,9 @@ ElfBinary* LoadElfFromHandle(const char16_t* programName, VolumeFileHandle handl
 
 		ElfBinary* binary = LoadElfFromMemory(programName, buffer);
 
-		ConsolePrint(programName);
-		ConsolePrintNumeric(u" loaded at ", binary->BaseAddress, u"");
-		ConsolePrintNumeric(u"-", binary->BaseAddress + binary->AllocatedSize, u"\n");
+		//ConsolePrint(programName);
+		//ConsolePrintNumeric(u" loaded at ", binary->BaseAddress, u"");
+		//ConsolePrintNumeric(u"-", binary->BaseAddress + binary->AllocatedSize, u"\n");
 
 		VirtualFree(buffer, alignedSize);
 

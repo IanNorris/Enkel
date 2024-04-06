@@ -42,6 +42,11 @@ extern EnvironmentKernel* GKernelEnvironment;
 
 extern "C" void __attribute__((sysv_abi,noreturn)) ReturnToKernel();
 
+extern "C" uint64_t sys_dummy()
+{
+
+}
+
 extern "C" uint64_t sys_not_implemented()
 {
 	unsigned long syscall_number;
@@ -61,10 +66,10 @@ extern "C" uint64_t sys_not_implemented()
 
 	ConsolePrint(u" not implemented\n");
 
-	ConsolePrint(u"RIP: 0x");
+	//ConsolePrint(u"RIP: 0x");
 
-	witoabuf(Buffer, rip, 16, 8);
-	ConsolePrint(Buffer);
+	//witoabuf(Buffer, rip, 16, 8);
+	//ConsolePrint(Buffer);
 
 	ConsolePrint(u"\n");
 
@@ -727,7 +732,7 @@ void* SyscallTable[(int)SyscallIndex::Max] =
 	(void*)sys_not_implemented, // NotImplemented270,
 	(void*)sys_not_implemented, // NotImplemented271,
 	(void*)sys_not_implemented, // NotImplemented272,
-	(void*)sys_not_implemented, // NotImplemented273,
+	(void*)sys_dummy, // NotImplemented273,
 	(void*)sys_not_implemented, // NotImplemented274,
 	(void*)sys_not_implemented, // NotImplemented275,
 	(void*)sys_not_implemented, // NotImplemented276,
@@ -790,7 +795,7 @@ void* SyscallTable[(int)SyscallIndex::Max] =
 	(void*)sys_not_implemented, // NotImplemented331,
 	(void*)sys_not_implemented, // NotImplemented332,
 	(void*)sys_not_implemented, // NotImplemented333,
-	(void*)sys_not_implemented, // NotImplemented334,
+	(void*)sys_dummy, // NotImplemented334,
 	(void*)sys_not_implemented, // NotImplemented335,
 	(void*)sys_not_implemented, // NotImplemented336,
 	(void*)sys_not_implemented, // NotImplemented337,
@@ -871,6 +876,8 @@ constexpr uint64_t EFER_SCE = 0x0001;
 
 void InitializeSyscalls()
 {
+	VerboseLog(u"Initializing syscalls...\n");
+
     // Set system call entry point
     SetMSR(IA32_LSTAR, (uint64_t)&SyscallDispatcher);
 
