@@ -190,7 +190,7 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 	const char16_t* envp[] = { u"LD_WARN=1", nullptr};
 
 	const char16_t* argvStdio[] = { u"/stdio_test", nullptr };
-	ConsolePrint(u"\n#> stdio_test\n");
+	ConsolePrint(u"\x25B6 stdio_test\n");
 	RunProgram(u"/stdio_test", argvStdio, envp);
 	/*
 	const char* argvBash[] = { "/busybox", "ash", nullptr};
@@ -207,7 +207,7 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 	//RunProgram(u"/tls_test", argv2, envp);
 
 	const char16_t* argv3[] = { u"/libc_test", u"--mode", u"awesome", nullptr };
-	ConsolePrint(u"\n#> libc_test\n");
+	ConsolePrint(u"\n> libc_test\n");
 	RunProgram(u"/libc_test", argv3, envp);
 
 
@@ -223,7 +223,9 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 
 	ConsolePrint(u"\n#>\n");*/
 
-	ConsolePrint(u"Halted.\n");
+	ConsolePrint(u"\x25B6\n");
+
+	VerboseLog(u"Halted.\n");
 	
 	while(true)
 	{
