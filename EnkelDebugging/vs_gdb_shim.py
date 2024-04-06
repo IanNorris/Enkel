@@ -58,7 +58,7 @@ def main():
 
     # Open the log file
     with open("/home/ian/Enkel/vs_gdb_log.txt", "w") as log_file:
-        while True:
+        while qemu_process.poll() is None:
             # Start the GDB subprocess
             gdb_process = subprocess.Popen(
                 ["gdb"] + gdb_args,
@@ -85,7 +85,7 @@ def main():
                     command = sys.stdin.readline()
 
                     if not command:
-                        break
+                        return
 
                     # Send the command to GDB
                     runAndLogCommand(gdb_process, log_file, command.strip())
