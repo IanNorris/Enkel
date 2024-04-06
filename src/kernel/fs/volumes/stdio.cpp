@@ -1,5 +1,6 @@
 #include "common/types.h"
 #include "common/string.h"
+#include "common/ring_buffer.h"
 #include "memory/virtual.h"
 #include "fs/volume.h"
 #include "kernel/console/console.h"
@@ -10,21 +11,42 @@
 //TODO: Need to lock this
 char16_t ConsoleBuffer[1024];
 
+constexpr size_t InputBufferLength = 4 * 1024;
+RingBuffer<char, InputBufferLength> InputBuffer;
+
+void InsertInput(char input)
+{
+	InputBuffer.Push(input);
+}
+
 BMFontColor StdErrColour = { 255, 0, 0 };
 
 VolumeReadType StandardInputVolume_Read = 
 [](VolumeFileHandle handle, void* context, uint64_t offset, void* buffer, uint64_t size) -> uint64_t
 {
-	if (handle == 0)
+	if (size == 0)
 	{
 		return 0ULL;
 	}
 
-	if (size == 0)
-	{
-		return 0ULL;
-	}	
-	
+	if (handle == 0)
+	{	
+		size_t read;
+		
+		do
+		{
+			read = InputBuffer.PopElements((char*)buffer, size);
+			if (read == 0)
+			{
+				asm("sti");
+
+				asm("hlt");
+			}
+		} while (read == 0);
+
+		return read;
+	}
+
 	return 0ULL;
 };
 

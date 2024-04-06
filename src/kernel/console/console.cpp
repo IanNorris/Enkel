@@ -95,12 +95,15 @@ void WriteSerial0(uint8_t character)
 
 void SerialPrint(const char16_t* String)
 {
-	const char16_t* ToConsole = String;
-	while(*ToConsole)
+	if (String)
 	{
-		WriteSerial0((char)*ToConsole);
+		const char16_t* ToConsole = String;
+		while (*ToConsole)
+		{
+			WriteSerial0((char)*ToConsole);
 
-		ToConsole++;
+			ToConsole++;
+		}
 	}
 }
 
@@ -196,6 +199,11 @@ void DefaultConsoleInit(const FramebufferLayout& Framebuffer, BMFontColor Backgr
 
 void ConsolePrintAtPosWithColor(const char16_t* String, int32_t& X, int32_t& Y, int32_t ReturnX, BMFontColor ForegroundColor, Console* Console)
 {
+	if (String == nullptr)
+	{
+		return;
+	}
+
 	if (Console == nullptr)
 	{
 		Console = &GDefaultConsole;
@@ -221,6 +229,11 @@ void ConsolePrintAtPosWithColor(const char16_t* String, int32_t& X, int32_t& Y, 
 
 void ConsolePrintAtPos(const char16_t* String, int32_t& X, int32_t& Y, int32_t ReturnX, Console* Console)
 {
+	if (String == nullptr)
+	{
+		return;
+	}
+
 	if (Console == nullptr)
 	{
 		Console = &GDefaultConsole;
@@ -246,6 +259,11 @@ void ConsolePrintAtPos(const char16_t* String, int32_t& X, int32_t& Y, int32_t R
 
 void ConsolePrint(const char16_t* String, Console* Console)
 {
+	if (String == nullptr)
+	{
+		return;
+	}
+
 	SerialPrint(String);
 
 	if (Console == nullptr)

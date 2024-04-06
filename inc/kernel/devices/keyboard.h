@@ -3,6 +3,7 @@
 #include "kernel/devices/virtual_key.h"
 
 typedef const char16_t* KeyString;
+typedef const char16_t KeyChar;
 
 struct KeyLayout
 {

@@ -12,10 +12,11 @@ extern KeyLayout KeyboardLayout_British;
 
 KeyState PhysicalKeyState;
 
+void InsertInput(char input);
+
 uint32_t KeyboardInterrupt(void* Context)
 {
 	uint64_t status = InPort(0x64);
-	uint8_t ascii = '?';
 	bool released = false;
 	if(status & 0x1)
 	{
@@ -35,27 +36,26 @@ uint32_t KeyboardInterrupt(void* Context)
 		PhysicalKeyState.UpdateKeyState(LastScancode);
 
 		KeyString ascii = PhysicalKeyState.GetPrintable(LastScancode, CurrentKeyboardLayout);
-		if(ascii)
+		if (ascii)
 		{
 			ConsolePrint(ascii);
+			KeyString asciiCopy = ascii;
+			while (*asciiCopy)
+			{
+				InsertInput((char)*(asciiCopy++));
+			}
 		}
 
-		bool released = PhysicalKeyState.IsReleased(LastScancode);
-
+		/*bool released = PhysicalKeyState.IsReleased(LastScancode);
 		if(released)
 		{
-			SerialPrint(u"Released scancode: 0x");
+			//SerialPrint(u"Released scancode: 0x");
 			LastScancode -= 0x80;
 		}
 		else
 		{
-			SerialPrint(u"Pressed Scancode: 0x");
-		}
-			
-		char16_t Buffer[16];
-		witoabuf(Buffer, (uint32_t)LastScancode, 16);
-		SerialPrint(Buffer);
-		SerialPrint(u"\r\n");
+			//SerialPrint(u"Pressed Scancode: 0x");
+		}*/
 	}
 }
 
