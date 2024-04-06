@@ -223,7 +223,7 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 
 	ConsolePrint(u"\n#>\n");*/
 
-	ConsolePrint(u"\x25B6\n");
+	ConsolePrint(u"\x25B6 ");
 
 	VerboseLog(u"Halted.\n");
 	
