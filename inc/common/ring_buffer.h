@@ -42,6 +42,13 @@ public:
 		out = item;
 	}
 
+    void Clear()
+    {
+        Head = 0;
+        Tail = 0;
+        IsFull = 0;
+    }
+
     size_t PopElements(T* outputBuffer, size_t count)
     {
         size_t elementsCount = 0;

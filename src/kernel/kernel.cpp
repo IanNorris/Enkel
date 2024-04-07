@@ -189,9 +189,10 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 
 	const char16_t* envp[] = { u"LD_WARN=1", nullptr};
 
-	const char16_t* argvStdio[] = { u"/stdio_test", nullptr };
-	ConsolePrint(u"\x25B6 stdio_test\n");
-	RunProgram(u"/stdio_test", argvStdio, envp);
+	const char16_t* argvStdio[] = { u"/bash", nullptr };
+	ConsolePrint(u"\x25B6 bash\n");
+	RunProgram(u"/bash", argvStdio, envp);
+
 	/*
 	const char* argvBash[] = { "/busybox", "ash", nullptr};
 	const char* envBash[] = { "LD_WARN=1", nullptr};
@@ -223,7 +224,35 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 
 	ConsolePrint(u"\n#>\n");*/
 
+	constexpr int bufferSize = 1024;
+	char buffer[bufferSize];
+	char16_t bufferWide[bufferSize];
+	int cursorPos = 0;
+
+	ClearInput();
 	ConsolePrint(u"\x25B6 ");
+
+	while (true)
+	{
+		size_t read = ReadInputBlocking(buffer + cursorPos, bufferSize);
+		buffer[read + cursorPos] = 0;
+
+		cursorPos += read;
+
+		if (buffer[cursorPos - 1] == '\n')
+		{
+			buffer[cursorPos - 1] = 0;
+
+			ascii_to_wide(bufferWide, buffer, bufferSize);
+
+			const char16_t* argv1[] = { bufferWide, nullptr };
+			RunProgram(bufferWide, argv1, envp);
+
+			cursorPos = 0;
+			ClearInput();
+			ConsolePrint(u"\x25B6 ");
+		}
+	}
 
 	VerboseLog(u"Halted.\n");
 	

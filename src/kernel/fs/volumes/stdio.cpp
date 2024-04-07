@@ -19,6 +19,34 @@ void InsertInput(char input)
 	InputBuffer.Push(input);
 }
 
+void ClearInput()
+{
+	InputBuffer.Clear();
+}
+
+size_t ReadInputNoBlocking(char* buffer, size_t size)
+{
+	return InputBuffer.PopElements(buffer, size);
+}
+
+size_t ReadInputBlocking(char* buffer, size_t size)
+{
+	size_t read;
+
+	do
+	{
+		read = ReadInputNoBlocking(buffer, size);
+		if (read == 0)
+		{
+			asm("sti");
+
+			asm("hlt");
+		}
+	} while (read == 0);
+
+	return read;
+}
+
 BMFontColor StdErrColour = { 255, 0, 0 };
 
 VolumeReadType StandardInputVolume_Read = 
@@ -31,20 +59,7 @@ VolumeReadType StandardInputVolume_Read =
 
 	if (handle == 0)
 	{	
-		size_t read;
-		
-		do
-		{
-			read = InputBuffer.PopElements((char*)buffer, size);
-			if (read == 0)
-			{
-				asm("sti");
-
-				asm("hlt");
-			}
-		} while (read == 0);
-
-		return read;
+		return ReadInputBlocking((char*)buffer, size);
 	}
 
 	return 0ULL;
