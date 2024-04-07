@@ -114,6 +114,21 @@ void InitHPET(EFI_ACPI_HIGH_PRECISION_EVENT_TIMER_TABLE_HEADER* Header)
 	//ConsolePrint(u"\n");
 }
 
+void HpetSleepNS(uint64_t nanoseconds)
+{
+	uint64_t Start = *HpetCounter;
+	uint64_t End = Start + (uint64_t)(nanoseconds * HpetTicksPerNanosecond) / 1000;
+
+	while (*HpetCounter < End)
+	{
+		asm volatile("pause");
+	}
+}
+
+#define NOP_10 asm volatile("nop; nop; nop; nop; nop; nop; nop; nop; nop; nop");
+#define NOP_100 NOP_10 NOP_10 NOP_10 NOP_10 NOP_10 NOP_10 NOP_10 NOP_10 NOP_10 NOP_10
+#define NOP_1000 NOP_100 NOP_100 NOP_100 NOP_100 NOP_100 NOP_100 NOP_100 NOP_100 NOP_100
+
 void HpetSleepUS(uint64_t microseconds)
 {
 	uint64_t Start = *HpetCounter;
@@ -121,7 +136,7 @@ void HpetSleepUS(uint64_t microseconds)
 
 	while(*HpetCounter < End)
 	{
-		asm volatile("pause");
+		NOP_1000
 	}
 }
 

@@ -172,7 +172,15 @@ uint64_t VolumeSeek(VolumeFileHandle handle, int64_t offset, SeekMode origin)
 		return -EINVAL;
 	}
 
-	return volumeIndex->VolumeImplementation->Seek(handle, volumeIndex->Context, offset, origin);
+	if (volumeIndex->VolumeImplementation->Seek && handle != 0)
+	{
+
+ 		return volumeIndex->VolumeImplementation->Seek(handle, volumeIndex->Context, offset, origin);
+	}
+	else
+	{
+		return -EINVAL;
+	}
 }
 
 uint64_t VolumeCommand(VolumeFileHandle handle, uint64_t command, uint64_t data)

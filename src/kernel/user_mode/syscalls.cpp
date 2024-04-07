@@ -561,6 +561,16 @@ int sys_getpid()
 	return 1;
 }
 
+int sys_clock_nanosleep(const clockid_t which_clock, int flags, const struct timespec* rqtp, struct timespec* rmtp)
+{
+	if (rqtp)
+	{
+		HpetSleepMS(rqtp->tv_nsec / (1000 * 1000));
+	}
+
+	return 0;
+}
+
 //WARNING: Don't forget to update the hardcoded limit in dispatcher.asm!
 #define SYSCALL_MAX 400
 
@@ -811,7 +821,7 @@ void* SyscallTable[SYSCALL_MAX] =
 	(void*)sys_not_implemented, // NotImplemented227,
 	(void*)sys_clock_gettime, // 228,
 	(void*)sys_not_implemented, // NotImplemented229,
-	(void*)sys_not_implemented, // NotImplemented230,
+	(void*)sys_clock_nanosleep, // 230,
 	(void*)sys_exit, // TODO sys_exit_group 231
 	(void*)sys_not_implemented, // NotImplemented232,
 	(void*)sys_not_implemented, // NotImplemented233,

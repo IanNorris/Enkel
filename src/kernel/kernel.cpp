@@ -17,6 +17,7 @@
 #include "kernel/init/acpi.h"
 #include "kernel/user_mode/syscall.h"
 #include "kernel/user_mode/elf.h"
+#include "kernel/scheduling/time.h"
 
 #include "Protocol/DevicePath.h"
 #include "kernel/devices/ahci/cdrom.h"
@@ -169,10 +170,19 @@ void Shell()
 		{
 			buffer[cursorPos - 1] = 0;
 
-			ascii_to_wide(bufferWide, buffer, bufferSize);
+			if (strcmp(buffer, "doom") == 0)
+			{
+				char16_t programName[] = u"/doomgeneric";
+				const char16_t* argvDoom[] = { programName, u"-iwad", u"/doom.wad", nullptr};
+				RunProgram(programName, argvDoom, envp);
+			}
+			else
+			{
+				ascii_to_wide(bufferWide, buffer, bufferSize);
 
-			const char16_t* argv1[] = { bufferWide, nullptr };
-			RunProgram(bufferWide, argv1, envp);
+				const char16_t* argv1[] = { bufferWide, nullptr };
+				RunProgram(bufferWide, argv1, envp);
+			}
 
 			cursorPos = 0;
 			ClearInput();
