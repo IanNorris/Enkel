@@ -38,7 +38,7 @@ bool VirtualFree(void* Address, uint64_t ByteSize)
 	return true;
 }
 
-void VirtualProtect(void* Address, uint64_t ByteSize, MemoryProtection ProtectFlags, PageFlags pageFlags)
+void VirtualProtect(void* Address, uint64_t ByteSize, MemoryProtection ProtectFlags, PageFlags pageFlags, PrivilegeLevel privilegeLevel)
 {
 	uint64_t PhysicalAddress = GetPhysicalAddress((uint64_t)Address);
     uint64_t VirtualAddress = (uint64_t)Address;
@@ -59,5 +59,5 @@ void VirtualProtect(void* Address, uint64_t ByteSize, MemoryProtection ProtectFl
 			executable = true;
 	}
 
-    MapPages(VirtualAddress, PhysicalAddress, ByteSize, writable, executable, PrivilegeLevel::Keep, MemoryState::RangeState::Used, pageFlags);
+    MapPages(VirtualAddress, PhysicalAddress, ByteSize, writable, executable, privilegeLevel, MemoryState::RangeState::Used, pageFlags);
 }

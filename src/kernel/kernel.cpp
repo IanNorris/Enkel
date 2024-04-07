@@ -25,6 +25,7 @@
 #include "fs/volume.h"
 #include "fs/volumes/stdio.h"
 #include "fs/volumes/proc.h"
+#include "fs/volumes/device.h"
 
 #include <ff.h>
 
@@ -128,6 +129,23 @@ FRESULT scan_files (
     return res;
 }
 
+void InitFS(EFI_DEV_PATH* devicePath)
+{
+	VerboseLog(u"Mounting filesystem...\n");
+	InitializeVolumeSystem();
+	InitializeStdioVolumes();
+	InitializeSpecialProcVolumes();
+	InitializeDeviceVolumes();
+
+	SataBus* sataBus = (SataBus*)rpmalloc(sizeof(SataBus));
+	sataBus->Initialize(devicePath);
+
+	CdRomDevice* cdromDevice = (CdRomDevice*)rpmalloc(sizeof(CdRomDevice));
+	cdromDevice->Initialize(devicePath, sataBus);
+
+	MountFatVolume(u"/", cdromDevice->GetVolumeId());
+}
+
 void Shell()
 {
 	const char16_t* envp[] = { u"HOME=/", nullptr };
@@ -203,20 +221,7 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 
 	//WalkAcpiTree();
 
-	VerboseLog(u"Mounting filesystem...\n");
-	InitializeVolumeSystem();
-	InitializeStdioVolumes();
-	InitializeSpecialProcVolumes();
-
-	EFI_DEV_PATH* devicePath = (EFI_DEV_PATH*)BootData->BootDevicePath;
-
-	SataBus* sataBus = (SataBus*)rpmalloc(sizeof(SataBus));
-	sataBus->Initialize(devicePath);
-
-	CdRomDevice* cdromDevice = (CdRomDevice*)rpmalloc(sizeof(CdRomDevice));
-	cdromDevice->Initialize(devicePath, sataBus);
-
-	MountFatVolume(u"/", cdromDevice->GetVolumeId());
+	InitFS((EFI_DEV_PATH*)BootData->BootDevicePath);
 
 	InitializeUserMode();
 

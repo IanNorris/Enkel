@@ -16,7 +16,7 @@ struct SpecialPathEntry
 
 static const SpecialPathEntry SpecialPaths[] =
 {
-	{ u"/proc/sys/kernel/osrelease", "dev" },
+	{ u"/sys/kernel/osrelease", "dev" },
 
 	{ nullptr, nullptr }
 };

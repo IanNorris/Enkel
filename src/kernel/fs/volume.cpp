@@ -7,13 +7,6 @@
 #include "xxhash.h"
 #include <errno.h>
 
-struct VolumePage
-{
-	VolumeIndex Volumes[VOLUMES_PER_PAGE];
-	VolumePage* Next;
-	uint64_t Unused;
-} PACKED_ALIGNMENT;
-
 VolumePage* VolumeIndices[MAX_SEGMENTS];
 
 static_assert(sizeof(VolumeIndex) == 24, "VolumeIndex should be 16b");
@@ -41,20 +34,6 @@ MountPointHash VolumeHashPath(const char16_t* path)
 		if(path[index] == '/')
 		{
 			out.Segments++;
-		}
-	}
-
-	//If our path starts or ends with a slash, we don't count it as a segment
-	if(stringLength > 1)
-	{
-		if(path[0] == '/')
-		{
-			out.Segments--;
-		}
-
-		if(path[stringLength - 1] == '/')
-		{
-			out.Segments--;
 		}
 	}
 
@@ -196,6 +175,23 @@ uint64_t VolumeSeek(VolumeFileHandle handle, int64_t offset, SeekMode origin)
 	return volumeIndex->VolumeImplementation->Seek(handle, volumeIndex->Context, offset, origin);
 }
 
+uint64_t VolumeCommand(VolumeFileHandle handle, uint64_t command, uint64_t data)
+{
+	VolumeIndex* volumeIndex = GetVolumeIndex(handle);
+
+	if (!(volumeIndex && volumeIndex->VolumeImplementation))
+	{
+		return -EINVAL;
+	}
+
+	if (volumeIndex->VolumeImplementation->Command)
+	{
+		return volumeIndex->VolumeImplementation->Command(handle, volumeIndex->Context, command, data);
+	}
+
+	return -EINVAL;
+}
+
 //Pass in a path like /dev1/thing/abc and get
 //back the supporting volume, and any path remaining
 VolumeHandle BreakPath(const char16_t*& pathInOut)
@@ -233,6 +229,10 @@ VolumeHandle BreakPath(const char16_t*& pathInOut)
 					previousLongest.S.VolumePageIndex = 0; //TODO
 					previousLongest.S.VolumeIndex = pageIndex;
 					previousPathInOut = &pathInOut[index];
+				}
+				else if (page->Volumes[pageIndex].RootHash == 0)
+				{
+					break;
 				}
 			}
 		}

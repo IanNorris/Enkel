@@ -14,15 +14,21 @@
 
 #include "kernel/user_mode/syscall.h"
 #include "kernel/process/process.h"
+#include "kernel/scheduling/time.h"
 
 #include <sys/utsname.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <fcntl.h>
 #include <linux/openat2.h>
+#include <sys/time.h>
 
 #include "kernel/memory/pml4.h"
 #include "kernel/process/process.h"
+
+#include "kernel/framebuffer/framebuffer.h"
+#include "kernel/init/bootload.h"
+extern KernelBootData GBootData;
 
 #define ARCH_SET_GS 0x1001
 #define ARCH_SET_FS 0x1002
@@ -286,6 +292,15 @@ void* sys_memory_map(void *address,size_t length,int prot,int flags,int fd, uint
 		MapPages((uint64_t)address, PhysicalAddress, alignedSize, /*writable*/true, /*executable*/true, PrivilegeLevel::User, MemoryState::RangeState::Used);
 	}
 
+	//EPIC BODGE
+	FileHandleMask FH;
+	FH.FileHandle = fd;
+	VolumeIndex* volumeIndex = GetVolumeIndex(FH.FileHandle);
+	if (volumeIndex && volumeIndex->VolumeImplementation && FH.S.Segments == 2)
+	{
+		return GBootData.Framebuffer.Base;
+	}
+
 	if (fd == -1)
 	{
 		void* memory = address != nullptr ? address : VirtualAlloc(alignedSize, PrivilegeLevel::User);
@@ -481,6 +496,11 @@ int sys_newfstatat(int dfd, const char* filename, struct stat* statbuf, int flag
 	}
 }
 
+int sys_ioctl(unsigned int fd, unsigned int cmd, unsigned long arg)
+{
+	return VolumeCommand(fd, cmd, arg);
+}
+
 int sys_lseek(unsigned int fd, off_t offset, unsigned int origin)
 {
 	SeekMode mode;
@@ -500,6 +520,33 @@ int sys_lseek(unsigned int fd, off_t offset, unsigned int origin)
 	}
 
 	return VolumeSeek(fd, offset, mode);
+}
+
+int sys_gettimeofday(struct timeval* tv, struct timezone* tz)
+{
+	memset(tv, 0, sizeof(tv));
+	memset(tz, 0, sizeof(tz));
+
+	static uint64_t start_tsc = 0;
+	static uint64_t curr_tsc = 0;
+	static uint64_t tsc_to_us = 0;
+
+	if (start_tsc == 0) {
+		// Initialize the start timestamp and the conversion factor
+		start_tsc = _rdtsc();
+	}
+
+	curr_tsc += 1000000;
+
+	tv->tv_sec = (long)(curr_tsc / 1000000000);
+	tv->tv_usec = (suseconds_t)(tv->tv_sec) % 1000000;
+
+	if (tz) {
+		tz->tz_minuteswest = 0;
+		tz->tz_dsttime = 0;
+	}
+
+	return 0;
 }
 
 int sys_set_tid_address(int* tidptr)
@@ -537,7 +584,7 @@ void* SyscallTable[SYSCALL_MAX] =
 	(void*)sys_not_implemented, // NotImplemented13,
 	(void*)sys_not_implemented, // NotImplemented14,
 	(void*)sys_not_implemented, // NotImplemented15,
-	(void*)sys_not_implemented, // NotImplemented16,
+	(void*)sys_ioctl, // 16,
 	(void*)sys_pread64, // 17,
 	(void*)sys_not_implemented, // NotImplemented18,
 	(void*)sys_not_implemented, // NotImplemented19,
@@ -586,10 +633,10 @@ void* SyscallTable[SYSCALL_MAX] =
 	(void*)sys_not_implemented, // NotImplemented58,
 	(void*)sys_execve, // 59,
 	
-	(void*)sys_exit,			// Exit,
+	(void*)sys_exit,			// 60,
 	(void*)sys_not_implemented, // NotImplemented61,
 	(void*)sys_not_implemented, // NotImplemented62,
-	(void*)sys_uname,			// uname,
+	(void*)sys_uname,			// 63,
 	(void*)sys_not_implemented, // NotImplemented64,
 	(void*)sys_not_implemented, // NotImplemented65,
 	(void*)sys_not_implemented, // NotImplemented66,
@@ -606,7 +653,7 @@ void* SyscallTable[SYSCALL_MAX] =
 	(void*)sys_not_implemented, // NotImplemented76,
 	(void*)sys_not_implemented, // NotImplemented77,
 	(void*)sys_not_implemented, // NotImplemented78,
-	(void*)sys_getcwd, // NotImplemented79,
+	(void*)sys_getcwd, // 79,
 
 	(void*)sys_not_implemented, // NotImplemented80,
 	(void*)sys_not_implemented, // NotImplemented81,
@@ -625,7 +672,7 @@ void* SyscallTable[SYSCALL_MAX] =
 	(void*)sys_not_implemented, // NotImplemented93,
 	(void*)sys_not_implemented, // NotImplemented94,
 	(void*)sys_not_implemented, // NotImplemented95,
-	(void*)sys_not_implemented, // NotImplemented96,
+	(void*)sys_gettimeofday, // 96,
 	(void*)sys_not_implemented, // NotImplemented97,
 	(void*)sys_not_implemented, // NotImplemented98,
 	(void*)sys_not_implemented, // NotImplemented99,

@@ -1,5 +1,10 @@
 #pragma once
 
+#define VOLUMES_PER_PAGE 170
+#define MAX_SEGMENTS 8
+
+#define MAX_RESERVED_FILE_HANDLE 1024
+
 enum class FileAccessMode : uint8_t
 {
 	Read = 1,
@@ -26,6 +31,7 @@ typedef uint64_t (*VolumeReadType)(VolumeFileHandle handle, void* context, uint6
 typedef uint64_t (*VolumeWriteType)(VolumeFileHandle handle, void* context, uint64_t offset, const void* buffer, uint64_t size);
 typedef uint64_t (*VolumeGetSizeType)(VolumeFileHandle handle, void* context);
 typedef uint64_t (*VolumeSeekType)(VolumeFileHandle handle, void* context, int64_t offset, SeekMode origin);
+typedef uint64_t(*VolumeCommandType)(VolumeFileHandle handle, void* context, uint64_t command, uint64_t data);
 
 struct MountPointHash
 {
@@ -44,6 +50,7 @@ struct Volume
 	VolumeWriteType Write;
 	VolumeGetSizeType GetSize;
 	VolumeSeekType Seek;
+	VolumeCommandType Command;
 };
 
 // A volume index is a mapping from a mount
@@ -59,6 +66,13 @@ struct VolumeIndex
 	PathHash RootHash;
 	const Volume* VolumeImplementation;
 	void* Context;
+} PACKED_ALIGNMENT;
+
+struct VolumePage
+{
+	VolumeIndex Volumes[VOLUMES_PER_PAGE];
+	VolumePage* Next;
+	uint64_t Unused;
 } PACKED_ALIGNMENT;
 
 //glibc only supports 32bit file handles
@@ -96,15 +110,11 @@ struct FileHandleMask
 	};
 } PACKED_ALIGNMENT;
 
-#define VOLUMES_PER_PAGE 170
-#define MAX_SEGMENTS 8
-
-#define MAX_RESERVED_FILE_HANDLE 1024
-
 void InitializeVolumeSystem();
 MountPointHash VolumeHashPath(const char16_t* path);
 VolumeHandle MountVolume(const Volume* volume, const char16_t* rootPath, void* volumeContext);
 void UnmountVolume(VolumeHandle handle);
+VolumeIndex* GetVolumeIndex(VolumeHandle handle);
 
 VolumeFileHandle VolumeOpenHandle(VolumeFileHandle volumeHandle, const char16_t* path, uint8_t mode);
 void VolumeCloseHandle(VolumeFileHandle handle);
@@ -112,6 +122,7 @@ uint64_t VolumeRead(VolumeFileHandle handle, uint64_t offset, void* buffer, uint
 uint64_t VolumeWrite(VolumeFileHandle handle, uint64_t offset, const void* buffer, uint64_t size);
 uint64_t VolumeGetSize(VolumeFileHandle handle);
 uint64_t VolumeSeek(VolumeFileHandle handle, int64_t offset, SeekMode origin);
+uint64_t VolumeCommand(VolumeFileHandle handle, uint64_t command, uint64_t data);
 
 //Pass in a path like /dev1/thing/abc and get
 //back the supporting volume, and any path remaining
