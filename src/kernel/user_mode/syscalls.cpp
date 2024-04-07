@@ -129,14 +129,22 @@ uint64_t __attribute__((sysv_abi,used)) sys_arch_prctl(int code, unsigned long *
 
 uint64_t sys_access(const char *filename, int mode)
 {
-	SerialPrint("access: ");
-	SerialPrint(filename);
-	SerialPrint("\n");
+	//TODO: Remove this hack!
+	if (filename && filename[0] == '.')
+	{
+		filename++;
+	}
 
-	//TODO check if exists
-	//For now, YOLO
+	char16_t wideName[256];
+	ascii_to_wide(wideName, filename, 256);
+	uint64_t handle = VolumeOpenHandle(0, wideName, mode);
+	if (handle == 0)
+	{
+		return -ENOENT;
+	}
+	VolumeCloseHandle(handle);
 
-	return R_OK;
+	return 0;
 }
 
 int sys_getrandom(char* buf, size_t count, unsigned int flags)
@@ -168,6 +176,12 @@ int sys_write(uint64_t fileHandle, void* data, uint64_t dataSize)
 
 int sys_open(const char* filename, int flags, int mode)
 {
+	//TODO: Remove this hack!
+	if (filename && filename[0] == '.')
+	{
+		filename++;
+	}
+
 	//TODO Buffer check
 	char16_t wideName[256];
 	ascii_to_wide(wideName, filename, 256);
@@ -301,6 +315,12 @@ int sys_mprotect(unsigned long start, size_t len, unsigned long prot)
 
 int sys_execve(const char* filename, const char* const argv[], const char* const envp[])
 {
+	//TODO: Remove this hack!
+	if (filename && filename[0] == '.')
+	{
+		filename++;
+	}
+
 	const int64_t maxLength = 1 << 30;
 
 	//Pre-calculate the size of the memory block so we can get args in the right order later ith less fuss
@@ -396,6 +416,12 @@ int sys_uname(struct utsname* buf)
 
 int sys_openat(int dfd, const char* filename, int flags, uint64_t mode)
 {
+	//TODO: Remove this hack!
+	if (filename && filename[0] == '.')
+	{
+		filename++;
+	}
+
 	//TODO Buffer check
 	char16_t wideName[256];
 	ascii_to_wide(wideName, filename, 256);
@@ -417,6 +443,12 @@ static int inodeTemp = 0;
 
 int sys_newfstatat(int dfd, const char* filename, struct stat* statbuf, int flag)
 {
+	//TODO: Remove this hack!
+	if (filename && filename[0] == '.')
+	{
+		filename++;
+	}
+
 	memset(statbuf, 0, sizeof(statbuf));
 
 	uint64_t size = VolumeGetSize(dfd);
@@ -447,6 +479,11 @@ int sys_newfstatat(int dfd, const char* filename, struct stat* statbuf, int flag
 	{
 		return 0;
 	}
+}
+
+int sys_lseek(unsigned int fd, off_t offset, unsigned int origin)
+{
+
 }
 
 int sys_set_tid_address(int* tidptr)
