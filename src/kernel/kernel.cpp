@@ -130,7 +130,7 @@ FRESULT scan_files (
 
 void Shell()
 {
-	const char16_t* envp[] = { u"LD_WARN=1", nullptr };
+	const char16_t* envp[] = { u"HOME=/", nullptr };
 
 	constexpr int bufferSize = 1024;
 	char buffer[bufferSize];
