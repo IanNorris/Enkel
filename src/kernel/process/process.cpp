@@ -238,7 +238,10 @@ int RunProgram(const char16_t* programName, const char16_t** argv, const char16_
 {
 	Process* process = CreateProcess(programName, argv, envp);
 
-	DestroyProcess(process);
+	if (process)
+	{
+		DestroyProcess(process);
+	}
 
 	return 0; //TODO
 }
