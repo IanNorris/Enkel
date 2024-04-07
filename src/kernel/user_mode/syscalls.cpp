@@ -71,11 +71,17 @@ extern "C" uint64_t sys_not_implemented()
 	//witoabuf(Buffer, rip, 16, 8);
 	//ConsolePrint(Buffer);
 
-	ConsolePrint(u"\n");
+	//ConsolePrint(u"\n");
 
 	//PrintStackTrace(60, rip, rbp);
 
 	return -ENOSYS;
+}
+
+int sys_getcwd(char* buf, unsigned long size)
+{
+	strcpy(buf, "/");
+	return 0;
 }
 
 int sys_clock_gettime(const clockid_t which_clock, struct timespec* tp)
@@ -204,14 +210,14 @@ size_t sys_writev(int fileHandle, const struct iovec* iov, int iovcnt)
 
 void sys_exit(int64_t exitCode)
 {
-#if VERBOSE_LOGGING
+//#if VERBOSE_LOGGING
 	ConsolePrint(u"Exit 0x");
 
 	char16_t Buffer[10];
 	witoabuf(Buffer, (int32_t)exitCode, 10);
 	ConsolePrint(Buffer);
 	ConsolePrint(u"\n");
-#endif
+//#endif
 
 	ReturnToKernel();
 }
@@ -413,7 +419,9 @@ int sys_newfstatat(int dfd, const char* filename, struct stat* statbuf, int flag
 {
 	memset(statbuf, 0, sizeof(statbuf));
 
-	statbuf->st_size = VolumeGetSize(dfd);
+	uint64_t size = VolumeGetSize(dfd);
+
+	statbuf->st_size = size;
 
 	statbuf->st_dev = 0; //TODO
 	statbuf->st_ino = ++inodeTemp; //TODO
@@ -429,7 +437,16 @@ int sys_newfstatat(int dfd, const char* filename, struct stat* statbuf, int flag
 	//statbuf->st_mtime = 0; //TODO
 	//statbuf->st_ctime = 0; //TODO
 
-	return 0;
+	int64_t asError = (int64_t)size;
+
+	if (asError < 0)
+	{
+		return (int)asError;
+	}
+	else
+	{
+		return 0;
+	}
 }
 
 int sys_set_tid_address(int* tidptr)
@@ -533,7 +550,7 @@ void* SyscallTable[(int)SyscallIndex::Max] =
 	(void*)sys_not_implemented, // NotImplemented76,
 	(void*)sys_not_implemented, // NotImplemented77,
 	(void*)sys_not_implemented, // NotImplemented78,
-	(void*)sys_not_implemented, // NotImplemented79,
+	(void*)sys_getcwd, // NotImplemented79,
 
 	(void*)sys_not_implemented, // NotImplemented80,
 	(void*)sys_not_implemented, // NotImplemented81,

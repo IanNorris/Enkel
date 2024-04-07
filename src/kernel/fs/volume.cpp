@@ -5,6 +5,7 @@
 #include "fs/volume.h"
 
 #include "xxhash.h"
+#include <errno.h>
 
 struct VolumePage
 {
@@ -125,6 +126,11 @@ VolumeFileHandle VolumeOpenHandle(VolumeFileHandle volumeHandle, const char16_t*
 		volumeIndex = GetVolumeIndex(volumeHandle);
 	}
 
+	if (!(volumeIndex && volumeIndex->VolumeImplementation))
+	{
+		return -EINVAL;
+	}
+
 	VolumeFileHandle handle = volumeIndex->VolumeImplementation->OpenHandle(volumeHandle, volumeIndex->Context, path, mode);
 
 	return handle;
@@ -134,12 +140,22 @@ void VolumeCloseHandle(VolumeFileHandle handle)
 {
 	VolumeIndex* volumeIndex = GetVolumeIndex(handle);
 
+	if (!(volumeIndex && volumeIndex->VolumeImplementation))
+	{
+		return;
+	}
+
 	return volumeIndex->VolumeImplementation->CloseHandle(handle, volumeIndex->Context);
 }
 
 uint64_t VolumeRead(VolumeFileHandle handle, uint64_t offset, void* buffer, uint64_t size)
 {
 	VolumeIndex* volumeIndex = GetVolumeIndex(handle);
+
+	if (!(volumeIndex && volumeIndex->VolumeImplementation))
+	{
+		return -EINVAL;
+	}
 
 	return volumeIndex->VolumeImplementation->Read(handle, volumeIndex->Context, offset, buffer, size);
 }
@@ -148,12 +164,22 @@ uint64_t VolumeWrite(VolumeFileHandle handle, uint64_t offset, const void* buffe
 {
 	VolumeIndex* volumeIndex = GetVolumeIndex(handle);
 
+	if (!(volumeIndex && volumeIndex->VolumeImplementation))
+	{
+		return -EINVAL;
+	}
+
 	return volumeIndex->VolumeImplementation->Write(handle, volumeIndex->Context, offset, buffer, size);
 }
 
 uint64_t VolumeGetSize(VolumeFileHandle handle)
 {
 	VolumeIndex* volumeIndex = GetVolumeIndex(handle);
+
+	if (!(volumeIndex && volumeIndex->VolumeImplementation))
+	{
+		return -EINVAL;
+	}
 
 	return volumeIndex->VolumeImplementation->GetSize(handle, volumeIndex->Context);
 }

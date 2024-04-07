@@ -91,7 +91,7 @@ enum class SyscallIndex
 	NotImplemented76,
 	NotImplemented77,
 	NotImplemented78,
-	NotImplemented79,
+	sys_getcwd,
 
 	NotImplemented80,
 	NotImplemented81,
