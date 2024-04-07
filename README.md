@@ -10,15 +10,15 @@ The goal is to build an UEFI-only 64-bit kernel and environment. I'll keep going
 
 ## What does it look like?
 
-![A screenshot of Enkel running in qemu. Green text showing the boot up process on a blue background.](docs/images/screenshot1.png)
+![A screenshot of Enkel running in qemu. Green text showing the boot up process on a blue background.](docs/images/screenshot2.png)
 
 ## Why is it called Enkel?
 
 I was looking for non-English synonyms for "simple" and "small" and `enkel` means simple/easy/uncomplicated in Swedish and Norwegian. It also means grandson in German, which somewhat fits with my theme for an OS reborn without the legacy ball and chain of having to support *real hardware* that people actually own and use. Imagine that!
 
-## Can I use this as my main OS?
+## Can I use this as my main operating system?
 
-No. I don't think you can even call it an operating system at this point.
+No.
 
 ## Will it work on device X?
 
@@ -33,11 +33,18 @@ MIT
 * OSDev.org
 * Various other projects like this online (but don't copy them, where's the fun in that?)
 * ChatGPT (GPT-4 specifically) is great for explaining topics but should not be trusted for specific low-level details, especially if it involves any kind of numerical value. It may be great at simple projects but its code at the OS level is pretty terrible. Still, it can be useful as a starting point.
+* [OSDev Discord](https://wiki.osdev.org/Chat) - some great and very smart people over here from beginner to expert.
 * It can explain things like qemu interrupt dumps though, which is **exceedingly** useful.
 
 # What works
 
-The technical bits I've done so far. Hopefully useful to any would-be adventurers that stumble across this looking for working code.
+The headlines:
+* Basic user mode support with thin Linux ABI compatability - this means you can run a subset of Linux user mode applications like...
+* DOOM!
+
+![DOOM!](docs/images/doom.gif)
+
+The technical bits:
 
 * Scripts to build the ISO and makefiles to build everything
 * A VSCode environment that allows for debugging via qemu under Windows (using WSL)
@@ -52,23 +59,19 @@ The technical bits I've done so far. Hopefully useful to any would-be adventurer
 * Physical and Virtual memory allocation and protection flags
 * Walk the APIC, find the Local APIC (LAPIC), and initialize the APs
 * For each AP, step through 16-bit real mode, 32-bit protected mode then finally 64-bit long mode again and back into C
-* Keyboard input
-* Syscalls
+* Keyboard input and a very basic shell (`bash` support is ongoing)
+* Syscalls (Including a subset of Linux syscalls allowing for binary compatability)
 * User mode
+* Dynamic library loading (including glibc and dynamic linking)
+* Basic framebuffer support
 * PCI, AHCI and reading from ATAPI CD
 * FAT12, 16 & 32 (via library)
 
 # Next steps
 
-* Reading files from user mode
 * Major refactor, especially around SATA & CD-ROM support
 * Joliet/ISO 9660 CD format
 * HDD support
-* Basic shell and commands
 * Scheduling
-
-# Known issues
-
-* AHCI CD drive doesn't work on Windows under qemu
 
 (Not necessarily in this order)
