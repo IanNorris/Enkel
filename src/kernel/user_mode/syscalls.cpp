@@ -44,7 +44,7 @@ extern "C" void __attribute__((sysv_abi,noreturn)) ReturnToKernel();
 
 extern "C" uint64_t sys_dummy()
 {
-
+	return -EINVAL;
 }
 
 extern "C" uint64_t sys_not_implemented()
@@ -483,7 +483,23 @@ int sys_newfstatat(int dfd, const char* filename, struct stat* statbuf, int flag
 
 int sys_lseek(unsigned int fd, off_t offset, unsigned int origin)
 {
+	SeekMode mode;
+	switch(origin)
+	{
+	case SEEK_SET:
+		mode = SeekMode::Set;
+		break;
+	case SEEK_CUR:
+		mode = SeekMode::Current;
+		break;
+	case SEEK_END:
+		mode = SeekMode::End;
+		break;
+	default:
+		return -EINVAL;
+	}
 
+	return VolumeSeek(fd, offset, mode);
 }
 
 int sys_set_tid_address(int* tidptr)
@@ -498,7 +514,10 @@ int sys_getpid()
 	return 1;
 }
 
-void* SyscallTable[(int)SyscallIndex::Max] = 
+//WARNING: Don't forget to update the hardcoded limit in dispatcher.asm!
+#define SYSCALL_MAX 400
+
+void* SyscallTable[SYSCALL_MAX] =
 {
 	(void*)sys_read, // 0,
 	(void*)sys_write, // 1,
@@ -509,10 +528,10 @@ void* SyscallTable[(int)SyscallIndex::Max] =
 	(void*)sys_not_implemented, // NotImplemented5,
 	(void*)sys_not_implemented, // NotImplemented6,
 	(void*)sys_not_implemented, // NotImplemented7,
-	(void*)sys_not_implemented, // NotImplemented8,
+	(void*)sys_lseek, // 8,
 	(void*)sys_memory_map, 		// MemoryMap,
 
-	(void*)sys_mprotect,		// mprotect
+	(void*)sys_mprotect,		// 10
 	(void*)sys_not_implemented, // NotImplemented11,
 	(void*)sys_brk, // Break,
 	(void*)sys_not_implemented, // NotImplemented13,

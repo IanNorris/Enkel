@@ -7,6 +7,13 @@ enum class FileAccessMode : uint8_t
 	Append = 4,
 };
 
+enum class SeekMode : uint8_t
+{
+	Set,
+	Current,
+	End
+};
+
 typedef uint64_t PathHash;
 
 typedef uint64_t VolumeHandle;
@@ -18,6 +25,7 @@ typedef void (*VolumeCloseHandleType)(VolumeFileHandle handle, void* context);
 typedef uint64_t (*VolumeReadType)(VolumeFileHandle handle, void* context, uint64_t offset,void* buffer, uint64_t size);
 typedef uint64_t (*VolumeWriteType)(VolumeFileHandle handle, void* context, uint64_t offset, const void* buffer, uint64_t size);
 typedef uint64_t (*VolumeGetSizeType)(VolumeFileHandle handle, void* context);
+typedef uint64_t (*VolumeSeekType)(VolumeFileHandle handle, void* context, int64_t offset, SeekMode origin);
 
 struct MountPointHash
 {
@@ -35,6 +43,7 @@ struct Volume
 	VolumeReadType Read;
 	VolumeWriteType Write;
 	VolumeGetSizeType GetSize;
+	VolumeSeekType Seek;
 };
 
 // A volume index is a mapping from a mount
@@ -102,6 +111,7 @@ void VolumeCloseHandle(VolumeFileHandle handle);
 uint64_t VolumeRead(VolumeFileHandle handle, uint64_t offset, void* buffer, uint64_t size);
 uint64_t VolumeWrite(VolumeFileHandle handle, uint64_t offset, const void* buffer, uint64_t size);
 uint64_t VolumeGetSize(VolumeFileHandle handle);
+uint64_t VolumeSeek(VolumeFileHandle handle, int64_t offset, SeekMode origin);
 
 //Pass in a path like /dev1/thing/abc and get
 //back the supporting volume, and any path remaining

@@ -62,7 +62,8 @@ Volume SpecialProcVolume
 		return toCopy;
 	},
 	Write: nullptr,
-	GetSize: nullptr
+	GetSize: nullptr,
+	Seek : [](VolumeFileHandle handle, void* context, int64_t offset, SeekMode origin) -> uint64_t { return -EINVAL; }
 };
 
 void InitializeSpecialProcVolumes()

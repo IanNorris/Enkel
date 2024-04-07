@@ -144,7 +144,8 @@ Volume StandardIOVolume
 			return ~0ULL;
 		}
 	},
-	GetSize: [](VolumeFileHandle handle, void* context) -> uint64_t { return -EINVAL; }
+	GetSize: [](VolumeFileHandle handle, void* context) -> uint64_t { return -EINVAL; },
+	Seek: [](VolumeFileHandle handle, void* context, int64_t offset, SeekMode origin) -> uint64_t { return -EINVAL; },
 };
 
 void InitializeStdioVolumes()

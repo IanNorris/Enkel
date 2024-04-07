@@ -19,6 +19,7 @@
 #include <ff.h>
 #include <diskio.h>
 #include <rpmalloc.h>
+#include <errno.h>
 
 #include <fcntl.h>
 
@@ -201,11 +202,11 @@ VolumeReadType FatVolume_Read =
 
 	UINT bytesRead = 0;
 
-	uint64_t tell = f_tell(FileHandles[FH.S.FileHandle]);
+	int64_t tell = f_tell(FileHandles[FH.S.FileHandle]);
 
-	if (offset != -1)
+	if (offset != ~0ULL)
 	{
-		if (offset < 0)
+		if ((int64_t)offset < 0)
 		{
 			_ASSERTF(false, "Invalid offset");
 		}
@@ -217,7 +218,7 @@ VolumeReadType FatVolume_Read =
 
 	FRESULT fr = f_read(FileHandles[FH.S.FileHandle], buffer, size, &bytesRead);
 
-	if (offset != -1)
+	if (offset != ~0ULL)
 	{
 		f_lseek(FileHandles[FH.S.FileHandle], tell);
 	}
@@ -243,11 +244,11 @@ VolumeWriteType FatVolume_Write =
 
 	UINT bytesWritten = 0;
 
-	uint64_t tell = f_tell(FileHandles[FH.S.FileHandle]);
+	int64_t tell = f_tell(FileHandles[FH.S.FileHandle]);
 
-	if (offset != -1)
+	if (offset != ~0ULL)
 	{
-		if (offset < 0)
+		if ((int64_t)offset < 0)
 		{
 			_ASSERTF(false, "Invalid offset");
 		}
@@ -259,7 +260,7 @@ VolumeWriteType FatVolume_Write =
 
 	FRESULT fr = f_write(FileHandles[FH.S.FileHandle], buffer, size, &bytesWritten);
 
-	if (offset != -1)
+	if (offset != ~0ULL)
 	{
 		f_lseek(FileHandles[FH.S.FileHandle], tell);
 	}
@@ -283,13 +284,43 @@ VolumeGetSizeType FatVolume_GetSize =
 	return size;
 };
 
+VolumeSeekType FatVolume_Seek =
+[](VolumeFileHandle handle, void* context, int64_t offset, SeekMode origin) -> uint64_t
+{
+	FileHandleMask FH;
+	FH.FileHandle = handle;
+
+	if (origin == SeekMode::Set)
+	{
+		f_lseek(FileHandles[FH.S.FileHandle], offset);
+		return f_tell(FileHandles[FH.S.FileHandle]);
+	}
+	else if (origin == SeekMode::Current)
+	{
+		int64_t current = f_tell(FileHandles[FH.S.FileHandle]);
+		f_lseek(FileHandles[FH.S.FileHandle], offset + current);
+		return current + offset;
+	}
+	else if (origin == SeekMode::End)
+	{
+		int64_t size = f_size(FileHandles[FH.S.FileHandle]);
+		f_lseek(FileHandles[FH.S.FileHandle], size - offset);
+		return size - offset;
+	}
+	else
+	{
+		return -EINVAL;
+	}
+};
+
 Volume FatVolume
 {
 	OpenHandle: FatVolume_OpenHandle,
 	CloseHandle: FatVolume_CloseHandle,
 	Read: FatVolume_Read,
 	Write: FatVolume_Write,
-	GetSize: FatVolume_GetSize
+	GetSize: FatVolume_GetSize,
+	Seek: FatVolume_Seek
 };
 
 VolumeHandle MountFatVolume(const char16_t* mountPoint, VolumeHandle volume)

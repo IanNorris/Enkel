@@ -184,6 +184,18 @@ uint64_t VolumeGetSize(VolumeFileHandle handle)
 	return volumeIndex->VolumeImplementation->GetSize(handle, volumeIndex->Context);
 }
 
+uint64_t VolumeSeek(VolumeFileHandle handle, int64_t offset, SeekMode origin)
+{
+	VolumeIndex* volumeIndex = GetVolumeIndex(handle);
+
+	if (!(volumeIndex && volumeIndex->VolumeImplementation))
+	{
+		return -EINVAL;
+	}
+
+	return volumeIndex->VolumeImplementation->Seek(handle, volumeIndex->Context, offset, origin);
+}
+
 //Pass in a path like /dev1/thing/abc and get
 //back the supporting volume, and any path remaining
 VolumeHandle BreakPath(const char16_t*& pathInOut)
