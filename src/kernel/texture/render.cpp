@@ -4,6 +4,21 @@
 
 #include "qrcodegen.h"
 
+// Helper function to blend two 8-bit color components
+uint8_t BlendColourComponent(uint8_t src, uint8_t dst, uint8_t alpha)
+{
+	return (src * alpha + dst * (255 - alpha)) / 255;
+}
+
+// Function to apply transparency to a 24-bit color value
+uint32_t ApplyTransparency(uint32_t color, uint8_t alpha, uint32_t background)
+{
+	uint8_t r = BlendColourComponent((color >> 16) & 0xFF, (background >> 16) & 0xFF, alpha);
+	uint8_t g = BlendColourComponent((color >> 8) & 0xFF, (background >> 8) & 0xFF, alpha);
+	uint8_t b = BlendColourComponent(color & 0xFF, background & 0xFF, alpha);
+	return (r << 16) | (g << 8) | b;
+}
+
 void RenderTGA(FramebufferLayout* Framebuffer, const unsigned char* imageBuffer, int32_t StartX, int32_t StartY, AlignImage AlignX, AlignImage AlignY, bool transparent)
 {
 	const TGAHeader& header = *(const TGAHeader*)imageBuffer;
@@ -72,11 +87,19 @@ void RenderTGA(FramebufferLayout* Framebuffer, const unsigned char* imageBuffer,
 
 			uint32_t ReadPos = (y * PagePitch) + x;
 			uint32_t TextureChannel = Texture[ReadPos] & transparentMask;
+			uint32_t Transparency = (Texture[ReadPos] & ~transparentMask) >> 24;
 			
 			if (TextureChannel)
 			{
 				uint32_t OutputPos = (((height-y) + StartY) * FramebufferQuadPitch) + x + StartX;
-				FramebufferU32[OutputPos] = TextureChannel;
+				if (Transparency)
+				{
+					FramebufferU32[OutputPos] = ApplyTransparency(TextureChannel, Transparency, FramebufferU32[OutputPos]);
+				}
+				else
+				{
+					FramebufferU32[OutputPos] = TextureChannel;
+				}
 			}
 		}
 	}
