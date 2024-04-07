@@ -128,6 +128,41 @@ FRESULT scan_files (
     return res;
 }
 
+void Shell()
+{
+	const char16_t* envp[] = { u"LD_WARN=1", nullptr };
+
+	constexpr int bufferSize = 1024;
+	char buffer[bufferSize];
+	char16_t bufferWide[bufferSize];
+	int cursorPos = 0;
+
+	ClearInput();
+	ConsolePrint(u"\x25B6 ");
+
+	while (true)
+	{
+		size_t read = ReadInputBlocking(buffer + cursorPos, bufferSize);
+		buffer[read + cursorPos] = 0;
+
+		cursorPos += read;
+
+		if (buffer[cursorPos - 1] == '\n')
+		{
+			buffer[cursorPos - 1] = 0;
+
+			ascii_to_wide(bufferWide, buffer, bufferSize);
+
+			const char16_t* argv1[] = { bufferWide, nullptr };
+			RunProgram(bufferWide, argv1, envp);
+
+			cursorPos = 0;
+			ClearInput();
+			ConsolePrint(u"\x25B6 ");
+		}
+	}
+}
+
 extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootData * BootData)
 {
 	OnKernelMainHook();
@@ -187,77 +222,5 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 
 	VerboseLog(u"Kernel booted.\n\n");
 
-	const char16_t* envp[] = { u"LD_WARN=1", nullptr};
-
-	const char16_t* argvStdio[] = { u"/bash", nullptr };
-	ConsolePrint(u"\x25B6 bash\n");
-	RunProgram(u"/bash", argvStdio, envp);
-
-	/*
-	const char* argvBash[] = { "/busybox", "ash", nullptr};
-	const char* envBash[] = { "LD_WARN=1", nullptr};
-
-	sys_execve("/busybox", argvBash, envBash);
-
-	//const char16_t* argv1[] = { u"/hello_world", u"--mode", u"awesome", nullptr};
-	//ConsolePrint(u"Running hello_world\n");
-	//RunProgram(u"/hello_world", argv1, envp);
-
-	//const char16_t* argv2[] = { u"/tls_test", u"--mode", u"awesome", nullptr };
-	//ConsolePrint(u"\nRunning  tls_test\n");
-	//RunProgram(u"/tls_test", argv2, envp);
-
-	const char16_t* argv3[] = { u"/libc_test", u"--mode", u"awesome", nullptr };
-	ConsolePrint(u"\n> libc_test\n");
-	RunProgram(u"/libc_test", argv3, envp);
-
-
-	const char16_t* argv4[] = { u"/echo", u"This is a test", nullptr };
-	ConsolePrint(u"\n#> echo This is a test\n");
-	RunProgram(u"/echo", argv4, envp);*/
-
-	/*ConsolePrint(u"\nRunning  static_libc_test\n");
-	RunProgram(u"/static_libc_test");
-
-	ConsolePrint(u"\n#> libc_test\n");
-	RunProgram(u"libc_test");
-
-	ConsolePrint(u"\n#>\n");*/
-
-	constexpr int bufferSize = 1024;
-	char buffer[bufferSize];
-	char16_t bufferWide[bufferSize];
-	int cursorPos = 0;
-
-	ClearInput();
-	ConsolePrint(u"\x25B6 ");
-
-	while (true)
-	{
-		size_t read = ReadInputBlocking(buffer + cursorPos, bufferSize);
-		buffer[read + cursorPos] = 0;
-
-		cursorPos += read;
-
-		if (buffer[cursorPos - 1] == '\n')
-		{
-			buffer[cursorPos - 1] = 0;
-
-			ascii_to_wide(bufferWide, buffer, bufferSize);
-
-			const char16_t* argv1[] = { bufferWide, nullptr };
-			RunProgram(bufferWide, argv1, envp);
-
-			cursorPos = 0;
-			ClearInput();
-			ConsolePrint(u"\x25B6 ");
-		}
-	}
-
-	VerboseLog(u"Halted.\n");
-	
-	while(true)
-	{
-		asm volatile("hlt");
-	}
+	Shell();
 }
