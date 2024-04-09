@@ -152,16 +152,17 @@ void Shell()
 	const char16_t* envp[] = { u"HOME=/", nullptr };
 
 	constexpr int bufferSize = 1024;
-	char buffer[bufferSize];
+	uint8_t buffer[bufferSize];
 	char16_t bufferWide[bufferSize];
 	int cursorPos = 0;
 
-	ClearInput();
+	ClearInput(false);
+	ClearInput(true);
 	ConsolePrint(u"\x25B6 ");
 
 	while (true)
 	{
-		size_t read = ReadInputBlocking(buffer + cursorPos, bufferSize);
+		size_t read = ReadInputBlocking(buffer + cursorPos, bufferSize, false);
 		buffer[read + cursorPos] = 0;
 
 		cursorPos += read;
@@ -170,7 +171,10 @@ void Shell()
 		{
 			buffer[cursorPos - 1] = 0;
 
-			if (strcmp(buffer, "doom") == 0)
+			ClearInput(false);
+			ClearInput(true);
+
+			if (strcmp((const char*)buffer, "doom") == 0)
 			{
 				char16_t programName[] = u"/doomgeneric";
 				const char16_t* argvDoom[] = { programName, u"-iwad", u"/doom.wad", nullptr};
@@ -178,14 +182,15 @@ void Shell()
 			}
 			else
 			{
-				ascii_to_wide(bufferWide, buffer, bufferSize);
+				ascii_to_wide(bufferWide, (const char*)buffer, bufferSize);
 
 				const char16_t* argv1[] = { bufferWide, nullptr };
 				RunProgram(bufferWide, argv1, envp);
 			}
 
 			cursorPos = 0;
-			ClearInput();
+			ClearInput(false);
+			ClearInput(true);
 			ConsolePrint(u"\x25B6 ");
 		}
 	}

@@ -5,14 +5,13 @@
 #include "kernel/init/pic.h"
 #include "common/string.h"
 #include "memory/memory.h"
+#include "fs/volumes/stdio.h"
 
 KeyLayout* CurrentKeyboardLayout;
 
 extern KeyLayout KeyboardLayout_British;
 
 KeyState PhysicalKeyState;
-
-void InsertInput(char input);
 
 uint32_t KeyboardInterrupt(void* Context)
 {
@@ -42,20 +41,11 @@ uint32_t KeyboardInterrupt(void* Context)
 			KeyString asciiCopy = ascii;
 			while (*asciiCopy)
 			{
-				InsertInput((char)*(asciiCopy++));
+				InsertInput((char)*(asciiCopy++), false);
 			}
 		}
 
-		/*bool released = PhysicalKeyState.IsReleased(LastScancode);
-		if(released)
-		{
-			//SerialPrint(u"Released scancode: 0x");
-			LastScancode -= 0x80;
-		}
-		else
-		{
-			//SerialPrint(u"Pressed Scancode: 0x");
-		}*/
+		InsertInput(scancode, true);
 	}
 }
 

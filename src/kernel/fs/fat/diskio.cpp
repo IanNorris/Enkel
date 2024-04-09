@@ -313,6 +313,12 @@ VolumeSeekType FatVolume_Seek =
 	}
 };
 
+VolumeCommandType FatVolume_Command =
+[](VolumeFileHandle handle, void* context, uint64_t command, uint64_t data) -> uint64_t
+{
+	return -EINVAL;
+};
+
 Volume FatVolume
 {
 	OpenHandle: FatVolume_OpenHandle,
@@ -320,7 +326,8 @@ Volume FatVolume
 	Read: FatVolume_Read,
 	Write: FatVolume_Write,
 	GetSize: FatVolume_GetSize,
-	Seek: FatVolume_Seek
+	Seek: FatVolume_Seek,
+	Command: FatVolume_Command,
 };
 
 VolumeHandle MountFatVolume(const char16_t* mountPoint, VolumeHandle volume)

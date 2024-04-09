@@ -6,36 +6,58 @@
 #include "kernel/console/console.h"
 #include "errno.h"
 
-#define STDOUT_HANDLES 3
+#define STDOUT_HANDLES 4
 
 //TODO: Need to lock this
 char16_t ConsoleBuffer[1024];
 
-constexpr size_t InputBufferLength = 4 * 1024;
-RingBuffer<char, InputBufferLength> InputBuffer;
+constexpr size_t InputBufferLength = 1 * 1024;
+RingBuffer<uint8_t, InputBufferLength> InputBuffer;
+RingBuffer<uint8_t, InputBufferLength> InputScanCodeBuffer;
 
-void InsertInput(char input)
+void InsertInput(uint8_t input, bool scancode)
 {
-	InputBuffer.Push(input);
+	if (scancode)
+	{
+		InputScanCodeBuffer.Push(input);
+	}
+	else
+	{
+		InputBuffer.Push(input);
+	}
 }
 
-void ClearInput()
+void ClearInput(bool scancode)
 {
-	InputBuffer.Clear();
+	if (scancode)
+	{
+		InputScanCodeBuffer.Clear();
+	}
+	else
+	{
+		InputBuffer.Clear();
+	}
 }
 
-size_t ReadInputNoBlocking(char* buffer, size_t size)
+size_t ReadInputNoBlocking(uint8_t* buffer, size_t size, bool scancode)
 {
-	return InputBuffer.PopElements(buffer, size);
+	if (scancode)
+	{
+		return InputScanCodeBuffer.PopElements(buffer, size);
+	}
+	else
+	{
+		return InputBuffer.PopElements(buffer, size);
+	}
 }
 
-size_t ReadInputBlocking(char* buffer, size_t size)
+size_t ReadInputBlocking(uint8_t* buffer, size_t size, bool scancode)
 {
 	size_t read;
 
 	do
 	{
-		read = ReadInputNoBlocking(buffer, size);
+		read = ReadInputNoBlocking(buffer, size, scancode);
 		if (read == 0)
 		{
 			asm("sti");
@@ -59,7 +81,7 @@ VolumeReadType StandardInputVolume_Read =
 
 	if (handle == 0)
 	{	
-		return ReadInputBlocking((char*)buffer, size);
+		return ReadInputBlocking((uint8_t*)buffer, size, (uint64_t)context != 0);
 	}
 
 	return 0ULL;
@@ -68,12 +90,12 @@ VolumeReadType StandardInputVolume_Read =
 VolumeWriteType StandardOutputVolume_Write = 
 [](VolumeFileHandle handle, void* context, uint64_t offset, const void* buffer, uint64_t size) -> uint64_t
 {
-	const char* bufferString = (const char*)buffer;
+	const uint8_t* bufferString = (const uint8_t*)buffer;
 
 	uint64_t sizeRemaining = size;
 	while(sizeRemaining)
 	{
-		int written = ascii_to_wide(ConsoleBuffer, bufferString, sizeRemaining > 1024 ? 1024 : sizeRemaining);
+		int written = ascii_to_wide(ConsoleBuffer, (const char*)bufferString, sizeRemaining > 1024 ? 1024 : sizeRemaining);
 		ConsolePrint(ConsoleBuffer);
 
 		sizeRemaining -= written;
@@ -85,12 +107,12 @@ VolumeWriteType StandardOutputVolume_Write =
 VolumeWriteType StandardErrorVolume_Write = 
 [](VolumeFileHandle handle, void* context, uint64_t offset, const void* buffer, uint64_t size) -> uint64_t
 {
-	const char* bufferString = (const char*)buffer;
+	const uint8_t* bufferString = (const uint8_t*)buffer;
 	
 	uint64_t sizeRemaining = size;
 	while(sizeRemaining)
 	{
-		int written = ascii_to_wide(ConsoleBuffer, bufferString, sizeRemaining > 1024 ? 1024 : sizeRemaining);
+		int written = ascii_to_wide(ConsoleBuffer, (const char*)bufferString, sizeRemaining > 1024 ? 1024 : sizeRemaining);
 
 		int32_t x = -1;
 		int32_t y = -1;
@@ -108,14 +130,16 @@ VolumeWriteType StdioWriteFunctions[STDOUT_HANDLES] =
 {
 	nullptr,
 	StandardOutputVolume_Write,
-	StandardErrorVolume_Write
+	StandardErrorVolume_Write,
+	nullptr,
 };
 
 VolumeReadType StdioReadFunctions[STDOUT_HANDLES] = 
 {
 	StandardInputVolume_Read,
 	nullptr,
-	nullptr
+	nullptr,
+	StandardInputVolume_Read,
 };
 
 Volume StandardIOVolume
@@ -137,7 +161,7 @@ Volume StandardIOVolume
 	{
 		if(handle < STDOUT_HANDLES)
 		{
-			return StdioWriteFunctions[handle](handle, context, offset, buffer, size);
+			return StdioWriteFunctions[handle](handle, (uint8_t*)context, offset, buffer, size);
 		}
 		else
 		{
@@ -146,6 +170,7 @@ Volume StandardIOVolume
 	},
 	GetSize: [](VolumeFileHandle handle, void* context) -> uint64_t { return -EINVAL; },
 	Seek: [](VolumeFileHandle handle, void* context, int64_t offset, SeekMode origin) -> uint64_t { return -EINVAL; },
+	Command: nullptr,
 };
 
 void InitializeStdioVolumes()
@@ -153,4 +178,5 @@ void InitializeStdioVolumes()
 	MountVolume(&StandardIOVolume, u"stdin", (void*)0);
 	MountVolume(&StandardIOVolume, u"stdout", (void*)1);
 	MountVolume(&StandardIOVolume, u"stderr", (void*)2);
+	MountVolume(&StandardIOVolume, u"keyboard", (void*)3);
 }

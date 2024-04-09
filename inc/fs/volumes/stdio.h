@@ -2,7 +2,7 @@
 
 void InitializeStdioVolumes();
 
-void InsertInput(char input);
-void ClearInput();
-size_t ReadInputNoBlocking(char* buffer, size_t size);
-size_t ReadInputBlocking(char* buffer, size_t size);
+void InsertInput(uint8_t input, bool scancode);
+void ClearInput(bool scancode);
+size_t ReadInputNoBlocking(uint8_t* buffer, size_t size, bool scancode);
+size_t ReadInputBlocking(uint8_t* buffer, size_t size, bool scancode);
