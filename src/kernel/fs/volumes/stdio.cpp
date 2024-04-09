@@ -9,9 +9,9 @@
 #define STDOUT_HANDLES 4
 
 //TODO: Need to lock this
-char16_t ConsoleBuffer[1024];
+char16_t ConsoleBuffer[2048];
 
-constexpr size_t InputBufferLength = 1 * 1024;
+constexpr size_t InputBufferLength = 4 * 1024;
 RingBuffer<uint8_t, InputBufferLength> InputBuffer;
 RingBuffer<uint8_t, InputBufferLength> InputScanCodeBuffer;
 
@@ -79,12 +79,14 @@ VolumeReadType StandardInputVolume_Read =
 		return 0ULL;
 	}
 
-	if (handle == 0)
-	{	
-		return ReadInputBlocking((uint8_t*)buffer, size, (uint64_t)context != 0);
+	if ((uint64_t)handle == 0)
+	{
+		return ReadInputBlocking((uint8_t*)buffer, size, false);
 	}
-
-	return 0ULL;
+	else
+	{
+		return ReadInputNoBlocking((uint8_t*)buffer, size, true);
+	}
 };
 
 VolumeWriteType StandardOutputVolume_Write = 
@@ -144,7 +146,17 @@ VolumeReadType StdioReadFunctions[STDOUT_HANDLES] =
 
 Volume StandardIOVolume
 {
-	OpenHandle: [](VolumeFileHandle volumeHandle, void* context, const char16_t* path, uint8_t mode){ return (VolumeFileHandle)0ULL; },
+	OpenHandle: [](VolumeFileHandle volumeHandle, void* context, const char16_t* path, uint8_t mode)
+	{
+		if (path[0] == 'k')
+		{
+			return (VolumeFileHandle)3;
+		}
+		else
+		{
+			return (VolumeFileHandle)0;
+		}
+	},
 	CloseHandle: [](VolumeFileHandle handle, void* context){},
 	Read: [](VolumeFileHandle handle, void* context, uint64_t offset, void* buffer, uint64_t size) -> uint64_t
 	{
