@@ -1,15 +1,15 @@
 section .data
 
+extern MaybeSwapGS
+extern MaybeSwapGS
 extern LoadFS
 extern GetGS
-extern GKernelEnvironment
 
 %macro PushGeneralPurposeRegisters 0
     ; Red zone
     sub rsp, 128
 
     push rbp
-    pushfq
     push rax
     push rbx
     push rcx
@@ -41,28 +41,11 @@ extern GKernelEnvironment
     pop rcx
     pop rbx
     pop rax
-    popfq
     pop rbp
 
     ; Red zone
     add rsp, 128
 %endmacro
-
-maybe_swapgs:
-    push rax
-    call GetGS
-    cmp rax, [GKernelEnvironment]
-
-    je skip_gs
-
-    swapgs
-    call LoadFS
-
-skip_gs:
-
-    pop rax
-
-    ret
 
 
 %macro ISR_NO_ERROR 2
@@ -70,27 +53,27 @@ skip_gs:
     global ISR_%2
 	global DebugHook_ISR_%2
 ISR_%2:
-	nop
+	; Clear direction flag
+    cld
 DebugHook_ISR_%2:
 
     PushGeneralPurposeRegisters
 
-    ; Clear direction flag
-    cld
-
     mov rdi, %1							    ; Interrupt number
-    mov rsi, [rsp + (16*8) + (0*8) + 128] 	; RIP from EIP (param 1)
+    mov rsi, [rsp + (15*8) + (0*8) + 128] 	; RIP from EIP (param 1)
 	mov rdx, cr2 						    ; CR2 (param 2)
 	mov rcx, 0						 	    ; Error code (param 3)
-	mov r8,  [rsp + (16*8) + (1*8) + 128] 	; CS 
+	mov r8,  [rsp + (15*8) + (1*8) + 128] 	; CS 
 	mov r9,  rbp					    	; RBP
 
-	call maybe_swapgs
+	call MaybeSwapGS
+    push r8
     
     ; Call the function named ISR_Int_ followed by the given ISR name
     call ISR_Int_%2
 
-	call maybe_swapgs
+    pop r8
+	call MaybeSwapGS
 
     PopGeneralPurposeRegisters
 
@@ -104,6 +87,9 @@ DebugHook_ISR_%2:
 	global DebugHook_ISR_%2
 ISR_%2:
 
+    ; Clear direction flag
+    cld
+
 	sub rsp, 32
 DebugHook_ISR_%2:
 	add rsp, 32
@@ -111,26 +97,23 @@ DebugHook_ISR_%2:
 	; push 16 regs
     PushGeneralPurposeRegisters
 
-    ; Clear direction flag
-    cld
-
 	mov rdi, %1							    ; Interrupt number
-    mov rsi, [rsp + (16*8) + (1*8) + 128] 	; RIP from EIP (param 1)
+    mov rsi, [rsp + (15*8) + (1*8) + 128] 	; RIP from EIP (param 1)
 	mov rdx, cr2 						    ; CR2 (param 2)
-	mov rcx, [rsp + (16*8) + (0*8) + 128] 	; Error code (param 3)
-	mov r8,  [rsp + (16*8) + (2*8) + 128]	; CS 
+	mov rcx, [rsp + (15*8) + (0*8) + 128] 	; Error code (param 3)
+	mov r8,  [rsp + (15*8) + (2*8) + 128]	; CS 
 	mov r9,  rbp					 	    ; RBP
 
-	call maybe_swapgs
+	call MaybeSwapGS
+    push r8
    
     ; Call the function named ISR_Int_ followed by the given ISR name
     call ISR_Int_%2
 
-	call maybe_swapgs
+    pop r8
+	call MaybeSwapGS
 
     PopGeneralPurposeRegisters
-
-    
 
     ; Return from the interrupt
     iretq

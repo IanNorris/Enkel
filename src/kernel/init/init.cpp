@@ -41,7 +41,7 @@ void InitVirtualMemory(KernelBootData* bootData)
     BuildAndLoadPML4(bootData);
 
 	VerboseLog(u"Loading TSS...\n");
-	TSSRing0.Rsp0 = bootData->MemoryLayout.SpecialLocations[SpecialMemoryLocation_KernelStack].VirtualStart;
+	TSSRing0.Rsp0 = bootData->MemoryLayout.SpecialLocations[SpecialMemoryLocation_KernelStack].VirtualStart; //TODO this is probably wrong...
 	LoadTSS(offsetof(GDTDescriptors, TSS));
 
 	VerboseLog(u"Loading TLS...\n");

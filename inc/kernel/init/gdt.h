@@ -13,8 +13,9 @@ enum class GDTEntryIndex
 	Null,
 	KernelCode,
 	KernelData,
-	UserCode,
+    Star48, //Null2
 	UserData,
+    UserCode,
 
 	Max,
 

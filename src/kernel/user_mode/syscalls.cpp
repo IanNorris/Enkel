@@ -443,7 +443,7 @@ int sys_openat(int dfd, const char* filename, int flags, uint64_t mode)
 	ascii_to_wide(wideName, filename, 256);
 
 	uint64_t handle = VolumeOpenHandle(0, wideName, mode);
-	if (handle == 0)
+	if (handle < 0)
 	{
 		SerialPrint("sys_open: not found: ");
 		SerialPrint(filename);
@@ -1015,14 +1015,10 @@ void InitializeSyscalls()
     SetMSR(IA32_LSTAR, (uint64_t)&SyscallDispatcher);
 
 	uint64_t kernelCS = sizeof(GDTEntry) * (uint16_t)GDTEntryIndex::KernelCode;
-	uint64_t userCS = sizeof(GDTEntry) * (uint16_t)GDTEntryIndex::UserCode;
+	uint64_t userStar = sizeof(GDTEntry) * (uint16_t)GDTEntryIndex::Star48;
 
-	// Now, shift them into the correct bit positions for the IA32_STAR MSR
-	// See Intel SDM section 5.8.8 Fast System Calls in 64-Bit Mode
-	// When SYSRET transfers control to 64-bit mode user code using REX.W, the processor gets the privilege level 3
-	// target code segment, instruction pointer, stack segment, and flags as follows :
-	// * Target code segment — Reads a non-NULL selector from IA32_STAR[63:48] + 16.
-	uint64_t starMsrValue = ((userCS-0x10) << 48) | (kernelCS << 32);
+	//See comment at the top of gdt.cpp
+	uint64_t starMsrValue = (userStar << 48) | (kernelCS << 32);
 
 	SetMSR(IA32_STAR, starMsrValue);
 

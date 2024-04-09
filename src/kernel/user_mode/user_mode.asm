@@ -1,7 +1,12 @@
 section .text
+
+extern GKernelEnvironment
+extern GetGS
+
 global SwitchToUserMode
 global ReturnToKernel
 global LoadFS
+global MaybeSwapGS
 
 LoadFS:
 	; Set FSBase from [gs:0]
@@ -117,3 +122,21 @@ ReturnToKernel:
     pop rax
 
 	ret
+
+	; Uses r8 as input!
+MaybeSwapGS:
+    push rax
+
+    call GetGS
+
+	test r8, 0x3
+    jz SkipSwapGS
+
+    swapgs
+    call LoadFS
+
+SkipSwapGS:
+
+    pop rax
+
+    ret
