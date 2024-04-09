@@ -290,6 +290,7 @@ void* sys_memory_map(void *address,size_t length,int prot,int flags,int fd, uint
 
 		//TODO
 		MapPages((uint64_t)address, PhysicalAddress, alignedSize, /*writable*/true, /*executable*/true, PrivilegeLevel::User, MemoryState::RangeState::Used);
+		FillUnique((void*)address, 0x7FFFFFFF0000, alignedSize);
 	}
 
 	//EPIC BODGE
