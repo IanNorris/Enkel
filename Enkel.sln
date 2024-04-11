@@ -1,56 +1,26 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
-VisualStudioVersion = 17.6.33815.320
+VisualStudioVersion = 17.8.34511.84
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{D954291E-2A0B-460D-934E-DC6B0785DB48}") = "Enkel", "Enkel.shproj", "{22F07763-F744-4FC1-B31A-C03039142B72}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Enkel", "vs\Enkel.vcxproj", "{3D5E6E1B-4F00-483F-90D4-CD48B6FBF089}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{DDE565C2-0A83-4E35-BAF8-924289ECD9F6}"
-EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "EnkelDebugging", "EnkelDebugging\EnkelDebugging.vcxproj", "{57E9011E-27FA-43AF-BD76-0C148CD44A3F}"
+Project("{D954291E-2A0B-460D-934E-DC6B0785DB48}") = "EnkelSource", "EnkelSource.shproj", "{22F07763-F744-4FC1-B31A-C03039142B72}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
-		Debug|ARM = Debug|ARM
-		Debug|ARM64 = Debug|ARM64
 		Debug|x64 = Debug|x64
-		Debug|x86 = Debug|x86
-		Release|ARM = Release|ARM
-		Release|ARM64 = Release|ARM64
-		Release|x64 = Release|x64
-		Release|x86 = Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{57E9011E-27FA-43AF-BD76-0C148CD44A3F}.Debug|ARM.ActiveCfg = Debug|ARM
-		{57E9011E-27FA-43AF-BD76-0C148CD44A3F}.Debug|ARM.Build.0 = Debug|ARM
-		{57E9011E-27FA-43AF-BD76-0C148CD44A3F}.Debug|ARM.Deploy.0 = Debug|ARM
-		{57E9011E-27FA-43AF-BD76-0C148CD44A3F}.Debug|ARM64.ActiveCfg = Debug|ARM64
-		{57E9011E-27FA-43AF-BD76-0C148CD44A3F}.Debug|ARM64.Build.0 = Debug|ARM64
-		{57E9011E-27FA-43AF-BD76-0C148CD44A3F}.Debug|ARM64.Deploy.0 = Debug|ARM64
-		{57E9011E-27FA-43AF-BD76-0C148CD44A3F}.Debug|x64.ActiveCfg = Debug|x64
-		{57E9011E-27FA-43AF-BD76-0C148CD44A3F}.Debug|x64.Build.0 = Debug|x64
-		{57E9011E-27FA-43AF-BD76-0C148CD44A3F}.Debug|x64.Deploy.0 = Debug|x64
-		{57E9011E-27FA-43AF-BD76-0C148CD44A3F}.Debug|x86.ActiveCfg = Debug|x86
-		{57E9011E-27FA-43AF-BD76-0C148CD44A3F}.Debug|x86.Build.0 = Debug|x86
-		{57E9011E-27FA-43AF-BD76-0C148CD44A3F}.Debug|x86.Deploy.0 = Debug|x86
-		{57E9011E-27FA-43AF-BD76-0C148CD44A3F}.Release|ARM.ActiveCfg = Release|ARM
-		{57E9011E-27FA-43AF-BD76-0C148CD44A3F}.Release|ARM.Build.0 = Release|ARM
-		{57E9011E-27FA-43AF-BD76-0C148CD44A3F}.Release|ARM.Deploy.0 = Release|ARM
-		{57E9011E-27FA-43AF-BD76-0C148CD44A3F}.Release|ARM64.ActiveCfg = Release|ARM64
-		{57E9011E-27FA-43AF-BD76-0C148CD44A3F}.Release|ARM64.Build.0 = Release|ARM64
-		{57E9011E-27FA-43AF-BD76-0C148CD44A3F}.Release|ARM64.Deploy.0 = Release|ARM64
-		{57E9011E-27FA-43AF-BD76-0C148CD44A3F}.Release|x64.ActiveCfg = Release|x64
-		{57E9011E-27FA-43AF-BD76-0C148CD44A3F}.Release|x64.Build.0 = Release|x64
-		{57E9011E-27FA-43AF-BD76-0C148CD44A3F}.Release|x64.Deploy.0 = Release|x64
-		{57E9011E-27FA-43AF-BD76-0C148CD44A3F}.Release|x86.ActiveCfg = Release|x86
-		{57E9011E-27FA-43AF-BD76-0C148CD44A3F}.Release|x86.Build.0 = Release|x86
-		{57E9011E-27FA-43AF-BD76-0C148CD44A3F}.Release|x86.Deploy.0 = Release|x86
+		{3D5E6E1B-4F00-483F-90D4-CD48B6FBF089}.Debug|x64.ActiveCfg = Debug|x64
+		{3D5E6E1B-4F00-483F-90D4-CD48B6FBF089}.Debug|x64.Build.0 = Debug|x64
+		{3D5E6E1B-4F00-483F-90D4-CD48B6FBF089}.Debug|x64.Deploy.0 = Debug|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
-		SolutionGuid = {9838FD31-8A09-4546-A54E-D8904252DE88}
+		SolutionGuid = {82C00E12-5304-4707-9771-47E3FDE60801}
 	EndGlobalSection
 	GlobalSection(SharedMSBuildProjectFiles) = preSolution
 		Enkel.projitems*{22f07763-f744-4fc1-b31a-c03039142b72}*SharedItemsImports = 13
