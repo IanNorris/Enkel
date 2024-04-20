@@ -25,10 +25,6 @@ uint32_t KeyboardInterrupt(void* Context)
 			PhysicalKeyState.ExtendedKeyState = scancode;
 			return 0;
 		}
-		else
-		{
-			PhysicalKeyState.ExtendedKeyState = 0;
-		}
 		
 		uint32_t LastScancode = (PhysicalKeyState.ExtendedKeyState << 8) + scancode;
 
@@ -46,6 +42,8 @@ uint32_t KeyboardInterrupt(void* Context)
 		}
 
 		InsertInput(scancode, true);
+
+		PhysicalKeyState.ExtendedKeyState = 0;
 	}
 }
 

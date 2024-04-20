@@ -651,25 +651,36 @@ ACPI_STATUS AcpiOsReadPciConfiguration(
     UINT64 *Value,
     UINT32 Width)
 {
-	volatile UINT64* TargetAddress = PciConfigGetMMIOAddress(PciId->Bus, PciId->Device, PciId->Function, Register);
-
-    switch (Width)
-    {
-    case 8:
-        *reinterpret_cast<volatile UINT8*>(Value) = (UINT8)(*TargetAddress);
-        break;
-    case 16:
-        *reinterpret_cast<volatile UINT16*>(Value) = (UINT16)(*TargetAddress);
-        break;
-    case 32:
-        *reinterpret_cast<volatile UINT32*>(Value) = (UINT32)(*TargetAddress);
-        break;
-    case 64:
-        *Value = *TargetAddress;
-        break;
-    default:
+    // Validate parameters
+    if (Value == NULL || PciId == NULL) {
         return AE_BAD_PARAMETER;
     }
+
+    // Calculate the address in the PCI configuration space
+    volatile UINT64* TargetAddress = PciConfigGetMMIOAddress(PciId->Bus, PciId->Device, PciId->Function, Register);
+    if (TargetAddress == NULL) {
+        return AE_ERROR;
+    }
+
+    volatile UINT64* VirtualAddress = (volatile UINT64*)AcpiOsMapMemory((ACPI_PHYSICAL_ADDRESS)TargetAddress, PAGE_SIZE);
+
+    // Perform the read operation based on the specified width
+    switch (Width) {
+    case 8:
+        *Value = *VirtualAddress;
+        break;
+    case 16:
+        *Value = *(volatile UINT16*)VirtualAddress;
+        break;
+    case 32:
+        *Value = *(volatile UINT32*)VirtualAddress;
+        break;
+    case 64:
+        *Value = *VirtualAddress;
+        break;
+    }
+
+    AcpiOsUnmapMemory((void*)VirtualAddress, PAGE_SIZE);
 
     return AE_OK;
 }
@@ -906,7 +917,7 @@ AcpiOsStall (
     UINT32                  Microseconds)
 {
     //k_busy_wait (Microseconds);
-	NOT_IMPLEMENTED();
+	NOT_IMPLEMENTED(); //TODO: Required on real hardware
 }
 
 

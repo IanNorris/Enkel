@@ -5,7 +5,7 @@ override MAKEFLAGS += -rR
 # Change as needed.
 override KERNEL := enkel.elf
 
-override DEBUG_FLAGS := -ggdb3 -O0 -DDEBUG -D_DEBUG -DACPI_DEBUG_OUTPUT -DENABLE_STATISTICS=1 -DVERBOSE_LOGGING=0
+override DEBUG_FLAGS := -ggdb3 -O0 -DDEBUG -D_DEBUG -DACPI_DEBUG_OUTPUT -DENABLE_STATISTICS=1 -DVERBOSE_LOGGING=1
 #override DEBUG_FLAGS := -O3
 
 # The name of the font

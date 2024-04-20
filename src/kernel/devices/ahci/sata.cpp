@@ -92,10 +92,14 @@ bool SataBus::Initialize(EFI_DEV_PATH* devicePath)
 			uint64_t alignedSize = (size + (PAGE_SIZE-1)) & PAGE_MASK;
 
 			uint64_t physicalAddress = abar & ~0xF;
+			uint64_t physicalAddressAligned = physicalAddress & PAGE_MASK;
 
 			//TODO Free this
 			//Memory map BAR 5 register as uncacheable.
-			Memory = (HBAMemory*)PhysicalAlloc(physicalAddress, alignedSize, PrivilegeLevel::Kernel, PageFlags_Cache_Disable);
+			volatile uint8_t* hbaMemoryAligned = (volatile uint8_t*)PhysicalAlloc(physicalAddressAligned, alignedSize, PrivilegeLevel::Kernel, PageFlags_Cache_Disable);
+			hbaMemoryAligned += physicalAddress - physicalAddressAligned;
+
+			Memory = (HBAMemory*)hbaMemoryAligned;
 
 			VerboseSataLog(u"Valid bus processed.\n");
 

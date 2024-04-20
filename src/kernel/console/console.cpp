@@ -40,7 +40,7 @@ void InitializeSerial0()
 	else
 	{
 		EnableSerialOutput = false;
-		ConsolePrint(u"COM1 not detected.\n");
+		VerboseLog(u"COM1 not detected.\n");
 	}
 
 	OutPort(port + 4, 0x0F); // Disable loopback
@@ -224,36 +224,13 @@ void ConsolePrintAtPosWithColor(const char16_t* String, int32_t& X, int32_t& Y, 
 		ReturnX = Console->ReturnX;
 	}
 
+	SerialPrint(String);
+
 	BMFont_Render(Console->Font, &Console->Framebuffer, X, Y, ReturnX, String, ForegroundColor);
 }
 
 void ConsolePrintAtPos(const char16_t* String, int32_t& X, int32_t& Y, int32_t ReturnX, Console* Console)
 {
-	if (String == nullptr)
-	{
-		return;
-	}
-
-	if (Console == nullptr)
-	{
-		Console = &GDefaultConsole;
-	}
-
-	if (X == -1)
-	{
-		X = Console->CurrentX;
-	}
-
-	if (Y == -1)
-	{
-		Y = Console->CurrentY;
-	}
-
-	if (ReturnX == -1)
-	{
-		ReturnX = Console->ReturnX;
-	}
-
 	ConsolePrintAtPosWithColor(String, X, Y, ReturnX, Console->Foreground, Console);
 }
 
@@ -263,8 +240,6 @@ void ConsolePrint(const char16_t* String, Console* Console)
 	{
 		return;
 	}
-
-	SerialPrint(String);
 
 	if (Console == nullptr)
 	{

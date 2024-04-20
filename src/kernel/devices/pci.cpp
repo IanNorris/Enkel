@@ -32,7 +32,7 @@ extern "C" volatile UINT64* PciConfigGetMMIOAddress(UINT8 bus, UINT8 device, UIN
 		}
 	}
 
-	_ASSERTF(false, "Bus not found in MMIO");
+	_ASSERTFV(false, "Bus not found in MMIO", bus, device, function);
 
 	return nullptr;
 

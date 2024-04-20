@@ -189,6 +189,7 @@ void InitAPs()
 	{
 		if(ProcessorIds[processor] == BSPId)
 		{
+			VerboseLog(u"BSP skipped\n");
 			continue;
 		}
 
@@ -236,10 +237,14 @@ void InitAPs()
 
 		_ASSERTF(StartupAddress == StartupAddressTemp, "Misaligned AP startup vector");
 
+		VerboseLog(u"Before Write APIC\n");
+
 		// Set the target processor's APIC ID and send INIT IPI
 		WriteLocalApic( (uint32_t)LocalApicOffsets::ErrorStatusRegister, 0, ~0);
 		WriteLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterHigh, ProcessorIds[processor] << 24, 0xFF << 24);
 		WriteLocalApic( (uint32_t)LocalApicOffsets::InterruptCommandRegisterLow, LEVEL_TRIGGER | LEVEL_ASSERT | DELIVERY_MODE_INIT, 0xFFFFF);
+
+		VerboseLog(u"Set APIC ID\n");
 
 		WaitForIdleIPI();
 
@@ -250,6 +255,7 @@ void InitAPs()
 		HpetSleepMS(10);
 
 		WaitForIdleIPI();
+
 		CheckLAPICErrorStatus();
 
 		// Send the Startup IPI twice as recommended in some Intel manuals.
@@ -313,7 +319,7 @@ void InitMADT(EFI_ACPI_2_0_MULTIPLE_APIC_DESCRIPTION_TABLE_HEADER* MADT)
 					EFI_ACPI_2_0_LOCAL_APIC_ADDRESS_OVERRIDE_STRUCTURE* LocalAPICAddressOverride = (EFI_ACPI_2_0_LOCAL_APIC_ADDRESS_OVERRIDE_STRUCTURE*)Data;
 					LocalApicPhysical = LocalAPICAddressOverride->LocalApicAddress;
 
-					ConsolePrint(u"Found Local APIC address override\n");
+					VerboseLog(u"Found Local APIC address override\n");
 					break;
 				}
 		}
@@ -339,11 +345,14 @@ void InitMADT(EFI_ACPI_2_0_MULTIPLE_APIC_DESCRIPTION_TABLE_HEADER* MADT)
 	{
 		_ASSERTF(false, "APIC not enabled");
 	}
-	
 
+	VerboseLog(u"Enable APIC\n");
+	
 	BSPId = ReadLocalApic((uint32_t)LocalApicOffsets::LocalApicIdRegister);
 
 	WriteLocalApic( (uint32_t)LocalApicOffsets::SpuriousInterruptVectorRegister, APIC_ENABLE | 0xFF, 0x1FF);
+
+	VerboseLog(u"Written APIC\n");
 
 	_ASSERTF(LengthRemaining == 0, "Overshot MADT end");
 

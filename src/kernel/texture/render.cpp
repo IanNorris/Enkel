@@ -105,11 +105,18 @@ void RenderTGA(FramebufferLayout* Framebuffer, const unsigned char* imageBuffer,
 	}
 }
 
-bool RenderQR(FramebufferLayout* Framebuffer, const char* Data, uint32_t StartX, uint32_t StartY, uint32_t PixelsPerModule, bool BlackModules)
+bool RenderQR(FramebufferLayout* Framebuffer, const char* Data, uint32_t StartX, uint32_t StartY, uint32_t PixelsPerModule, bool BlackModules, int contrast)
 {
 	uint8_t qr0[qrcodegen_BUFFER_LEN_MAX];
 	uint8_t tempBuffer[qrcodegen_BUFFER_LEN_MAX];
-	bool ok = qrcodegen_encodeText(Data, tempBuffer, qr0, qrcodegen_Ecc_MEDIUM, qrcodegen_VERSION_MIN, qrcodegen_VERSION_MAX, qrcodegen_Mask_AUTO, true);
+
+	if (!qrcodegen_isAlphanumeric(Data))
+	{
+		_ASSERTF(false, "Input data for QR code is not base45");
+		return false;
+	}
+
+	bool ok = qrcodegen_encodeText(Data, tempBuffer, qr0, qrcodegen_Ecc_LOW, qrcodegen_VERSION_MIN, qrcodegen_VERSION_MAX, qrcodegen_Mask_AUTO, true);
 	if (!ok)
 	{
 		_ASSERTF(false, "Failed to generate QR code");
@@ -121,8 +128,8 @@ bool RenderQR(FramebufferLayout* Framebuffer, const char* Data, uint32_t StartX,
 	uint32_t* FramebufferU32 = (uint32_t*)Framebuffer->Base;
 	uint32_t FramebufferQuadPitch = Framebuffer->Pitch / 4;
 
-	const uint32_t Black = 0x22222222;
-	const uint32_t White = 0xDDDDDDDD;
+	const uint32_t Black = 0x00000000;
+	const uint32_t White = 0xFFFFFFFF - (contrast * 0x11111111);
 
 	uint32_t ModuleColour = BlackModules ? Black : White;
 	uint32_t BackgroundColour = BlackModules ? White : Black;

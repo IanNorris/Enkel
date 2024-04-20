@@ -771,7 +771,7 @@ void BuildAndLoadPML4(KernelBootData* bootData)
     BuildPML4(bootData);
 
 #if PRINT_PML4
-	QRDump(PML4Output);
+	QRDump(PML4Output, 3);
 	SetSerialTargetBuffer(nullptr);
 	//HaltPermanently();
 #endif

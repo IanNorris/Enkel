@@ -18,6 +18,7 @@
 #include "kernel/user_mode/syscall.h"
 #include "kernel/user_mode/elf.h"
 #include "kernel/scheduling/time.h"
+#include "kernel/utilities/panic.h"
 
 #include "Protocol/DevicePath.h"
 #include "kernel/devices/ahci/cdrom.h"
@@ -241,6 +242,8 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 	InitializeUserMode();
 
 	VerboseLog(u"Kernel booted.\n\n");
+
+	DumpLiveCPUState();
 
 	Shell();
 }

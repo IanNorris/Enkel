@@ -32,6 +32,7 @@
   <PropertyGroup>
     <WSLPath>Ubuntu</WSLPath>
     <LocalRemoteCopySources>false</LocalRemoteCopySources>
+	<DisableFastUpToDateCheck>true</DisableFastUpToDateCheck>	
   </PropertyGroup>
   <ItemGroup>
     <ClCompile Include="dummy.cpp" />

@@ -30,7 +30,8 @@ static void *QRZlibAlloc(void *opaque, unsigned int items, unsigned int size)
 
 static void QRZlibFree(void *opaque, void *address)
 {
-    //
+    ZlibBuffer* buffer = (ZlibBuffer*)opaque;
+    buffer->TempBufferPtr = buffer->TempBuffer;
 }
 
 static void CompressData(const unsigned char* Input, unsigned int InputSize, unsigned char* Output, unsigned int* OutputSize)
@@ -62,18 +63,49 @@ static void CompressData(const unsigned char* Input, unsigned int InputSize, uns
     deflateEnd(&zStream);
 }
 
-void QRDump(const char* Data)
+void QRDump(const char* Data, int contrast)
 {
-	char Encoded[10000];
+    const unsigned int MaxEncodedSize = 10000;
+	char Encoded[MaxEncodedSize];
 
-	unsigned char Output[10000];
-	unsigned int OutputSize = 10000;
+    const unsigned int OutputBufferSize = 10000;
+    unsigned int OutputSize = OutputBufferSize;
+	unsigned char Output[OutputSize];
+	
 
 	CompressData((const unsigned char*)Data, strlen(Data), Output, &OutputSize);
 
-	int written = Base45_encode(Encoded, 10*1000, (const char*)Output, OutputSize);
+	int written = Base45_encode(Encoded, MaxEncodedSize, (const char*)Output, OutputSize);
 	Encoded[written] = '\0';
 
 	//Use 9 for Surface Go
-	RenderQR(&GBootData.Framebuffer, Encoded, 200, 50, 7, true);
+	RenderQR(&GBootData.Framebuffer, Encoded, 50, 50, 3, false, contrast);
+
+    while (true)
+    {
+        asm("hlt");
+    }
+}
+
+void QRDumpBytes(const void* Data, uint64_t DataSize, int contrast)
+{
+    const unsigned int MaxEncodedSize = 10000;
+    char Encoded[MaxEncodedSize];
+
+    const unsigned int OutputBufferSize = 10000;
+    unsigned int OutputSize = OutputBufferSize;
+    unsigned char Output[OutputSize];
+
+    CompressData((const unsigned char*)Data, DataSize, Output, &OutputSize);
+
+    int written = Base45_encode(Encoded, MaxEncodedSize, (const char*)Output, OutputSize);
+    Encoded[written] = '\0';
+
+    //Use 9 for Surface Go
+    RenderQR(&GBootData.Framebuffer, Encoded, 50, 50, 3, true, contrast);
+
+    while (true)
+    {
+        asm("hlt");
+    }
 }
