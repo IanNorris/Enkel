@@ -25,6 +25,13 @@ void DumpLiveCPUState()
 	header.Pad = QR_HEADER_PAD;
 
 	memcpy(bufferPointer, &header, sizeof(header)); bufferPointer += sizeof(header);
+
+	Panic::PacketHeader packetHeader;
+	memset(&packetHeader, 0, sizeof(packetHeader));
+	packetHeader.Type = QR_PACKET_TYPE_CPU_REGS;
+	packetHeader.Size = sizeof(regs);
+	memcpy(bufferPointer, &packetHeader, sizeof(packetHeader)); bufferPointer += sizeof(packetHeader);
+
 	memcpy(bufferPointer, &regs, sizeof(regs)); bufferPointer += sizeof(regs);
 
 	const int contrast = 2;

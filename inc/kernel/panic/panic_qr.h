@@ -6,6 +6,8 @@
 #define QR_VERSION (0x00)
 #define QR_HEADER_PAD (0xCAFEF00D)
 
+#define QR_PACKET_TYPE_CPU_REGS (0xA3000001)
+
 namespace Panic
 {
 	enum class EnkelStateBits
@@ -23,6 +25,12 @@ namespace Panic
 		uint8_t Page;
 		uint8_t PageCount;
 		uint32_t Pad;
+	} PACKED_ALIGNMENT;
+
+	struct PacketHeader
+	{
+		uint32_t Type;
+		uint32_t Size;
 	} PACKED_ALIGNMENT;
 
 	struct CPURegs
