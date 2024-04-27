@@ -1,0 +1,205 @@
+name: CI - Unix
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    paths:
+      - '**'
+      - '!README'
+      - '!INSTALL'
+      - '!NEWS'
+      - '!doc/**'
+      - '!.**'
+      - '.github/workflows/CI-unix.yml'
+  push:
+    branches:
+      - v[0-9].*
+      - master
+
+jobs:
+  build-gnu-native:
+    runs-on: ubuntu-22.04
+    name: ${{ matrix.target.arch }}-linux-gnu (native) ${{ matrix.toolchain.compiler }} ${{ matrix.optimization.CFLAGS }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - { arch: i686,   triple: i686-pc-linux-gnu,   CFLAGS: -m32 }
+          - { arch: x86_64, triple: x86_64-pc-linux-gnu, CFLAGS:      }
+        toolchain:
+          - { compiler: gcc,   CC: gcc-12,   CXX: g++-12     }
+          - { compiler: clang, CC: clang-13, CXX: clang++-13 }
+        optimization:
+          - { CFLAGS: -O0 }
+          - { CFLAGS: -O3 }
+    steps:
+      - uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633 # v4.1.2
+
+      - name: Setup
+        if: ${{ matrix.target.arch }} = 'i686'
+        run: |
+          sudo apt update
+          sudo apt install -y g++-12-multilib
+
+      - name: Configure
+        run: |
+          set -x
+          autoreconf -i
+          ./configure --build=x86_64-pc-linux-gnu --host=${{ matrix.target.triple }}
+        env:
+          CC: ${{ matrix.toolchain.CC }}
+          CXX: ${{ matrix.toolchain.CXX }}
+          CFLAGS: "${{ matrix.target.CFLAGS }} ${{ matrix.optimization.CFLAGS }} -Wall -Wextra"
+          CXXFLAGS: "${{ matrix.target.CFLAGS }} ${{ matrix.optimization.CFLAGS }} -Wall -Wextra"
+          LDFLAGS: ${{ matrix.target.CFLAGS }}
+
+      - name: Build
+        run: |
+          make -j8
+
+      - name: Test (native)
+        if: ${{ success() }}
+        run: |
+          set -x
+          sudo bash -c 'echo core.%p.%p > /proc/sys/kernel/core_pattern'
+          ulimit -c unlimited
+          make check -j8
+
+      - name: Show Logs
+        if: ${{ failure() }}
+        run: |
+          cat tests/test-suite.log 2>/dev/null
+
+  build-gnu-cross:
+    runs-on: ubuntu-22.04
+    name: ${{ matrix.config.target }}-linux-gnu (cross)
+
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - {target: arm,      host: arm-linux-gnueabi,       qemu: arm,      gccver: 12 }
+          - {target: armhf,    host: arm-linux-gnueabihf,     qemu: arm,      gccver: 12 }
+          - {target: aarch64,  host: aarch64-linux-gnu,       qemu: aarch64,  gccver: 12 }
+          - {target: riscv64,  host: riscv64-linux-gnu,       qemu: riscv64,  gccver: 12 }
+          - {target: ppc,      host: powerpc-linux-gnu,       qemu: ppc,      gccver: 12 }
+          - {target: ppc64,    host: powerpc64-linux-gnu,     qemu: ppc64,    gccver: 12 }
+          - {target: ppc64le,  host: powerpc64le-linux-gnu,   qemu: ppc64le,  gccver: 12 }
+          - {target: s390x,    host: s390x-linux-gnu,         qemu: s390x,    gccver: 12 }
+          - {target: mips,     host: mips-linux-gnu,          qemu: mips,     gccver: 10 }
+          - {target: mips64,   host: mips64-linux-gnuabi64,   qemu: mips64,   gccver: 10 }
+          - {target: mipsel,   host: mipsel-linux-gnu,        qemu: mipsel,   gccver: 10 }
+          - {target: mips64el, host: mips64el-linux-gnuabi64, qemu: mips64el, gccver: 10 }
+
+    steps:
+      - uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633 # v4.1.2
+      - name: Install QEMU
+        # this ensure install latest qemu on ubuntu, apt get version is old
+        env:
+          QEMU_SRC: "http://archive.ubuntu.com/ubuntu/pool/universe/q/qemu"
+          QEMU_VER: "qemu-user-static_7\\.2.*_amd64.deb$"
+        run: |
+          DEB=`curl -s $QEMU_SRC/ | grep -o -E 'href="([^"#]+)"' | cut -d'"' -f2 | grep $QEMU_VER | tail -1`
+          wget $QEMU_SRC/$DEB
+          sudo dpkg -i $DEB
+
+      - name: Install ${{ matrix.config.host }} Toolchain
+        run: |
+          sudo apt update
+          sudo apt install g++-${{ matrix.config.gccver }}-${{ matrix.config.host }} -y
+
+      - name: Configure with ${{ matrix.config.cc }}
+        run: |
+          set -x
+          autoreconf -i
+          BUILD=x86_64-linux-gnu
+          ./configure --build=$BUILD --host=${{ matrix.config.host }} --with-testdriver="$(pwd)/libtool execute $(pwd)/scripts/qemu-test-driver" --enable-debug
+        env:
+          CC: ${{ matrix.config.host }}-gcc-${{ matrix.config.gccver }}
+          CXX: ${{ matrix.config.host }}-g++-${{ matrix.config.gccver }}
+
+      - name: Build
+        run: |
+          make -j8
+        env:
+          CFLAGS: "-Wall -Wextra"
+
+      - name: ABI Check
+        run: |
+            cd tests && ./check-namespace.sh
+
+      - name: Test
+        run: |
+          set -x
+          sudo bash -c 'echo core.%p.%p > /proc/sys/kernel/core_pattern'
+          ulimit -c unlimited
+          CROSS_LIB="/usr/${{ matrix.config.host }}"
+          make check LOG_DRIVER_FLAGS="--qemu-arch ${{ matrix.config.qemu }}" QEMU_LD_PREFIX="$CROSS_LIB"
+        env:
+          UNW_DEBUG_LEVEL: 4
+
+      - name: Show Logs
+        if: ${{ failure() }}
+        run: |
+          cat tests/test-suite.log 2>/dev/null
+
+  build-musl-native:
+    runs-on: ubuntu-latest
+    name: ${{ matrix.arch }}-linux-musl (native)
+
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [aarch64, ppc64le, riscv64, x86_64]
+
+    steps:
+      - uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633 # v4.1.2
+
+      - name: Set up Alpine Linux
+        uses: jirutka/setup-alpine@359b91e094d3dc6292e4b627abb84d8856ab7ef2 # v1.2.0
+        with:
+          branch: edge
+          arch: ${{ matrix.arch }}
+          packages: >
+            autoconf 
+            automake 
+            build-base 
+            libtool 
+            libucontext-dev
+            linux-headers
+            xz-dev
+          shell-name: alpine.sh
+
+      - name: Configure
+        run: |
+          set -x
+          gcc --version
+          autoreconf -i
+          ./configure --enable-debug
+        env:
+          CFLAGS: -g -O0 -Wall -Wextra
+          CXXFLAGS: -g -O0
+          LDFLAGS: -g -O0
+        shell: alpine.sh {0}
+
+      - name: Build
+        run: |
+          make -j
+        shell: alpine.sh {0}
+
+      - name: Test
+        if: ${{ success() }}
+        run: |
+          make check
+        env:
+          UNW_DEBUG_LEVEL: 5
+        shell: alpine.sh {0}
+
+      - name: Show Logs
+        if: ${{ failure() }}
+        run: |
+          cat tests/test-suite.log 2>/dev/null
+        shell: alpine.sh {0}
