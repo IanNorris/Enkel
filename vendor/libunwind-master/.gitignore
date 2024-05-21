@@ -10,18 +10,18 @@ bin
 .deps/
 
 .dirstamp
-Makefile
-Makefile.in
+#Makefile
+#Makefile.in
 
 INSTALL
-aclocal.m4
-m4/
+#aclocal.m4
+#m4/
 autom4te.cache/
-aux
+#aux
 config.log
 config.status
-config/
-configure
+#config/
+#configure
 libtool
 
 doc/common.tex
@@ -29,12 +29,12 @@ doc/common.tex
 src/[GL]cursor_i.h
 src/mk_[GL]cursor_i.s
 
-include/config.h
-include/config.h.in
-include/libunwind-common.h
-include/stamp-h1
-include/libunwind.h
-include/tdep/libunwind_i.h
+#include/config.h
+#include/config.h.in
+#include/libunwind-common.h
+#include/stamp-h1
+#include/libunwind.h
+#include/tdep/libunwind_i.h
 
 tests/[GL]test-bt
 tests/[GL]test-concurrent
