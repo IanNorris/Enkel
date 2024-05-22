@@ -232,17 +232,12 @@ int wide_to_ascii(char* bufferOut, const char16_t* bufferIn, int bufferOutBytes)
 	return index;
 }
 
+extern "C"
+{
+
 size_t _strlen(const char* str)
 {
 	const char* s = str;
-	while (*s)
-		++s;
-	return s - str;
-}
-
-size_t _strlen(const char16_t* str)
-{
-	const char16_t* s = str;
 	while (*s)
 		++s;
 	return s - str;
@@ -258,16 +253,6 @@ int _strcmp(const char* str1, const char* str2)
 	return *(char*)str1 - *(char*)str2;
 }
 
-int _strcmp(const char16_t* str1, const char16_t* str2)
-{
-	while (*str1 && (*str1 == *str2))
-	{
-		str1++;
-		str2++;
-	}
-	return *(char16_t*)str1 - *(char16_t*)str2;
-}
-
 int _stricmp(const char* str1, const char* str2)
 {
 	while (*str1 && (tolower(*str1) == tolower(*str2)))
@@ -279,37 +264,7 @@ int _stricmp(const char* str1, const char* str2)
 	return tolower(*str1) - tolower(*str2);
 }
 
-int _stricmp(const char16_t* str1, const char16_t* str2)
-{
-	while (*str1 && (tolower(*str1) == tolower(*str2)))
-	{
-		str1++;
-		str2++;
-	}
-
-	return tolower(*str1) - tolower(*str2);
-}
-
 int _strnicmp(const char* str1, const char* str2, size_t n)
-{
-	while (n && *str1 && (tolower(*str1) == tolower(*str2)))
-	{
-		str1++;
-		str2++;
-		n--;
-	}
-
-	if (n == 0)
-	{
-		return 0;
-	}
-	else
-	{
-		return tolower(*str1) - tolower(*str2);
-	}
-}
-
-int _strnicmp(const char16_t* str1, const char16_t* str2, size_t n)
 {
 	while (n && *str1 && (tolower(*str1) == tolower(*str2)))
 	{
@@ -349,35 +304,9 @@ char* _strncpy(char* dest, const char* src, size_t n)
 	return dest;
 }
 
-char16_t* _strcpy(char16_t* dest, const char16_t* src)
-{
-	char16_t* save = dest;
-	while ((*dest++ = *src++));
-	return save;
-}
-
-char16_t* _strncpy(char16_t* dest, const char16_t* src, size_t n)
-{
-	size_t i;
-	for (i = 0; i < n && src[i] != u'\0'; i++)
-		dest[i] = src[i];
-	for (; i < n; i++)
-		dest[i] = u'\0';
-	return dest;
-}
-
 char* _strcat(char* dest, const char* src)
 {
 	char* save = dest;
-	while (*dest)
-		dest++;
-	while ((*dest++ = *src++));
-	return save;
-}
-
-char16_t* _strcat(char16_t* dest, const char16_t* src)
-{
-	char16_t* save = dest;
 	while (*dest)
 		dest++;
 	while ((*dest++ = *src++));
@@ -413,4 +342,80 @@ int _toupper(int c)
 		return 'A' + (c - 'a');
 	else
 		return c;
+}
+
+}
+
+char16_t* _strcpy(char16_t* dest, const char16_t* src)
+{
+	char16_t* save = dest;
+	while ((*dest++ = *src++));
+	return save;
+}
+
+char16_t* _strncpy(char16_t* dest, const char16_t* src, size_t n)
+{
+	size_t i;
+	for (i = 0; i < n && src[i] != u'\0'; i++)
+		dest[i] = src[i];
+	for (; i < n; i++)
+		dest[i] = u'\0';
+	return dest;
+}
+
+int _strnicmp(const char16_t* str1, const char16_t* str2, size_t n)
+{
+	while (n && *str1 && (tolower(*str1) == tolower(*str2)))
+	{
+		str1++;
+		str2++;
+		n--;
+	}
+
+	if (n == 0)
+	{
+		return 0;
+	}
+	else
+	{
+		return tolower(*str1) - tolower(*str2);
+	}
+}
+
+int _strcmp(const char16_t* str1, const char16_t* str2)
+{
+	while (*str1 && (*str1 == *str2))
+	{
+		str1++;
+		str2++;
+	}
+	return *(char16_t*)str1 - *(char16_t*)str2;
+}
+
+size_t _strlen(const char16_t* str)
+{
+	const char16_t* s = str;
+	while (*s)
+		++s;
+	return s - str;
+}
+
+char16_t* _strcat(char16_t* dest, const char16_t* src)
+{
+	char16_t* save = dest;
+	while (*dest)
+		dest++;
+	while ((*dest++ = *src++));
+	return save;
+}
+
+int _stricmp(const char16_t* str1, const char16_t* str2)
+{
+	while (*str1 && (tolower(*str1) == tolower(*str2)))
+	{
+		str1++;
+		str2++;
+	}
+
+	return tolower(*str1) - tolower(*str2);
 }
