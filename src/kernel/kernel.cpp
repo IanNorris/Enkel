@@ -220,24 +220,42 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 
 	InitVirtualMemory(&GBootData);
 
+	VerboseLog(u"Initializing CRT.\n");
+
 	CRTInit();
+
+	VerboseLog(u"Initializing IDT.\n");
 
 	InitInterrupts(&GBootData);
 
 	//FinalizeRuntimeServices();
 
+	VerboseLog(u"Initializing PIC.\n");
+
 	InitPIC();
+
+	VerboseLog(u"Initializing APIC.\n");
 
 	InitApic(GBootData.Rsdt, GBootData.Xsdt);
 
+	VerboseLog(u"Initializing Keyboard.\n");
+
 	InitKeyboard();
 
+	VerboseLog(u"Initializing syscalls\n");
+
 	InitializeSyscalls();
+
+	VerboseLog(u"Initializing acpica\n");
 	InitializeAcpica();
 
 	//WalkAcpiTree();
 
+	VerboseLog(u"Initializing FS\n");
+
 	InitFS((EFI_DEV_PATH*)BootData->BootDevicePath);
+
+	VerboseLog(u"Initializing UM\n");
 
 	InitializeUserMode();
 
