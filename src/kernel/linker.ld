@@ -30,6 +30,8 @@ SECTIONS
 
     .rodata : {
         *(.rodata .rodata.*)
+        *(.debug* .debug*)
+        *(.eh_frame .eh_frame)
     } :rodata
 
     /* Move to the next memory page for .data */
@@ -44,12 +46,16 @@ SECTIONS
         *(.data .data.*)
     } :data
 
+    . += CONSTANT(MAXPAGESIZE);
+
 	/* Thread local storage */
 	.tdata : {
         PROVIDE_HIDDEN (__tdata_start = .);
         *(.tdata .tdata.* .gnu.linkonce.td.*)
         PROVIDE_HIDDEN (__tdata_end = .);
     }
+
+    . += CONSTANT(MAXPAGESIZE);
 
     .tbss : {
         PROVIDE_HIDDEN (__tbss_start = .);
@@ -58,10 +64,14 @@ SECTIONS
         PROVIDE_HIDDEN (__tbss_end = .);
     }
 
+    . += CONSTANT(MAXPAGESIZE);
+
     /* Dynamic section for relocations, both in its own PHDR and inside data PHDR */
     .dynamic : {
         *(.dynamic)
     } :data :dynamic
+
+    . += CONSTANT(MAXPAGESIZE);
 
     /* NOTE: .bss needs to be the last thing mapped to :data, otherwise lots of */
     /* unnecessary zeros will be written to the binary. */
@@ -72,9 +82,10 @@ SECTIONS
         *(.bss .bss.*)
     } :data
 
+    . += CONSTANT(MAXPAGESIZE);
+
     /* Discard .note.* and .eh_frame since they may cause issues on some hosts. */
     /DISCARD/ : {
-        *(.eh_frame)
         *(.note .note.*)
     }
 }
