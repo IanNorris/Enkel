@@ -19,32 +19,35 @@ int witoabuf(char* buffer, T value, int base, int padDigits = 0);
 int ascii_to_wide(char16_t* bufferOut, const char* bufferIn, int bufferOutBytes);
 int wide_to_ascii(char* bufferOut, const char16_t* bufferIn, int bufferOutBytes);
 
-int _isalpha(int c);
-int _isupper(int c);
-int _islower(int c);
-int _tolower(int c);
-int _toupper(int c);
-
 #define isalpha _isalpha
 #define isupper _isupper
 #define islower _islower
 #define tolower _tolower
 #define toupper _toupper
 
-size_t _strlen(const char* str);
-size_t _strlen(const char16_t* str);
-int _strcmp(const char* str1, const char* str2);
-int _strcmp(const char16_t* str1, const char16_t* str2);
-int _stricmp(const char* str1, const char* str2);
-int _stricmp(const char16_t* str1, const char16_t* str2);
-int _strnicmp(const char* str1, const char* str2, size_t n);
-int _strnicmp(const char16_t* str1, const char16_t* str2, size_t n);
+extern "C"
+{
+	int _isalpha(int c);
+	int _isupper(int c);
+	int _islower(int c);
+	int _tolower(int c);
+	int _toupper(int c);
 
-char* _strcpy(char* dest, const char* src);
-char* _strncpy(char* dest, const char* src, size_t n);
+	size_t _strlen(const char* str);
+	int _strcmp(const char* str1, const char* str2);
+	int _stricmp(const char* str1, const char* str2);
+	int _strnicmp(const char* str1, const char* str2, size_t n);
+	char* _strcpy(char* dest, const char* src);
+	char* _strncpy(char* dest, const char* src, size_t n);
+	char* _strcat(char* dest, const char* src);
+}
+
+size_t _strlen(const char16_t* str);
+int _strcmp(const char16_t* str1, const char16_t* str2);
+int _stricmp(const char16_t* str1, const char16_t* str2);
+int _strnicmp(const char16_t* str1, const char16_t* str2, size_t n);
 char16_t* _strcpy(char16_t* dest, const char16_t* src);
 char16_t* _strncpy(char16_t* dest, const char16_t* src, size_t n);
-char* _strcat(char* dest, const char* src);
 char16_t* _strcat(char16_t* dest, const char16_t* src);
 
 #define strlen _strlen
