@@ -31,6 +31,7 @@ SECTIONS
     .rodata : {
         *(.rodata .rodata.*)
         *(.debug* .debug*)
+        *(.note .note)
         *(.eh_frame .eh_frame)
     } :rodata
 
@@ -81,11 +82,4 @@ SECTIONS
         *(COMMON)
         *(.bss .bss.*)
     } :data
-
-    . += CONSTANT(MAXPAGESIZE);
-
-    /* Discard .note.* and .eh_frame since they may cause issues on some hosts. */
-    /DISCARD/ : {
-        *(.note .note.*)
-    }
 }
