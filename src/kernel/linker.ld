@@ -30,9 +30,6 @@ SECTIONS
 
     .rodata : {
         *(.rodata .rodata.*)
-        *(.debug* .debug*)
-        *(.note .note)
-        *(.eh_frame .eh_frame)
     } :rodata
 
     /* Move to the next memory page for .data */
