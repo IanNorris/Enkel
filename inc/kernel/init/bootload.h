@@ -25,6 +25,7 @@ enum EfiMemoryMapType
 	EfiMemoryMapType_KernelBootData = EfiLoaderData,
 	EfiMemoryMapType_Kernel = EfiLoaderCode,
 	EfiMemoryMapType_KernelStack = EfiLoaderData,
+	EfiMemoryMapType_KernelImage = EfiLoaderData,
 	EfiMemoryMapType_APBootstrap = EfiLoaderCode,
 	EfiMemoryMapType_Tables = EfiLoaderData,
 	EfiMemoryMapType_Framebuffer = EfiRuntimeServicesData,
@@ -41,6 +42,7 @@ enum SpecialMemoryLocation
 {
 	SpecialMemoryLocation_KernelBinary,
 	SpecialMemoryLocation_KernelStack,
+	SpecialMemoryLocation_KernelImage,
 	SpecialMemoryLocation_Framebuffer,
 	SpecialMemoryLocation_APBootstrap,
 	SpecialMemoryLocation_Tables,

@@ -199,12 +199,8 @@ KernelStartFunction LoadKernel(EFI_HANDLE imageHandle, EFI_BOOT_SERVICES* bootSe
 	char16_t sizeBuffer[16];
 	witoabuf(sizeBuffer, kernelFileInfo->FileSize / 1024, 10);
 
-	Print(u"Kernel is ");
-	Print(sizeBuffer);
-	Print(u"KB.\r\n");
-
 	uint8_t* kernelImageBuffer;
-	UINTN outputBufferSize = kernelFileInfo->FileSize;
+	UINTN outputBufferSize = AlignSize(kernelFileInfo->FileSize, EFI_PAGE_SIZE);
 
 	ERROR_CHECK(bootServices->AllocatePool(EfiLoaderData, outputBufferSize, (void**)&kernelImageBuffer), u"Allocating kernel image buffer");
 
@@ -214,7 +210,10 @@ KernelStartFunction LoadKernel(EFI_HANDLE imageHandle, EFI_BOOT_SERVICES* bootSe
 
 	KernelStartFunction kernelMain = PrepareKernel(bootServices, kernelImageBuffer, bootData);
 
-	ERROR_CHECK(bootServices->FreePool(kernelImageBuffer), u"Error freeing kernel image");
+	KernelMemoryLocation& kernelImage = bootData.MemoryLayout.SpecialLocations[SpecialMemoryLocation_KernelImage];
+	kernelImage.VirtualStart = (uint64_t)kernelImageBuffer;
+	kernelImage.PhysicalStart = (uint64_t)kernelImageBuffer;
+	kernelImage.ByteSize = (uint64_t)outputBufferSize;
 
 	return kernelMain;
 }
