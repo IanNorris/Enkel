@@ -36,5 +36,7 @@ void DumpLiveCPUState()
 
 	const int contrast = 2;
 
+	PrintStackTrace(10, regs.RIP, regs.RBP);
+
 	QRDumpBytes(buffer, bufferPointer-buffer, contrast);
 }
