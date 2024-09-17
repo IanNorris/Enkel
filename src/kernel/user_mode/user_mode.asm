@@ -65,8 +65,8 @@ SwitchToUserMode:
     ; Clear the direction flag
     cld
 
-	push 0x08 ; CS register offset
-	push rdi
+	;; push 0x08 ; CS register offset
+	;; push rdi
 
 	mov rbp, rdi
 

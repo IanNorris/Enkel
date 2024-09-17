@@ -17,7 +17,7 @@ SyscallDispatcher:
 	mov rsp, [gs:8]
 
 	; Ensure stack is aligned
-	and rsp, 0xFFFFFFFFFFFFFFEF ; ~0x10
+	and rsp, ~0xF
 
 	push rcx
 	push r11 ; RFLAGS
