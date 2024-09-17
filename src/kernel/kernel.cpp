@@ -261,7 +261,7 @@ extern "C" void __attribute__((sysv_abi, __noreturn__)) KernelMain(KernelBootDat
 
 	VerboseLog(u"Kernel booted.\n\n");
 
-	DumpLiveCPUState();
+	//DumpLiveCPUState();
 
 	Shell();
 }
